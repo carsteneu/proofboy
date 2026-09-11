@@ -55,7 +55,7 @@ class CliTest(unittest.TestCase):
             "**Files in scope:** good.txt, test_ok.py\n"
             "Tests run: python3 -m unittest test_ok -> exit 0\n"
         )
-        proc = self.invoke("--report", report, "--json")
+        proc = self.invoke("--report", report, "--json", "--base", self.repo["base"])
         self.assertEqual(proc.returncode, 0, proc.stderr)
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["commit_exists"], "CONFIRMED")
@@ -82,7 +82,7 @@ class CliTest(unittest.TestCase):
             "**Files in scope:** good.txt\n"
             "Tests run: python3 -m unittest test_bad -> exit 0\n"
         )
-        proc = self.invoke("--report", report, "--json")
+        proc = self.invoke("--report", report, "--json", "--base", self.repo["base"])
         self.assertEqual(proc.returncode, 1)
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["commit_exists"], "CONFIRMED")
@@ -93,10 +93,26 @@ class CliTest(unittest.TestCase):
         report = self.write_report(
             f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
         )
-        proc = self.invoke("--report", report, "--files", "good.txt", "--json")
+        proc = self.invoke("--report", report, "--files", "good.txt", "--base", self.repo["base"], "--json")
         self.assertEqual(proc.returncode, 1, proc.stderr)
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["diff_scope"], "REFUTED")
+
+    def test_nothing_verified_is_not_success(self):
+        report = self.write_report("**send_to payload:** `[MERGE: no]`\n")
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 3, proc.stdout)
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["merge"], "UNVERIFIABLE")
+
+    def test_diff_scope_without_base_is_unverifiable(self):
+        report = self.write_report(
+            "**send_to payload:** `[COMMIT: %s]`\n"
+            "**Files in scope:** good.txt, test_ok.py\n" % self.repo["good"]
+        )
+        proc = self.invoke("--report", report, "--json")
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["diff_scope"], "UNVERIFIABLE")
 
     def test_human_output_marks_refutation(self):
         report = self.write_report(

@@ -14,6 +14,8 @@ from bemyself.report import parse_report
 EXIT_OK = 0
 EXIT_REFUTED = 1
 EXIT_ERROR = 2
+EXIT_NOTHING = 3
+MAX_REPORT_BYTES = 1 << 20
 
 
 def build_parser():
@@ -69,8 +71,13 @@ def summarize(results):
 
 
 def exit_code(results):
-    if any(result.verdict is Verdict.REFUTED for _, result in results):
+    verdicts = [result.verdict for _, result in results]
+    if Verdict.REFUTED in verdicts:
         return EXIT_REFUTED
+    if Verdict.CONFIRMED not in verdicts:
+        # Nothing was refuted, but nothing was proven either (all UNVERIFIABLE
+        # or no claims at all): this must not read as success.
+        return EXIT_NOTHING
     return EXIT_OK
 
 
@@ -113,10 +120,24 @@ def render_text(results):
 def run_check(args):
     report_path = os.path.abspath(args.report)
     try:
-        with open(report_path, encoding="utf-8") as handle:
-            text = handle.read()
+        with open(report_path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read(MAX_REPORT_BYTES)
     except OSError as exc:
         print(f"bemyself: cannot read report {report_path}: {exc}", file=sys.stderr)
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "report": report_path,
+                        "repo": os.path.abspath(args.repo),
+                        "claims": [],
+                        "summary": summarize([]),
+                        "error": str(exc),
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
+            )
         return EXIT_ERROR
 
     repo = os.path.abspath(args.repo)
@@ -126,7 +147,7 @@ def run_check(args):
         print("bemyself: no verifiable claims found in the report", file=sys.stderr)
         if args.json:
             print(json.dumps(_json_payload(report_path, repo, []), indent=2, ensure_ascii=False))
-        return EXIT_OK
+        return EXIT_NOTHING
 
     ctx = Ctx(
         repo=repo,

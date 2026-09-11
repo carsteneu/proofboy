@@ -4,11 +4,14 @@ The report is a yesloop Phase-6 DONE report. Recognised claim sources:
 
 - markers ``[COMMIT: <hash>]``, ``[BRANCH: <name>]``, ``[MERGE: ...]``,
   ``[DEPLOY: ...]`` (typically inside the ``send_to payload`` line)
-- ``Tests run: <command> -> exit <n>`` lines
+- ``Tests run: <command> -> exit <n>`` lines. Exit 0 is the claim
+  ``tests_green``; a non-zero exit is ``tests_exit`` (an honest failure
+  report, verified against its own exit code -- not labelled "green").
 - a ``Files in scope: a, b`` line, which becomes a diff-scope claim
 
 Parsing is deliberately permissive: unknown lines are ignored, and a claim is
-only emitted when its source is present.
+only emitted when its source is present. Absurdly long lines are skipped so a
+hostile report cannot trigger pathological regex work.
 """
 
 from __future__ import annotations
@@ -17,12 +20,15 @@ import re
 
 from bemyself.model import Claim
 
-_MARKER_RE = re.compile(r"\[(COMMIT|BRANCH|MERGE|DEPLOY):\s*([^\]\[]*?)\s*\]")
+_MAX_LINE = 8192
+
+_MARKER_RE = re.compile(r"\[(COMMIT|BRANCH|MERGE|DEPLOY):[ \t]*([^\]\[]*?)[ \t]*\]")
 _TESTS_RE = re.compile(
-    r"^\s*(?:\*\*)?Tests? run:\s*(?P<cmd>.+?)\s*(?:->|\u2192)\s*exit\s*(?P<code>-?\d+)\s*$"
+    r"^[ \t]*(?:\*\*)?Tests? run:[ \t]*(?P<cmd>\S(?:.*\S)?)[ \t]+"
+    r"(?:->|\u2192)[ \t]+exit[ \t]+(?P<code>-?\d+)[ \t]*$"
 )
 _FILES_RE = re.compile(
-    r"^\s*(?:\*\*)?Files in scope:\s*(?:\*\*)?\s*(?P<files>.+?)\s*$"
+    r"^[ \t]*(?:\*\*)?Files in scope:[ \t]*(?:\*\*)?[ \t]*(?P<files>\S.*?)[ \t]*$"
 )
 
 
@@ -38,6 +44,8 @@ def parse_report(text: str) -> list[Claim]:
     files_line: tuple[int, str, tuple[str, ...]] | None = None
 
     for lineno, raw in enumerate(text.splitlines(), start=1):
+        if len(raw) > _MAX_LINE:
+            continue
         for match in _MARKER_RE.finditer(raw):
             key = match.group(1).upper()
             value = match.group(2).strip().strip("`")
@@ -75,9 +83,10 @@ def parse_report(text: str) -> list[Claim]:
                 claim.fields["commit"] = first_commit
 
     for lineno, raw, command, code in tests_lines:
+        kind = "tests_green" if code == 0 else "tests_exit"
         claims.append(
             Claim(
-                "tests_green",
+                kind,
                 lineno,
                 raw,
                 {"command": command, "claimed_exit": code, "commit": first_commit},

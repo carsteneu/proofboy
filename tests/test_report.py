@@ -59,13 +59,20 @@ class ParseReportTest(unittest.TestCase):
     def test_no_markers_yields_no_claims(self):
         self.assertEqual(parse_report("nothing to see here\n"), [])
 
+    def test_absurdly_long_line_is_ignored(self):
+        self.assertEqual(parse_report("Tests run: " + "a" * 200000 + " -> exit 0\n"), [])
+
     def test_unicode_arrow(self):
         claims = parse_report("Tests run: go test ./... \u2192 exit 1\n")
         self.assertEqual(len(claims), 1)
-        self.assertEqual(claims[0].kind, "tests_green")
+        self.assertEqual(claims[0].kind, "tests_exit")
         self.assertEqual(claims[0].fields["command"], "go test ./...")
         self.assertEqual(claims[0].fields["claimed_exit"], 1)
         self.assertIsNone(claims[0].fields["commit"])
+
+    def test_zero_exit_is_a_green_claim(self):
+        claims = parse_report("Tests run: go test ./... -> exit 0\n")
+        self.assertEqual(claims[0].kind, "tests_green")
 
     def test_branch_without_commit(self):
         claims = parse_report("[BRANCH: yesloop/x]\n")
@@ -73,8 +80,9 @@ class ParseReportTest(unittest.TestCase):
         self.assertEqual(claims[0].fields["branch"], "yesloop/x")
         self.assertIsNone(claims[0].fields["commit"])
 
-    def test_network_exit_code_preserved(self):
+    def test_nonzero_exit_is_not_a_green_claim(self):
         claims = parse_report("Tests run: bash run.sh -> exit 137\n")
+        self.assertEqual(claims[0].kind, "tests_exit")
         self.assertEqual(claims[0].fields["claimed_exit"], 137)
 
 

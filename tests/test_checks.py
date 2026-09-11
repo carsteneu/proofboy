@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import unittest
 
@@ -36,11 +37,20 @@ class CheckerTest(unittest.TestCase):
     def test_commit_exists_confirmed(self):
         result = self.run_check("commit_exists", commit=self.repo["good"])
         self.assertIs(result.verdict, Verdict.CONFIRMED)
-        self.assertIn("cat-file", result.command)
+        self.assertIn("rev-parse", result.command)
 
     def test_commit_exists_refuted(self):
         result = self.run_check("commit_exists", commit="0" * 40)
         self.assertIs(result.verdict, Verdict.REFUTED)
+
+    def test_commit_exists_non_hash_is_unverifiable(self):
+        result = self.run_check("commit_exists", commit="HEAD")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_commit_exists_resolves_short_hash(self):
+        result = self.run_check("commit_exists", commit=self.repo["good"][:8])
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertEqual(result.output.strip(), self.repo["good"])
 
     def test_commit_exists_outside_git_repo_unverifiable(self):
         empty = os.path.join(self._tmp.name, "not-a-repo")
@@ -74,28 +84,75 @@ class CheckerTest(unittest.TestCase):
         result = self.run_check("branch_pushed", branch="main", commit=None)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
 
+    def test_branch_pushed_not_confirmed_when_remote_branch_is_gone(self):
+        repo = make_repo(os.path.join(self._tmp.name, "gone"))
+        subprocess.run(
+            ["git", "--git-dir", repo.remote, "update-ref", "-d", "refs/heads/main"],
+            check=True,
+            capture_output=True,
+        )
+        result = run_claim(
+            make_claim("branch_pushed", branch="main", commit=repo["bad"]),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIsNot(result.verdict, Verdict.CONFIRMED)
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
     # --- diff_scope --------------------------------------------------------
     def test_diff_scope_confirmed(self):
         result = self.run_check(
-            "diff_scope", head=self.repo["good"], planned=("good.txt", "test_ok.py")
+            "diff_scope",
+            ctx=self.ctx(base=self.repo["base"]),
+            head=self.repo["good"],
+            planned=("good.txt", "test_ok.py"),
         )
         self.assertIs(result.verdict, Verdict.CONFIRMED)
 
     def test_diff_scope_refuted_on_extra_file(self):
-        result = self.run_check("diff_scope", head=self.repo["good"], planned=("good.txt",))
+        result = self.run_check(
+            "diff_scope",
+            ctx=self.ctx(base=self.repo["base"]),
+            head=self.repo["good"],
+            planned=("good.txt",),
+        )
         self.assertIs(result.verdict, Verdict.REFUTED)
         self.assertIn("test_ok.py", result.reason)
+
+    def test_diff_scope_without_base_is_unverifiable(self):
+        result = self.run_check(
+            "diff_scope", head=self.repo["good"], planned=("good.txt", "test_ok.py")
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_diff_scope_refuted_on_planned_but_unchanged(self):
+        result = self.run_check(
+            "diff_scope",
+            ctx=self.ctx(base=self.repo["base"]),
+            head=self.repo["good"],
+            planned=("good.txt", "test_ok.py", "never_touched.txt"),
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+        self.assertIn("never_touched.txt", result.reason)
+
+    def test_diff_scope_refuted_on_empty_diff(self):
+        result = self.run_check(
+            "diff_scope",
+            ctx=self.ctx(base=self.repo["base"]),
+            head=self.repo["base"],
+            planned=("good.txt",),
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
 
     def test_diff_scope_explicit_base(self):
         result = self.run_check(
             "diff_scope",
+            ctx=self.ctx(base=self.repo["base"]),
             head=self.repo["bad"],
             planned=("good.txt", "test_ok.py", "test_bad.py"),
-            base=self.repo["base"],
         )
         self.assertIs(result.verdict, Verdict.CONFIRMED)
 
-    # --- tests_green -------------------------------------------------------
+    # --- tests_green / tests_exit ------------------------------------------
     def test_tests_green_confirmed(self):
         result = self.run_check(
             "tests_green",
@@ -115,6 +172,33 @@ class CheckerTest(unittest.TestCase):
         )
         self.assertIs(result.verdict, Verdict.REFUTED)
         self.assertTrue(result.output)
+
+    def test_tests_green_unverifiable_when_command_runs_no_tests(self):
+        result = self.run_check(
+            "tests_green",
+            command="python3 -m unittest --help",
+            claimed_exit=0,
+            commit=self.repo["good"],
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_exit_confirmed_for_matching_failure(self):
+        result = self.run_check(
+            "tests_exit",
+            command="python3 -m unittest test_bad",
+            claimed_exit=1,
+            commit=self.repo["bad"],
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+    def test_tests_exit_refuted_for_wrong_code(self):
+        result = self.run_check(
+            "tests_exit",
+            command="python3 -m unittest test_bad",
+            claimed_exit=0,
+            commit=self.repo["bad"],
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
 
     def test_tests_green_unverifiable_when_command_not_allowlisted(self):
         result = self.run_check(
