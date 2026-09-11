@@ -1,0 +1,6 @@
+.worktrees/
+.yesmem/tmp/
+.yesmem/locks/
+__pycache__/
+*.pyc
+digest/*.tmp
