@@ -12,9 +12,15 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import tempfile
 from dataclasses import dataclass
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - non-POSIX platforms
+    resource = None
 
 from bemyself.model import Claim, Result, Verdict
 
@@ -24,10 +30,19 @@ TEST_TIMEOUT = 300
 ORIGIN = "origin"
 LAST_LINES = 5
 MAX_OUTPUT_BYTES = 1 << 16
+MAX_LOG_BYTES = 16 << 20
 
 _COMMIT_HASH_RE = re.compile(r"\A[0-9a-fA-F]{4,64}\Z")
 _RESOLVED_RE = re.compile(r"\A[0-9a-fA-F]{40,64}\Z")
-_UNITTEST_SUMMARY_RE = re.compile(r"\bRan \d+ tests?\b")
+_UNITTEST_SUMMARY_RE = re.compile(r"\bRan [1-9]\d* tests?\b")
+_BRANCH_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/-]*\Z")
+_NO_TESTS_PATTERNS = (
+    re.compile(r"\bran 0 tests?\b", re.IGNORECASE),
+    re.compile(r"\bno test files\b", re.IGNORECASE),
+    re.compile(r"\bno tests? (?:were |was )?(?:ran|run|found|collected|to run)\b", re.IGNORECASE),
+    re.compile(r"^\s*running 0 tests\s*$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*0 tests?\s*$", re.IGNORECASE | re.MULTILINE),
+)
 
 # Only test-runner prefixes may be executed from a report. A report is a
 # claim, not a trusted script, so anything outside this list stays unverifiable.
@@ -126,6 +141,57 @@ def _resolve_commit(ctx, value):
     return _rev_parse(ctx, value)
 
 
+def _valid_branch(name):
+    """A report-supplied branch must be a plain ref name.
+
+    Anything git could read as an option (leading dash), a refspec (colon,
+    plus) or a revision expression (``..``, ``@{``) is rejected before any
+    git call sees it.
+    """
+    if not name or name.startswith("-") or not _BRANCH_RE.match(name):
+        return False
+    if ".." in name or "@{" in name or name.endswith("/") or name.endswith(".lock"):
+        return False
+    return all(part and not part.startswith(".") for part in name.split("/"))
+
+
+def _arg_escapes_checkout(arg):
+    """Flag command arguments that could run something outside the checkout."""
+    norm = arg.replace("\\", "/")
+    if norm.startswith("/"):
+        return True
+    if norm.startswith("-"):
+        # Options carrying a path (e.g. -s/abs, --prefix=/abs) are rejected.
+        return "/" in norm.lstrip("-")
+    return ".." in norm.split("/")
+
+
+def _claims_no_tests(output):
+    return any(pattern.search(output) for pattern in _NO_TESTS_PATTERNS)
+
+
+def _test_env(checkout):
+    """A minimal environment: the report's command must not read the verifier's."""
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": checkout,
+        "TMPDIR": checkout,
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+    for key in ("LANG", "LC_ALL", "LC_CTYPE"):
+        if key in os.environ:
+            env[key] = os.environ[key]
+    return env
+
+
+def _log_limit_preexec():
+    if resource is not None:
+        try:
+            resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_LOG_BYTES, MAX_LOG_BYTES))
+        except (OSError, ValueError):
+            pass
+
+
 def _repo_guard(ctx):
     """Return an UNVERIFIABLE result if the repo is unusable, else None."""
     if not os.path.isdir(ctx.repo):
@@ -168,7 +234,9 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
     guard = _repo_guard(ctx)
     if guard is not None:
         return guard
-    branch = claim.fields["branch"]
+    branch = claim.fields["branch"] or ""
+    if not _valid_branch(branch):
+        return Result(Verdict.UNVERIFIABLE, reason=f"not a valid branch name: {branch!r}")
     value = claim.fields.get("commit")
     if not value:
         return Result(Verdict.UNVERIFIABLE, reason="report names a branch but no commit hash")
@@ -196,8 +264,9 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
         )
 
-    # Refresh the remote-tracking ref first: a stale local ref would let a
-    # deleted or force-pushed remote branch produce a false CONFIRMED.
+    # Judge against FETCH_HEAD written by this very fetch: a remote-tracking
+    # ref can be stale (narrowed refspec, force-pushed branch) and would turn
+    # a vanished commit into a false CONFIRMED.
     fetch_args = ["fetch", "--quiet", "--no-tags", ORIGIN, branch]
     fetch = _git(ctx, *fetch_args, timeout=FETCH_TIMEOUT)
     if fetch.returncode != 0:
@@ -208,19 +277,22 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             reason=f"could not fetch {ORIGIN}/{branch} to confirm the push",
         )
 
-    ref = f"{ORIGIN}/{branch}"
-    proc = _git(ctx, "log", ref, "--format=%H")
-    command = _format(_repo_command(ctx, "log", ref, "--format=%H"))
-    if proc.returncode != 0:
+    proc = _git(ctx, "merge-base", "--is-ancestor", commit, "FETCH_HEAD")
+    command = _format(_repo_command(ctx, "merge-base", "--is-ancestor", commit, "FETCH_HEAD"))
+    if proc.returncode == 0:
         return Result(
-            Verdict.UNVERIFIABLE,
-            command,
-            _output(proc),
-            reason=f"{ref} is unknown after fetch",
+            Verdict.CONFIRMED, command, "", f"{commit} is reachable from {ORIGIN}/{branch} (FETCH_HEAD)"
         )
-    if commit in set(proc.stdout.split()):
-        return Result(Verdict.CONFIRMED, command, "", f"{commit} is reachable from {ref}")
-    return Result(Verdict.REFUTED, command, "", f"{commit} is not reachable from {ref}")
+    if proc.returncode == 1:
+        return Result(
+            Verdict.REFUTED, command, "", f"{commit} is not reachable from {ORIGIN}/{branch} (FETCH_HEAD)"
+        )
+    return Result(
+        Verdict.UNVERIFIABLE,
+        command,
+        _output(proc),
+        reason=f"could not compare {commit} with {ORIGIN}/{branch}",
+    )
 
 
 def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
@@ -313,6 +385,15 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         return Result(Verdict.UNVERIFIABLE, command=command_str, reason=f"could not parse command: {exc}")
     if not argv:
         return Result(Verdict.UNVERIFIABLE, command=command_str, reason="empty command")
+    escaping = [arg for arg in argv if _arg_escapes_checkout(arg)]
+    if escaping:
+        # Only the cwd is confined; an argument pointing outside the fresh
+        # checkout would run code the verified commit never contained.
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"command argument points outside the checkout: {escaping[0]!r}",
+        )
 
     try:
         os.makedirs(ctx.tmp_dir, exist_ok=True)
@@ -323,7 +404,15 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             command=command_str,
             reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}",
         )
-    log_path = checkout + ".log"
+    try:
+        log_fd, log_path = tempfile.mkstemp(prefix="run-", suffix=".log", dir=ctx.tmp_dir)
+    except OSError as exc:
+        shutil.rmtree(checkout, ignore_errors=True)
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"cannot create a log file under {ctx.tmp_dir}: {exc}",
+        )
     command_desc = f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && {command_str}"
     try:
         clone = _run_git(
@@ -344,17 +433,19 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 _output(co),
                 reason=f"could not check out {commit}",
             )
-        # Write the command output to a file and read only the tail: an
-        # unbounded pipe could exhaust memory.
+        # The command output goes to a private, unpredictable file: the child
+        # can neither pre-plant a symlink there nor fill the disk (RLIMIT_FSIZE).
         try:
-            with open(log_path, "wb") as log:
+            with os.fdopen(log_fd, "wb") as log:
+                log_fd = None
                 proc = subprocess.run(
                     argv,
                     cwd=checkout,
                     stdout=log,
                     stderr=subprocess.STDOUT,
                     timeout=TEST_TIMEOUT,
-                    env=_git_env(),
+                    env=_test_env(checkout),
+                    preexec_fn=_log_limit_preexec if resource is not None else None,
                 )
         except FileNotFoundError as exc:
             return Result(Verdict.UNVERIFIABLE, command_desc, "", f"command not found: {exc}")
@@ -365,36 +456,72 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 _last_lines(_tail_bytes(log_path)),
                 f"command timed out after {TEST_TIMEOUT}s",
             )
-    finally:
-        shutil.rmtree(checkout, ignore_errors=True)
-
-    raw_output = _tail_bytes(log_path)
-    os.unlink(log_path)
-    output = _last_lines(raw_output)
-    if proc.returncode == claimed_exit:
         if (
-            claim.kind == "tests_green"
-            and _is_unittest(argv)
-            and not _UNITTEST_SUMMARY_RE.search(raw_output)
+            proc.returncode is not None
+            and hasattr(signal, "SIGXFSZ")
+            and proc.returncode == -signal.SIGXFSZ
         ):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
+                _last_lines(_tail_bytes(log_path)),
+                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes",
+            )
+        # CPython ignores SIGXFSZ and dies with another code once the write
+        # limit is hit, so the capped file is the reliable signal.
+        if os.path.getsize(log_path) >= MAX_LOG_BYTES:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                _last_lines(_tail_bytes(log_path)),
+                f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
+                "the run cannot be verified from truncated output",
+            )
+
+        raw_output = _tail_bytes(log_path)
+        output = _last_lines(raw_output)
+        if proc.returncode == claimed_exit:
+            if claim.kind == "tests_green" and _claims_no_tests(raw_output):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    output,
+                    "the command exited 0 but reported that no tests were executed",
+                )
+            if (
+                claim.kind == "tests_green"
+                and _is_unittest(argv)
+                and not _UNITTEST_SUMMARY_RE.search(raw_output)
+            ):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    output,
+                    "the command exited 0 but ran no unittest tests (no 'Ran N tests' summary)",
+                )
+            return Result(
+                Verdict.CONFIRMED,
+                command_desc,
                 output,
-                "the command exited 0 but ran no unittest tests (no 'Ran N tests' summary)",
+                f"{command_str!r} exited {proc.returncode} as claimed",
             )
         return Result(
-            Verdict.CONFIRMED,
+            Verdict.REFUTED,
             command_desc,
             output,
-            f"{command_str!r} exited {proc.returncode} as claimed",
+            f"claimed exit {claimed_exit}, actually exited {proc.returncode}",
         )
-    return Result(
-        Verdict.REFUTED,
-        command_desc,
-        output,
-        f"claimed exit {claimed_exit}, actually exited {proc.returncode}",
-    )
+    finally:
+        if log_fd is not None:
+            try:
+                os.close(log_fd)
+            except OSError:
+                pass
+        shutil.rmtree(checkout, ignore_errors=True)
+        try:
+            os.unlink(log_path)
+        except OSError:
+            pass
 
 
 REGISTRY = {
@@ -407,12 +534,28 @@ REGISTRY = {
 
 
 def run_claim(claim: Claim, ctx: Ctx, registry: dict | None = None) -> Result:
-    """Run one claim through the checker registry."""
+    """Run one claim through the checker registry.
+
+    A hostile report must never crash the verifier: embedded NUL bytes are
+    rejected up front, and an unexpected checker error becomes UNVERIFIABLE
+    instead of a traceback.
+    """
     registry = REGISTRY if registry is None else registry
+    for value in claim.fields.values():
+        if isinstance(value, str) and "\x00" in value:
+            return Result(
+                Verdict.UNVERIFIABLE, reason="claim field contains an embedded NUL byte"
+            )
     checker = registry.get(claim.kind)
     if checker is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"no checker registered for claim kind {claim.kind!r}",
         )
-    return checker(claim, ctx)
+    try:
+        return checker(claim, ctx)
+    except Exception as exc:  # noqa: BLE001 - hostile input must not crash the verifier
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"checker failed: {type(exc).__name__}: {exc}",
+        )

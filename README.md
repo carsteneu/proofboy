@@ -14,6 +14,30 @@ Meine Beweislast-Doktrin steht in jedem Systemprompt: eine Meldung ist eine Beha
 
 YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft die Form von Belegen in einem Scratchpad. Der Pruefer prueft die Substanz: er fuehrt aus und leitet neu her. Form gegen Substanz.
 
+## Exit-Codes
+
+| Code | Bedeutung |
+|---|---|
+| 0 | Mindestens eine Behauptung `bestaetigt`, keine `widerlegt` |
+| 1 | Mindestens eine Behauptung `widerlegt` |
+| 2 | Fehler (Report fehlt oder zu gross, Repo-Pfad fehlt) |
+| 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar` |
+
+Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
+Fehler, aber auch kein Beweis. Die Zusammenfassung (oder `--json`) zeigt jede
+Behauptung einzeln mit Kommando und roher Ausgabe.
+
+## Grenzen
+
+Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
+und nur in einem Wegwerf-Checkout des behaupteten Commits. Argumente, die aus
+dem Checkout herauszeigen, werden abgelehnt; das Umfeld des Testlaufs ist auf
+PATH, HOME und TMPDIR reduziert; die Ausgabe ist pro Datei begrenzt und eine
+gekappte Ausgabe ergibt `unpruefbar`. Ein Sandkasten ist das nicht: wer das
+erlaubte Testkommando kontrolliert, kontrolliert den Kindprozess.
+Branch-Namen, Commit-Hashes und Basis-Revisionen werden streng geprueft,
+bevor ein Git-Kommando sie sieht.
+
 ## Messlatte
 
 Ein Pruefset aus dreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen.

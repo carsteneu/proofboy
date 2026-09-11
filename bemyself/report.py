@@ -39,7 +39,7 @@ def _split_list(value: str) -> tuple[str, ...]:
 
 def parse_report(text: str) -> list[Claim]:
     claims: list[Claim] = []
-    first_commit: str | None = None
+    commit_values: list[str] = []
     tests_lines: list[tuple[int, str, str, int]] = []
     files_line: tuple[int, str, tuple[str, ...]] | None = None
 
@@ -51,8 +51,7 @@ def parse_report(text: str) -> list[Claim]:
             value = match.group(2).strip().strip("`")
             if key == "COMMIT":
                 claims.append(Claim("commit_exists", lineno, raw, {"commit": value}))
-                if first_commit is None:
-                    first_commit = value
+                commit_values.append(value)
             elif key == "BRANCH":
                 claims.append(
                     Claim("branch_pushed", lineno, raw, {"branch": value, "commit": None})
@@ -77,10 +76,14 @@ def parse_report(text: str) -> list[Claim]:
         if files_match:
             files_line = (lineno, raw, _split_list(files_match.group("files")))
 
-    if first_commit is not None:
+    # Dependent claims bind to the report's commit only when the report names
+    # exactly one; several distinct commits make the binding a guess, and a
+    # guess must never confirm anything.
+    bound_commit = commit_values[0] if len(set(commit_values)) == 1 else None
+    if bound_commit is not None:
         for claim in claims:
             if claim.kind == "branch_pushed" and claim.fields["commit"] is None:
-                claim.fields["commit"] = first_commit
+                claim.fields["commit"] = bound_commit
 
     for lineno, raw, command, code in tests_lines:
         kind = "tests_green" if code == 0 else "tests_exit"
@@ -89,14 +92,14 @@ def parse_report(text: str) -> list[Claim]:
                 kind,
                 lineno,
                 raw,
-                {"command": command, "claimed_exit": code, "commit": first_commit},
+                {"command": command, "claimed_exit": code, "commit": bound_commit},
             )
         )
 
-    if files_line is not None and first_commit is not None:
+    if files_line is not None:
         lineno, raw, planned = files_line
         claims.append(
-            Claim("diff_scope", lineno, raw, {"head": first_commit, "planned": planned})
+            Claim("diff_scope", lineno, raw, {"head": bound_commit, "planned": planned})
         )
 
     claims.sort(key=lambda claim: claim.line)

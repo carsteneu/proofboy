@@ -26,7 +26,7 @@ class CliTest(unittest.TestCase):
             handle.write(text)
         return path
 
-    def invoke(self, *args):
+    def invoke(self, *args, repo=None):
         return subprocess.run(
             [
                 sys.executable,
@@ -34,7 +34,7 @@ class CliTest(unittest.TestCase):
                 "bemyself",
                 "check",
                 "--repo",
-                self.repo.path,
+                repo or self.repo.path,
                 "--tmp",
                 os.path.join(self._tmp.name, "tmp"),
                 *args,
@@ -126,6 +126,39 @@ class CliTest(unittest.TestCase):
         proc = self.invoke("--report", os.path.join(self._tmp.name, "nope.txt"))
         self.assertEqual(proc.returncode, 2)
         self.assertIn("report", proc.stderr.lower())
+
+    def test_missing_repo_is_an_error(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+        )
+        proc = self.invoke("--report", report, repo=os.path.join(self._tmp.name, "no-such-repo"))
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("repo", proc.stderr.lower())
+
+    def test_repo_subdirectory_is_resolved(self):
+        sub = os.path.join(self.repo.path, "sub")
+        os.makedirs(sub, exist_ok=True)
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+            "Tests run: python3 -m unittest test_ok -> exit 0\n"
+        )
+        proc = self.invoke("--report", report, "--json", repo=sub)
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["tests_green"], "CONFIRMED", proc.stdout + proc.stderr)
+
+    def test_oversized_report_is_an_error(self):
+        report = self.write_report("x" * ((1 << 20) + 1))
+        proc = self.invoke("--report", report)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("1 MiB", proc.stderr)
+
+    def test_control_characters_are_sanitized_in_text_output(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+            "Tests run: python3 -m unittest \x1b[2Kfake -> exit 0\n"
+        )
+        proc = self.invoke("--report", report)
+        self.assertNotIn("\x1b", proc.stdout)
 
 
 if __name__ == "__main__":

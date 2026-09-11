@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, run_claim
@@ -16,18 +17,57 @@ EXIT_REFUTED = 1
 EXIT_ERROR = 2
 EXIT_NOTHING = 3
 MAX_REPORT_BYTES = 1 << 20
+_CONTROL_CHARS = {code: "?" for code in range(0x20) if code != 0x0A}
+_CONTROL_CHARS[0x09] = " "
+_CONTROL_CHARS[0x7F] = "?"
+
+
+def _sanitize(value):
+    """Keep hostile bytes from spoofing the verdict display on a terminal."""
+    return value.translate(_CONTROL_CHARS)
+
+
+def _resolve_repo_root(path):
+    """Resolve a path inside a repository to the repository root."""
+    proc = subprocess.run(
+        ["git", "-C", path, "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode == 0 and proc.stdout.strip():
+        return proc.stdout.strip()
+    return path
+
+
+def _json_error(report_path, repo, message):
+    return {
+        "report": report_path,
+        "repo": repo,
+        "claims": [],
+        "summary": summarize([]),
+        "error": message,
+    }
 
 
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="python3 -m bemyself",
         description="Verify a report's claims against the repository. It believes nothing.",
+        epilog=(
+            "exit codes: 0 = at least one claim CONFIRMED and none REFUTED; "
+            "1 = at least one REFUTED; 2 = error; 3 = nothing CONFIRMED. "
+            "Exit 0 does not mean every claim was proven - read the summary "
+            "or --json to see the UNVERIFIABLE claims."
+        ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check", help="verify every claim in a report")
     check.add_argument("--report", required=True, help="path to the report file")
     check.add_argument("--repo", required=True, help="path to the git repository")
-    check.add_argument("--base", help="base revision for diff-scope (default: <commit>^)")
+    check.add_argument(
+        "--base",
+        help="base revision for diff-scope; without it diff-scope claims stay UNVERIFIABLE",
+    )
     check.add_argument("--files", help="comma separated planned file list, overrides 'Files in scope'")
     check.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     check.add_argument("--tmp", help="directory for throwaway checkouts")
@@ -119,28 +159,34 @@ def render_text(results):
 
 def run_check(args):
     report_path = os.path.abspath(args.report)
+    repo_arg = os.path.abspath(args.repo)
     try:
         with open(report_path, encoding="utf-8", errors="replace") as handle:
-            text = handle.read(MAX_REPORT_BYTES)
+            text = handle.read(MAX_REPORT_BYTES + 1)
     except OSError as exc:
-        print(f"bemyself: cannot read report {report_path}: {exc}", file=sys.stderr)
+        message = f"cannot read report {report_path}: {exc}"
+        print(f"bemyself: {message}", file=sys.stderr)
         if args.json:
-            print(
-                json.dumps(
-                    {
-                        "report": report_path,
-                        "repo": os.path.abspath(args.repo),
-                        "claims": [],
-                        "summary": summarize([]),
-                        "error": str(exc),
-                    },
-                    indent=2,
-                    ensure_ascii=False,
-                )
-            )
+            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=False))
         return EXIT_ERROR
 
-    repo = os.path.abspath(args.repo)
+    if len(text) > MAX_REPORT_BYTES:
+        # Verifying a silently truncated report could hide the claims that
+        # matter; refuse instead of guessing.
+        message = f"report exceeds 1 MiB; refusing to verify a truncated report: {report_path}"
+        print(f"bemyself: {message}", file=sys.stderr)
+        if args.json:
+            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=False))
+        return EXIT_ERROR
+
+    if not os.path.isdir(repo_arg):
+        message = f"repo path does not exist: {repo_arg}"
+        print(f"bemyself: {message}", file=sys.stderr)
+        if args.json:
+            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=False))
+        return EXIT_ERROR
+    repo = _resolve_repo_root(repo_arg)
+
     claims = _apply_files_override(parse_report(text), args.files)
 
     if not claims:
@@ -162,7 +208,7 @@ def run_check(args):
     if args.json:
         print(json.dumps(_json_payload(report_path, repo, results), indent=2, ensure_ascii=False))
     else:
-        print(render_text(results))
+        print(_sanitize(render_text(results)))
 
     return exit_code(results)
 

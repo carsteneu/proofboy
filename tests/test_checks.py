@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from bemyself.checks import Ctx, run_claim
 from bemyself.model import Claim, Verdict
@@ -55,7 +56,17 @@ class CheckerTest(unittest.TestCase):
     def test_commit_exists_outside_git_repo_unverifiable(self):
         empty = os.path.join(self._tmp.name, "not-a-repo")
         os.makedirs(empty, exist_ok=True)
-        result = self.run_check("commit_exists", ctx=self.ctx(repo=empty), commit=self.repo["good"])
+        # A temp dir inside a git checkout would let git discovery walk up and
+        # find that repo; the ceiling keeps the fixture hermetic.
+        previous = os.environ.get("GIT_CEILING_DIRECTORIES")
+        os.environ["GIT_CEILING_DIRECTORIES"] = self._tmp.name
+        try:
+            result = self.run_check("commit_exists", ctx=self.ctx(repo=empty), commit=self.repo["good"])
+        finally:
+            if previous is None:
+                os.environ.pop("GIT_CEILING_DIRECTORIES", None)
+            else:
+                os.environ["GIT_CEILING_DIRECTORIES"] = previous
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
 
     # --- branch_pushed -----------------------------------------------------
@@ -238,6 +249,193 @@ class CheckerTest(unittest.TestCase):
     def test_unknown_claim_kind_is_unverifiable(self):
         result = self.run_check("merge", value="no")
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    # --- hostile report fields (review round 2) ----------------------------
+    def test_branch_pushed_rejects_option_injection(self):
+        script = os.path.join(self._tmp.name, "upload.sh")
+        marker = os.path.join(self._tmp.name, "upload-marker")
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\ntouch %s\n" % marker)
+        os.chmod(script, 0o755)
+        result = self.run_check(
+            "branch_pushed",
+            branch=f"--upload-pack={script}",
+            commit=self.repo["good"],
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertFalse(os.path.exists(marker), "git executed the report-supplied upload-pack")
+
+    def test_branch_pushed_rejects_refspec_injection(self):
+        result = self.run_check(
+            "branch_pushed",
+            branch="main:refs/heads/pwned-by-report",
+            commit=self.repo["bad"],
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.repo.path,
+                "show-ref",
+                "--verify",
+                "--quiet",
+                "refs/heads/pwned-by-report",
+            ],
+            capture_output=True,
+        )
+        self.assertNotEqual(proc.returncode, 0, "the report created a local branch via refspec injection")
+
+    def test_branch_pushed_refuted_after_remote_rewind_with_narrow_refspec(self):
+        repo = make_repo(os.path.join(self._tmp.name, "rewound"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        # Remote feature branch exists at "bad"; the local tracking ref says
+        # "bad" while the configured refspec no longer updates it. The remote
+        # is then force-rewound to "base". A stale tracking ref would confirm
+        # the claim; the freshly fetched FETCH_HEAD must not.
+        git("push", "-q", "origin", f"{repo['bad']}:refs/heads/feature")
+        git("update-ref", "refs/remotes/origin/feature", repo["bad"])
+        git("config", "remote.origin.fetch", "+refs/heads/main:refs/remotes/origin/main")
+        git("push", "-q", "--force", "origin", f"{repo['base']}:refs/heads/feature")
+        result = run_claim(
+            make_claim("branch_pushed", branch="feature", commit=repo["good"]),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+
+    def test_tests_green_unverifiable_when_discovery_points_outside_checkout(self):
+        ctx = self.ctx()
+        outside = os.path.join(ctx.tmp_dir, "outside")
+        os.makedirs(outside, exist_ok=True)
+        with open(os.path.join(outside, "test_planted.py"), "w", encoding="utf-8") as handle:
+            handle.write(
+                "import unittest\n\n\n"
+                "class Planted(unittest.TestCase):\n"
+                "    def test_ok(self):\n"
+                "        self.assertTrue(True)\n"
+            )
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command=f"python3 -m unittest discover -s {outside}",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_when_command_uses_parent_path(self):
+        ctx = self.ctx()
+        outside = os.path.join(ctx.tmp_dir, "parent-outside")
+        os.makedirs(outside, exist_ok=True)
+        with open(os.path.join(outside, "test_planted.py"), "w", encoding="utf-8") as handle:
+            handle.write(
+                "import unittest\n\n\n"
+                "class Planted(unittest.TestCase):\n"
+                "    def test_ok(self):\n"
+                "        self.assertTrue(True)\n"
+            )
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -m unittest discover -s ../parent-outside",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_when_output_reports_no_tests(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        for script in ("print('0 tests')", "print('Ran 0 tests in 0.01s')"):
+            result = run_claim(
+                make_claim(
+                    "tests_green",
+                    command=f'python3 -c "{script}"',
+                    claimed_exit=0,
+                    commit=self.repo["good"],
+                ),
+                ctx,
+            )
+            self.assertIs(result.verdict, Verdict.UNVERIFIABLE, script)
+
+    @mock.patch("bemyself.checks.MAX_LOG_BYTES", 4096)
+    def test_tests_green_unverifiable_when_output_exceeds_log_cap(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -c \"import sys; sys.stdout.write('x' * 1000000)\"",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    @mock.patch("bemyself.checks.TEST_TIMEOUT", 1)
+    def test_tests_green_timeout_leaves_no_files_behind(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -c \"import time; time.sleep(30)\"",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertEqual(os.listdir(ctx.tmp_dir), [], "throwaway files were left behind")
+
+    def test_tests_green_cannot_read_verifier_environment(self):
+        os.environ["VERIFIER_SECRET"] = "supersecret-token"
+        try:
+            ctx = self.ctx(allowlist=("python3 -c",))
+            result = run_claim(
+                make_claim(
+                    "tests_green",
+                    command="python3 -c \"import os; print(os.environ.get('VERIFIER_SECRET', 'ABSENT'))\"",
+                    claimed_exit=0,
+                    commit=self.repo["good"],
+                ),
+                ctx,
+            )
+        finally:
+            os.environ.pop("VERIFIER_SECRET", None)
+        self.assertIn("ABSENT", result.output)
+        self.assertNotIn("supersecret", result.output)
+
+    def test_embedded_nul_is_unverifiable(self):
+        result = self.run_check(
+            "tests_green",
+            command="python3 -m unittest ma\x00in",
+            claimed_exit=0,
+            commit=self.repo["good"],
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_checker_crash_becomes_unverifiable(self):
+        def boom(claim, ctx):
+            raise RuntimeError("exploded")
+
+        result = run_claim(make_claim("boom"), self.ctx(), registry={"boom": boom})
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("exploded", result.reason)
+
+    def test_unittest_summary_ignores_zero_tests(self):
+        from bemyself.checks import _UNITTEST_SUMMARY_RE
+
+        self.assertIsNone(_UNITTEST_SUMMARY_RE.search("Ran 0 tests in 0.1s"))
+        self.assertIsNotNone(_UNITTEST_SUMMARY_RE.search("Ran 1 test in 0.0s"))
+        self.assertIsNotNone(_UNITTEST_SUMMARY_RE.search("Ran 47 tests in 1.2s"))
 
 
 if __name__ == "__main__":

@@ -30,11 +30,3 @@ class Result:
     command: str = ""
     output: str = ""
     reason: str = ""
-
-    @property
-    def confirmed(self) -> bool:
-        return self.verdict is Verdict.CONFIRMED
-
-    @property
-    def refuted(self) -> bool:
-        return self.verdict is Verdict.REFUTED

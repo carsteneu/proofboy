@@ -85,6 +85,30 @@ class ParseReportTest(unittest.TestCase):
         self.assertEqual(claims[0].kind, "tests_exit")
         self.assertEqual(claims[0].fields["claimed_exit"], 137)
 
+    def test_multiple_distinct_commits_leave_dependent_claims_unbound(self):
+        text = (
+            "**send_to payload:** `[COMMIT: aaaa1111] [BRANCH: yesloop/x]`\n"
+            "**send_to payload:** `[COMMIT: bbbb2222]`\n"
+            "**Files in scope:** a.txt\n"
+            "Tests run: python3 -m unittest x -> exit 0\n"
+        )
+        claims = parse_report(text)
+        tests = [c for c in claims if c.kind == "tests_green"][0]
+        self.assertIsNone(tests.fields["commit"])
+        diff = [c for c in claims if c.kind == "diff_scope"][0]
+        self.assertIsNone(diff.fields["head"])
+        branch = [c for c in claims if c.kind == "branch_pushed"][0]
+        self.assertIsNone(branch.fields["commit"])
+
+    def test_duplicate_commit_markers_still_bind(self):
+        text = (
+            "**send_to payload:** `[COMMIT: aaaa1111]`\n"
+            "**send_to payload:** `[COMMIT: aaaa1111]`\n"
+            "Tests run: python3 -m unittest x -> exit 0\n"
+        )
+        tests = [c for c in parse_report(text) if c.kind == "tests_green"][0]
+        self.assertEqual(tests.fields["commit"], "aaaa1111")
+
 
 if __name__ == "__main__":
     unittest.main()
