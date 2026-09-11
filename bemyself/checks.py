@@ -60,18 +60,31 @@ _TEST_EVIDENCE_PATTERNS = (
 )
 _WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
 _MISSING_MODULE_RE = re.compile(r"No module named '?([A-Za-z_][\w.]*)'?")
+_URL_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.-]*://")
 # Option names that make a runner interpret the value as code or config.
 _DANGEROUS_OPTION_NAMES = frozenset(
-    {"eval", "exec", "config", "script-shell", "node-options", "preload", "require"}
+    {
+        "eval",
+        "exec",
+        "config",
+        "script-shell",
+        "node-options",
+        "preload",
+        "require",
+        "loader",
+        "experimental-loader",
+        "import",
+        "test-reporter",
+        "toolexec",
+    }
 )
 # Characters that only occur in arguments a shell (or a runner re-shelling a
 # value) would treat specially. The verifier itself never uses a shell, but
-# runners like make/npm hand variable values and arguments to sh.
+# wrappers like make and npm hand values and arguments to sh.
 _SHELL_METACHARS = frozenset(" \t\n\r;&|$`<>(){}'\"\\")
-# Plain tokens of a command that shells out: no shell syntax anywhere.
-_TOKEN_METACHARS = frozenset(";&|$`<>(){}[]\t\n\r")
-# Python interprets its own arguments (no shell), so shell syntax is inert
-# there; only the path checks below apply.
+# Plain tokens of a shell-backed command: whitespace is the word boundary
+# that lets a value become an extra command ("TESTS=echo Ran 1 test").
+_TOKEN_METACHARS = frozenset(" \t\n\r;&|$`<>(){}[]")
 _PYTHON_TUPLE_METACHARS = frozenset()
 _KNOWN_RUNNER_MODULES = ("unittest", "pytest", "nose2")
 _PYTHON_COMMAND_TOKENS = ("python", "python2", "python3", "pytest", "py.test")
@@ -217,24 +230,28 @@ def _valid_branch(name):
     return all(part and not part.startswith(".") for part in name.split("/"))
 
 
-def _is_dangerous_option_name(name):
-    """Prefix-aware: npm and friends accept abbreviations of long options."""
+def _is_dangerous_option_name(name, allow_short_prefix=False):
+    """Prefix-aware: runners accept abbreviations of long option names."""
     name = name.lower()
     if name in _DANGEROUS_OPTION_NAMES:
         return True
-    return len(name) >= 3 and any(d.startswith(name) for d in _DANGEROUS_OPTION_NAMES)
+    if allow_short_prefix:
+        # Any abbreviation of a long option ("--ev" is "--eval").
+        return len(name) >= 2 and any(d.startswith(name) for d in _DANGEROUS_OPTION_NAMES)
+    return len(name) >= 4 and any(d.startswith(name) for d in _DANGEROUS_OPTION_NAMES)
 
 
 def _path_candidates(arg, strict=True):
     """Return the path-like pieces of one argv element, or None to reject it.
 
     A report-supplied argument must not reach outside the fresh checkout.
-    Since the verifier runs no shell but runners do re-parse their arguments
-    (and make/npm hand variable values to sh), tokens are checked for shell
-    syntax too -- unless the command runs python directly, where parentheses
-    and braces are ordinary code. Plain tokens, key=value tokens (both
-    sides), long options, attached short-option values, whitespace/comma-split
-    values and values that are themselves options are all checked.
+    The verifier runs no shell, but wrappers (make, npm) hand values and
+    arguments to sh, so for those commands every token is held to shell-word
+    rules; direct runners (python, pytest, go, cargo, node) parse their own
+    argv and only need the path rules. Plain tokens, key=value tokens (both
+    sides), long options (abbreviations included), attached and clustered
+    short-option values, whitespace/comma-split values, and values that are
+    themselves options are all checked.
     """
     metachars = _TOKEN_METACHARS if strict else _PYTHON_TUPLE_METACHARS
     norm = arg.replace("\\", "/")
@@ -245,7 +262,7 @@ def _path_candidates(arg, strict=True):
         name, sep, value = norm[2:].partition("=")
         if not re.match(r"\A[A-Za-z0-9][A-Za-z0-9-]*\Z", name):
             return None
-        if _is_dangerous_option_name(name):
+        if _is_dangerous_option_name(name, allow_short_prefix=True):
             return None
         if any(ch in norm[2:] for ch in _SHELL_METACHARS):
             return None
@@ -264,8 +281,9 @@ def _path_candidates(arg, strict=True):
             value = body.split("=", 1)[1]
             pieces = [value, *value.split(), *value.split(","), body[1:]]
         elif len(body) > 1:
-            # Attached short-option value: -sVALUE, -C.., -s/abs
-            pieces = [body[1:]]
+            # Attached and clustered forms: -sVALUE, -C.., -kf/path. Every
+            # suffix that follows an option letter is a possible value.
+            pieces = [body[index + 1 :] for index in range(len(body))]
     else:
         if any(ch in norm for ch in metachars):
             return None
@@ -278,21 +296,25 @@ def _path_candidates(arg, strict=True):
         if piece.startswith("-") and piece not in ("-", "--"):
             if _path_candidates(piece, strict=strict) is None:
                 return None
+        elif _candidate_escapes(piece, strict=strict):
+            return None
     return pieces
 
 
-def _candidate_escapes(piece):
+def _candidate_escapes(piece, strict=True):
     if piece.startswith("/"):
         return True
-    return ".." in piece.split("/")
+    if ".." in piece.split("/"):
+        return True
+    if _URL_RE.match(piece):
+        return True
+    # ~user expands via passwd inside shells and tools, not via HOME.
+    return strict and "~" in piece
 
 
 def _arg_escapes_checkout(arg, strict=True):
     """Flag command arguments that can reach outside the fresh checkout."""
-    pieces = _path_candidates(arg, strict=strict)
-    if pieces is None:
-        return True
-    return any(_candidate_escapes(piece) for piece in pieces)
+    return _path_candidates(arg, strict=strict) is None
 
 
 def _symlink_escape(argv, checkout, strict=True):
@@ -312,9 +334,9 @@ def _symlink_escape(argv, checkout, strict=True):
     return None
 
 
-def _is_python_direct(argv):
-    """True when python itself interprets the arguments (no shell involved)."""
-    return bool(argv) and os.path.basename(argv[0]).startswith("python")
+def _is_wrapper_command(argv):
+    """True for commands that re-parse arguments through a shell."""
+    return bool(argv) and os.path.basename(argv[0]) in _WRAPPER_COMMAND_TOKENS
 
 
 def _shows_test_evidence(output):
@@ -353,7 +375,9 @@ def _shadowed_module(checkout, argv):
     if any(token.startswith("python") for token in tokens) or tokens & set(
         _PYTHON_COMMAND_TOKENS
     ):
-        names = sorted(set(sys.stdlib_module_names) | {"pytest", "nose2"})
+        # Frozen/builtin modules can never be shadowed by a root-level file.
+        shadowable = set(sys.stdlib_module_names) - set(sys.builtin_module_names)
+        names = sorted(shadowable | {"pytest", "nose2"})
     elif tokens & set(_WRAPPER_COMMAND_TOKENS):
         names = sorted(set(_KNOWN_RUNNER_MODULES) | {"difflib"})
     else:
@@ -489,14 +513,22 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
     # and askpass have no working override, so a fetch is refused when a repo
     # sets them.
     for key in ("core.gitProxy", "core.askpass"):
-        cfg = _git(ctx, "config", "--get", key)
+        cfg = _git(ctx, "config", "--local", "--get", key)
         if cfg.returncode == 0 and cfg.stdout.strip():
             return Result(
                 Verdict.UNVERIFIABLE,
-                command=_format(_repo_command(ctx, "config", "--get", key)),
+                command=_format(_repo_command(ctx, "config", "--local", "--get", key)),
                 output=_output(cfg),
                 reason=f"repo config sets {key}; refusing to fetch through a repo-configured program",
             )
+    proxies = _git(ctx, "config", "--local", "--get-regexp", r"^http\..*\.proxy$")
+    if proxies.returncode == 0 and proxies.stdout.strip():
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=_format(_repo_command(ctx, "config", "--local", "--get-regexp", "http-proxy")),
+            output=_output(proxies),
+            reason="repo config sets a URL-specific http proxy; refusing to fetch through it",
+        )
 
     # Fetch refs/heads/<branch> into a private ref: a tag or remote HEAD of
     # the same name must not confirm a branch claim, and a private ref keeps
@@ -509,6 +541,8 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
         "credential.helper=",
         "-c",
         "http.proxy=",
+        "-c",
+        "protocol.ext.allow=never",
         "fetch",
         "--quiet",
         "--no-tags",
@@ -652,7 +686,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         return Result(Verdict.UNVERIFIABLE, command=command_str, reason=f"could not parse command: {exc}")
     if not argv:
         return Result(Verdict.UNVERIFIABLE, command=command_str, reason="empty command")
-    strict = not _is_python_direct(argv)
+    strict = _is_wrapper_command(argv)
     escaping = [arg for arg in argv if _arg_escapes_checkout(arg, strict=strict)]
     if escaping:
         # Only the cwd is confined; an argument pointing outside the fresh
@@ -660,7 +694,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         return Result(
             Verdict.UNVERIFIABLE,
             command=command_str,
-            reason=f"command argument points outside the checkout: {escaping[0]!r}",
+            reason=f"unsafe command argument: {escaping[0]!r}",
         )
 
     try:
@@ -795,18 +829,25 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 output,
                 f"{command_str!r} exited {returncode} as claimed",
             )
-        # A missing module is an environment gap, not evidence that the tests
-        # failed -- this must hold for direct commands and for wrappers
-        # (make/npm) that hide the runner name. In doubt: UNVERIFIABLE.
+        # A missing runner module is an environment gap, not evidence that the
+        # tests failed -- but only when the report's own command names it.
+        # Child output is repo-controlled and must not be able to turn a
+        # REFUTED into an UNVERIFIABLE by printing the phrase.
         missing_match = _MISSING_MODULE_RE.search(raw_output)
         if missing_match is not None:
             missing = missing_match.group(1).split(".")[0]
-            return Result(
-                Verdict.UNVERIFIABLE,
-                command_desc,
-                output,
-                f"the run failed on a module that is not available: {missing!r}",
-            )
+            runner_module = None
+            for index, arg in enumerate(argv[:-1]):
+                if arg == "-m":
+                    runner_module = argv[index + 1].split(".")[0]
+                    break
+            if runner_module is not None and missing == runner_module:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    output,
+                    f"the runner module {missing!r} is not available in this environment",
+                )
         if _WRITE_LIMIT_RE.search(raw_output):
             return Result(
                 Verdict.UNVERIFIABLE,

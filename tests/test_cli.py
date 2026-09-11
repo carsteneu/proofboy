@@ -26,19 +26,19 @@ class CliTest(unittest.TestCase):
             handle.write(text)
         return path
 
-    def invoke(self, *args, repo=None):
+    def invoke(self, *args, repo=None, tmp=True):
+        command = [
+            sys.executable,
+            "-m",
+            "bemyself",
+            "check",
+            "--repo",
+            repo or self.repo.path,
+        ]
+        if tmp:
+            command += ["--tmp", os.path.join(self._tmp.name, "tmp")]
         return subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "bemyself",
-                "check",
-                "--repo",
-                repo or self.repo.path,
-                "--tmp",
-                os.path.join(self._tmp.name, "tmp"),
-                *args,
-            ],
+            command + list(args),
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
@@ -180,6 +180,18 @@ class CliTest(unittest.TestCase):
         )
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["diff_scope"], "UNVERIFIABLE")
+
+    def test_committed_yesmem_symlink_is_refused_for_default_tmp(self):
+        outside = os.path.join(self._tmp.name, "outside")
+        os.makedirs(outside, exist_ok=True)
+        os.symlink(outside, os.path.join(self.repo.path, ".yesmem"))
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+        )
+        proc = self.invoke("--report", report, tmp=False)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("tmp", proc.stderr.lower())
+        self.assertEqual(os.listdir(outside), [], "scratch files were written outside the repo")
 
 
 if __name__ == "__main__":

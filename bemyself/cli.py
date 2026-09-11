@@ -188,6 +188,22 @@ def render_text(results):
     return "\n".join(lines)
 
 
+def _tmp_dir(args, repo):
+    """The throwaway root, or None when the default would leave the repo.
+
+    A committed ``.yesmem`` symlink must not redirect the verifier's scratch
+    files outside the inspected repository.
+    """
+    if args.tmp:
+        return os.path.abspath(args.tmp)
+    candidate = os.path.join(repo, ".yesmem", "tmp", "check")
+    repo_real = os.path.realpath(repo)
+    candidate_real = os.path.realpath(candidate)
+    if candidate_real != repo_real and not candidate_real.startswith(repo_real + os.sep):
+        return None
+    return candidate
+
+
 def run_check(args):
     report_path = os.path.abspath(args.report)
     repo_arg = os.path.abspath(args.repo)
@@ -226,11 +242,19 @@ def run_check(args):
             print(json.dumps(_json_payload(report_path, repo, []), indent=2, ensure_ascii=True))
         return EXIT_NOTHING
 
+    tmp_dir = _tmp_dir(args, repo)
+    if tmp_dir is None:
+        message = (
+            "default tmp dir resolves outside the repo (committed .yesmem symlink?); "
+            "pass --tmp to place it elsewhere"
+        )
+        print(f"bemyself: {message}", file=sys.stderr)
+        if args.json:
+            print(json.dumps(_json_error(report_path, repo, message), indent=2, ensure_ascii=True))
+        return EXIT_ERROR
     ctx = Ctx(
         repo=repo,
-        tmp_dir=os.path.abspath(args.tmp)
-        if args.tmp
-        else os.path.join(repo, ".yesmem", "tmp", "check"),
+        tmp_dir=tmp_dir,
         base=args.base,
         allowlist=DEFAULT_COMMAND_ALLOWLIST + tuple(args.allow),
     )

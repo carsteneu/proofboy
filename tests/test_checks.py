@@ -1079,7 +1079,9 @@ class CheckerTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertFalse(os.path.exists(marker), "core.gitProxy ran during verification")
 
-    def test_missing_runner_behind_wrapper_is_unverifiable(self):
+    def test_missing_runner_behind_wrapper_is_refuted(self):
+        # Child output is repo-controlled: a wrapper that merely prints a
+        # "No module named ..." phrase must not downgrade the verdict.
         repo = make_repo(os.path.join(self._tmp.name, "wrapped-missing"))
 
         def git(*args):
@@ -1088,7 +1090,11 @@ class CheckerTest(unittest.TestCase):
             )
 
         with open(os.path.join(repo.path, "Makefile"), "w", encoding="utf-8") as handle:
-            handle.write("test:\n\tpython3 -m definitely_missing_runner_mod -q\n")
+            handle.write(
+                "test:\n"
+                "\t@printf 'No module named definitely_missing_runner_mod\\n'\n"
+                "\t@exit 1\n"
+            )
         git("add", "-A")
         git("commit", "-q", "-m", "wrapped runner")
         head = subprocess.run(
@@ -1098,7 +1104,113 @@ class CheckerTest(unittest.TestCase):
             make_claim("tests_green", command="make test", claimed_exit=0, commit=head),
             self.ctx(repo=repo.path),
         )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+
+    # --- round 6: metachar-free re-shelling, URLs, abbreviations, clusters --
+    def test_tests_green_unverifiable_for_whitespace_payload(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="make test TESTS='echo Ran 1 test'",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_for_node_loader_url(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="node --test --experimental-loader=file:///tmp/anything.mjs",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_for_two_letter_abbreviation(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="make test --ev=X!=/tmp/pwn",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_for_clustered_short_options(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="make test -kf/tmp/outside.mk",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_for_tilde_path(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="make test TESTS=~root/x",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_branch_pushed_ignores_ext_transport_config(self):
+        marker = os.path.join(self._tmp.name, "ext-marker")
+        original_url = subprocess.run(
+            ["git", "-C", self.repo.path, "config", "--local", "--get", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                self.repo.path,
+                "config",
+                "protocol.ext.allow",
+                "always",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                self.repo.path,
+                "config",
+                "remote.origin.url",
+                f"ext::touch {marker} --",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        try:
+            result = self.run_check("branch_pushed", branch="main", commit=self.repo["bad"])
+        finally:
+            subprocess.run(
+                ["git", "-C", self.repo.path, "config", "--unset", "protocol.ext.allow"],
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "-C", self.repo.path, "config", "remote.origin.url", original_url],
+                capture_output=True,
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertFalse(os.path.exists(marker), "the ext transport executed a program")
 
     @mock.patch("bemyself.checks.TEST_TIMEOUT", 2)
     def test_tests_green_timeout_kills_the_process_group(self):

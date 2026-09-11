@@ -35,15 +35,20 @@ dem Checkout herauszeigen, werden abgelehnt: absolute Pfade, `..` in jeder
 Form, code-tragende Optionen wie `make --eval` oder `cargo --config` (auch
 abgekuerzt), Shell-Syntax in Options- und Variablenwerten (`TESTS=...`), und
 Symlinks, die aus dem Checkout herausfuehren, werden aufgeloest und geprueft.
-Im Zweifel lehnt der Pruefer ab: ein Wert, der wie ein absoluter Pfad oder wie
-Shell-Syntax aussieht, bleibt `unpruefbar` statt bestaetigt. Das Umfeld des
+Im Zweifel lehnt der Pruefer ab: ein Wert, der wie ein absoluter Pfad, wie
+Shell-Syntax, wie eine URL oder wie ein `~`-Pfad aussieht, bleibt
+`unpruefbar` statt bestaetigt; dasselbe gilt fuer Werte mit Leerzeichen in
+Kommandos, die eine Shell benutzen (make, npm). Das Umfeld des
 Testlaufs ist auf PATH, HOME, TMPDIR und die Sprachvariablen reduziert, ohne
 Python-Startup-Hooks aus dem Checkout; die Ausgabe ist pro Datei begrenzt und
 eine gekappte Ausgabe ergibt `unpruefbar`.
 
 Ein `tests_green`-Urteil verlangt positive Evidenz im Output
 (Testzusammenfassung); ein Kommando, das nur mit Exit 0 endet, keine
-Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Schattiert der
+Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Fehlt das im
+Kommando genannte Runner-Modul, bleibt der Lauf ebenfalls `unpruefbar`; die
+Ausgabe eines Wrapper-Kommandos dagegen gilt als repo-kontrolliert und aendert
+ein Urteil nicht. Schattiert der
 behauptete Commit den Testrunner oder ein Modul, das er beim Start importiert
 (etwa ein eigenes `unittest.py` oder `difflib.py`), bleibt der Lauf ebenfalls
 `unpruefbar`.
@@ -53,8 +58,9 @@ Remote-HEAD. Waehrend jeder Pruefung deaktiviert der Pruefer
 programmausfuehrende Repo-Konfiguration (Git-Hooks, `core.fsmonitor`,
 `remote.uploadpack`, `core.sshCommand`, Credential-Helfer) und ignoriert
 Objektdaten-Manipulationen des Repos (`refs/replace`, `info/grafts`); ein Repo,
-dessen Konfiguration `core.gitProxy` oder `core.askpass` setzt, wird gar nicht
-erst angefasst. Der Standard-Ablageort fuer Wegwerf-Daten ist
+dessen Konfiguration `core.gitProxy`, `core.askpass` oder einen
+URL-spezifischen HTTP-Proxy setzt, wird beim Branch-Check nicht angefasst
+(`unpruefbar`). Der Standard-Ablageort fuer Wegwerf-Daten ist
 `<repo>/.yesmem/tmp/check` und laesst sich mit `--tmp` verlegen.
 
 Der Diff-Scope vergleicht die Dateiliste der Meldung mit dem Diff; ohne
