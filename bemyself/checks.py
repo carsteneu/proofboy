@@ -218,8 +218,15 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             reason=f"commit {commit} is not present locally; cannot check it out",
         )
 
-    os.makedirs(ctx.tmp_dir, exist_ok=True)
-    checkout = tempfile.mkdtemp(prefix="checkout-", dir=ctx.tmp_dir)
+    try:
+        os.makedirs(ctx.tmp_dir, exist_ok=True)
+        checkout = tempfile.mkdtemp(prefix="checkout-", dir=ctx.tmp_dir)
+    except OSError as exc:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}",
+        )
     command_desc = f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && {command_str}"
     try:
         clone = subprocess.run(

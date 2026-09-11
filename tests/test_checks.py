@@ -134,6 +134,22 @@ class CheckerTest(unittest.TestCase):
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
 
+    def test_tests_green_unverifiable_when_tmp_dir_unusable(self):
+        blocker = os.path.join(self._tmp.name, "blocker-file")
+        with open(blocker, "w", encoding="utf-8") as handle:
+            handle.write("x")
+        ctx = Ctx(repo=self.repo.path, tmp_dir=blocker)
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -m unittest test_ok",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
     # --- registry ----------------------------------------------------------
     def test_unknown_claim_kind_is_unverifiable(self):
         result = self.run_check("merge", value="no")
