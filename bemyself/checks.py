@@ -43,6 +43,28 @@ _NO_TESTS_PATTERNS = (
     re.compile(r"^\s*running 0 tests\s*$", re.IGNORECASE | re.MULTILINE),
     re.compile(r"^\s*0 tests?\s*$", re.IGNORECASE | re.MULTILINE),
 )
+# Positive signals that tests actually ran. A green claim without any of
+# these is UNVERIFIABLE: exiting 0 is not proof that tests executed.
+_TEST_EVIDENCE_PATTERNS = (
+    re.compile(r"\bRan [1-9]\d* tests?\b"),
+    re.compile(r"\b[1-9]\d* (?:passed|failed|errors?|skipped)\b", re.IGNORECASE),
+    re.compile(r"\b(?:passing|failing)\b", re.IGNORECASE),
+    re.compile(r"^\s*tests?:\s", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"\btest result:", re.IGNORECASE),
+    re.compile(r"^(?:ok|FAIL)\s+\S", re.MULTILINE),
+    re.compile(r"^--- (?:PASS|FAIL):", re.MULTILINE),
+    re.compile(r"^(?:pass|fail) \d+$", re.IGNORECASE | re.MULTILINE),
+)
+_WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
+_SANITIZED_ENV_KEYS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+)
 
 # Only test-runner prefixes may be executed from a report. A report is a
 # claim, not a trusted script, so anything outside this list stays unverifiable.
@@ -79,10 +101,12 @@ def _format(cmd):
     return " ".join(shlex.quote(part) for part in cmd)
 
 
-def _git_env():
-    # Never let a git command block on an interactive credential prompt.
+def git_env():
+    """Copy the environment but never let a caller's git variables redirect us."""
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
+    for key in _SANITIZED_ENV_KEYS:
+        env.pop(key, None)
     return env
 
 
@@ -90,7 +114,7 @@ def _run_git(args, timeout):
     """Run git without a shell; a timeout becomes a non-zero result."""
     try:
         return subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout, env=_git_env()
+            args, capture_output=True, text=True, timeout=timeout, env=git_env()
         )
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(args, 124, "", f"timed out after {timeout}s")
@@ -109,17 +133,18 @@ def _last_lines(text, count=LAST_LINES):
     return "\n".join(lines[-count:])
 
 
-def _tail_bytes(path, limit=MAX_OUTPUT_BYTES):
-    """Read at most ``limit`` bytes from the end of a file (bounds memory)."""
+def _tail_open(handle, limit=MAX_OUTPUT_BYTES):
+    """Read at most ``limit`` bytes from the end of an already-open file.
+
+    Reading through the descriptor (never by path) keeps a hostile child from
+    redirecting the read after the fact.
+    """
     try:
-        size = os.path.getsize(path)
-        with open(path, "rb") as handle:
-            if size > limit:
-                handle.seek(size - limit)
-            data = handle.read(limit)
+        size = os.fstat(handle.fileno()).st_size
     except OSError:
-        return ""
-    return data.decode("utf-8", "replace")
+        return "", 0
+    handle.seek(max(0, size - limit))
+    return handle.read(limit).decode("utf-8", "replace"), size
 
 
 def _rev_parse(ctx, revision):
@@ -156,14 +181,53 @@ def _valid_branch(name):
 
 
 def _arg_escapes_checkout(arg):
-    """Flag command arguments that could run something outside the checkout."""
+    """Flag command arguments that can reach outside the fresh checkout.
+
+    Relative paths stay legal (``--ignore=tests/slow`` is a normal pytest
+    flag); absolute paths and ``..`` anywhere in an argument's path part are
+    rejected, including attached forms like ``-C..`` or ``--prefix=..``.
+    """
     norm = arg.replace("\\", "/")
-    if norm.startswith("/"):
-        return True
     if norm.startswith("-"):
-        # Options carrying a path (e.g. -s/abs, --prefix=/abs) are rejected.
-        return "/" in norm.lstrip("-")
-    return ".." in norm.split("/")
+        body = norm.lstrip("-")
+        if "=" in body:
+            pieces = [body.split("=", 1)[1]]
+        elif len(body) > 1:
+            # Attached short-option value: -sVALUE, -C.., -s/abs
+            pieces = [body[1:]]
+        else:
+            pieces = [""]
+    else:
+        pieces = [norm]
+    for piece in pieces:
+        if piece.startswith("/"):
+            return True
+        if ".." in piece.split("/"):
+            return True
+    return False
+
+
+def _shows_test_evidence(output):
+    return any(pattern.search(output) for pattern in _TEST_EVIDENCE_PATTERNS)
+
+
+def _shadowed_module(checkout, argv):
+    """Return a module name when the checkout shadows a ``-m`` runner.
+
+    ``python3 -m unittest`` imports from the working directory first, so a
+    committed ``unittest.py`` would fabricate the runner's output.
+    """
+    for index, arg in enumerate(argv[:-1]):
+        if arg != "-m":
+            continue
+        module = argv[index + 1].split(".")[0]
+        if not module or module in (".", ".."):
+            continue
+        if os.path.exists(os.path.join(checkout, module + ".py")) or os.path.isdir(
+            os.path.join(checkout, module)
+        ):
+            return module
+    return None
 
 
 def _claims_no_tests(output):
@@ -209,10 +273,6 @@ def _repo_guard(ctx):
 
 def _is_allowed(command, allowlist):
     return any(command == prefix or command.startswith(prefix + " ") for prefix in allowlist)
-
-
-def _is_unittest(argv):
-    return len(argv) >= 3 and argv[0] in ("python", "python3") and argv[1] == "-m" and argv[2] == "unittest"
 
 
 def check_commit_exists(claim: Claim, ctx: Ctx) -> Result:
@@ -264,35 +324,45 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
         )
 
-    # Judge against FETCH_HEAD written by this very fetch: a remote-tracking
-    # ref can be stale (narrowed refspec, force-pushed branch) and would turn
-    # a vanished commit into a false CONFIRMED.
-    fetch_args = ["fetch", "--quiet", "--no-tags", ORIGIN, branch]
-    fetch = _git(ctx, *fetch_args, timeout=FETCH_TIMEOUT)
-    if fetch.returncode != 0:
+    # Fetch refs/heads/<branch> into a private ref: a tag or remote HEAD of
+    # the same name must not confirm a branch claim, and a private ref keeps
+    # concurrent runs from judging each other's fetch state.
+    private_ref = f"refs/bemyself-verify/{os.urandom(8).hex()}"
+    fetch_args = ["fetch", "--quiet", "--no-tags", ORIGIN, f"+refs/heads/{branch}:{private_ref}"]
+    try:
+        fetch = _git(ctx, *fetch_args, timeout=FETCH_TIMEOUT)
+        if fetch.returncode != 0:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command=_format(_repo_command(ctx, *fetch_args)),
+                output=_output(fetch),
+                reason=f"could not fetch refs/heads/{branch} to confirm the push",
+            )
+        tip = _rev_parse(ctx, private_ref)
+        if tip is None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                reason=f"{private_ref} did not resolve to a commit after fetch",
+            )
+        proc = _git(ctx, "merge-base", "--is-ancestor", commit, private_ref)
+        command = _format(_repo_command(ctx, "merge-base", "--is-ancestor", commit, private_ref))
+        if proc.returncode == 0:
+            return Result(
+                Verdict.CONFIRMED, command, "", f"{commit} is reachable from {branch} on {ORIGIN}"
+            )
+        if proc.returncode == 1:
+            return Result(
+                Verdict.REFUTED, command, "", f"{commit} is not reachable from {branch} on {ORIGIN}"
+            )
         return Result(
             Verdict.UNVERIFIABLE,
-            command=_format(_repo_command(ctx, *fetch_args)),
-            output=_output(fetch),
-            reason=f"could not fetch {ORIGIN}/{branch} to confirm the push",
+            command,
+            _output(proc),
+            reason=f"could not compare {commit} with {branch} on {ORIGIN}",
         )
-
-    proc = _git(ctx, "merge-base", "--is-ancestor", commit, "FETCH_HEAD")
-    command = _format(_repo_command(ctx, "merge-base", "--is-ancestor", commit, "FETCH_HEAD"))
-    if proc.returncode == 0:
-        return Result(
-            Verdict.CONFIRMED, command, "", f"{commit} is reachable from {ORIGIN}/{branch} (FETCH_HEAD)"
-        )
-    if proc.returncode == 1:
-        return Result(
-            Verdict.REFUTED, command, "", f"{commit} is not reachable from {ORIGIN}/{branch} (FETCH_HEAD)"
-        )
-    return Result(
-        Verdict.UNVERIFIABLE,
-        command,
-        _output(proc),
-        reason=f"could not compare {commit} with {ORIGIN}/{branch}",
-    )
+    finally:
+        # Best effort: the private verification ref must not linger.
+        _git(ctx, "update-ref", "-d", private_ref)
 
 
 def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
@@ -320,14 +390,22 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
             reason=f"head {claim.fields.get('head')!r} does not resolve to a commit",
         )
 
-    proc = _git(ctx, "diff", "--name-only", f"{base}..{head}")
-    command = _format(_repo_command(ctx, "diff", "--name-only", f"{base}..{head}"))
+    diff_args = [
+        "-c",
+        "core.quotePath=false",
+        "diff",
+        "--name-only",
+        "-z",
+        f"{base}..{head}",
+    ]
+    proc = _git(ctx, *diff_args)
+    command = _format(_repo_command(ctx, *diff_args))
     if proc.returncode != 0:
         return Result(
             Verdict.UNVERIFIABLE, command, _output(proc), reason=f"could not diff {base}..{head}"
         )
 
-    changed = {line for line in proc.stdout.splitlines() if line.strip()}
+    changed = {name for name in proc.stdout.split("\0") if name.strip()}
     output = "\n".join(sorted(changed))
     if not changed:
         return Result(
@@ -414,6 +492,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             reason=f"cannot create a log file under {ctx.tmp_dir}: {exc}",
         )
     command_desc = f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && {command_str}"
+    log = None
     try:
         clone = _run_git(
             ["git", "clone", "--quiet", "--no-hardlinks", ctx.repo, checkout], GIT_TIMEOUT
@@ -433,29 +512,40 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 _output(co),
                 reason=f"could not check out {commit}",
             )
+        shadow = _shadowed_module(checkout, argv)
+        if shadow is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"the checkout shadows the {shadow!r} module; the runner would not be the real one",
+            )
         # The command output goes to a private, unpredictable file: the child
-        # can neither pre-plant a symlink there nor fill the disk (RLIMIT_FSIZE).
+        # can neither pre-plant a symlink there nor fill the disk (RLIMIT_FSIZE),
+        # and the result is read back through the same descriptor, never by path.
+        log = os.fdopen(log_fd, "w+b")
+        log_fd = None
         try:
-            with os.fdopen(log_fd, "wb") as log:
-                log_fd = None
-                proc = subprocess.run(
-                    argv,
-                    cwd=checkout,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    timeout=TEST_TIMEOUT,
-                    env=_test_env(checkout),
-                    preexec_fn=_log_limit_preexec if resource is not None else None,
-                )
+            proc = subprocess.run(
+                argv,
+                cwd=checkout,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                timeout=TEST_TIMEOUT,
+                env=_test_env(checkout),
+                preexec_fn=_log_limit_preexec if resource is not None else None,
+            )
         except FileNotFoundError as exc:
             return Result(Verdict.UNVERIFIABLE, command_desc, "", f"command not found: {exc}")
         except subprocess.TimeoutExpired:
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
-                _last_lines(_tail_bytes(log_path)),
+                _last_lines(_tail_open(log)[0]),
                 f"command timed out after {TEST_TIMEOUT}s",
             )
+        raw_output, log_size = _tail_open(log)
+        output = _last_lines(raw_output)
         if (
             proc.returncode is not None
             and hasattr(signal, "SIGXFSZ")
@@ -464,41 +554,46 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
-                _last_lines(_tail_bytes(log_path)),
+                output,
                 f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes",
             )
         # CPython ignores SIGXFSZ and dies with another code once the write
         # limit is hit, so the capped file is the reliable signal.
-        if os.path.getsize(log_path) >= MAX_LOG_BYTES:
+        if log_size >= MAX_LOG_BYTES:
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
-                _last_lines(_tail_bytes(log_path)),
+                output,
                 f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
                 "the run cannot be verified from truncated output",
             )
-
-        raw_output = _tail_bytes(log_path)
-        output = _last_lines(raw_output)
+        if _WRITE_LIMIT_RE.search(raw_output):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                output,
+                "the run hit the per-file write limit; its outcome cannot be verified",
+            )
         if proc.returncode == claimed_exit:
-            if claim.kind == "tests_green" and _claims_no_tests(raw_output):
-                return Result(
-                    Verdict.UNVERIFIABLE,
-                    command_desc,
-                    output,
-                    "the command exited 0 but reported that no tests were executed",
-                )
-            if (
-                claim.kind == "tests_green"
-                and _is_unittest(argv)
-                and not _UNITTEST_SUMMARY_RE.search(raw_output)
-            ):
-                return Result(
-                    Verdict.UNVERIFIABLE,
-                    command_desc,
-                    output,
-                    "the command exited 0 but ran no unittest tests (no 'Ran N tests' summary)",
-                )
+            if claim.kind == "tests_green":
+                # Exiting 0 is not proof that tests ran: require a positive
+                # test summary, and treat "no tests" output as unverifiable.
+                if _shows_test_evidence(raw_output):
+                    pass
+                elif _claims_no_tests(raw_output):
+                    return Result(
+                        Verdict.UNVERIFIABLE,
+                        command_desc,
+                        output,
+                        "the command exited 0 but reported that no tests were executed",
+                    )
+                else:
+                    return Result(
+                        Verdict.UNVERIFIABLE,
+                        command_desc,
+                        output,
+                        "the command exited 0 but its output shows no evidence that tests ran",
+                    )
             return Result(
                 Verdict.CONFIRMED,
                 command_desc,
@@ -512,6 +607,11 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             f"claimed exit {claimed_exit}, actually exited {proc.returncode}",
         )
     finally:
+        if log is not None:
+            try:
+                log.close()
+            except OSError:
+                pass
         if log_fd is not None:
             try:
                 os.close(log_fd)

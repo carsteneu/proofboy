@@ -33,10 +33,18 @@ Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
 und nur in einem Wegwerf-Checkout des behaupteten Commits. Argumente, die aus
 dem Checkout herauszeigen, werden abgelehnt; das Umfeld des Testlaufs ist auf
 PATH, HOME und TMPDIR reduziert; die Ausgabe ist pro Datei begrenzt und eine
-gekappte Ausgabe ergibt `unpruefbar`. Ein Sandkasten ist das nicht: wer das
-erlaubte Testkommando kontrolliert, kontrolliert den Kindprozess.
-Branch-Namen, Commit-Hashes und Basis-Revisionen werden streng geprueft,
-bevor ein Git-Kommando sie sieht.
+gekappte Ausgabe ergibt `unpruefbar`. Ein `tests_green`-Urteil verlangt
+zusaetzlich positive Evidenz im Output (Testzusammenfassung); ein Kommando,
+das nur mit Exit 0 endet und keine Testsignale zeigt, bleibt `unpruefbar`.
+Schattiert der behauptete Commit den aufgerufenen Runner (etwa ein eigenes
+`unittest.py`), bleibt der Lauf ebenfalls `unpruefbar`. Branch-Anspruche
+werden nur gegen `refs/heads` geprueft, nie gegen Tags oder Remote-HEAD.
+
+Ein Sandkasten ist das nicht: wer das erlaubte Testkommando kontrolliert,
+kontrolliert den Kindprozess, und ein Commit kann gruene Ausgabe selbst
+faelschen. Der Pruefer laeuft gegen den behaupteten Commit; die Ehrlichkeit
+des Repos kann er nicht garantieren. Branch-Namen, Commit-Hashes und
+Basis-Revisionen werden streng geprueft, bevor ein Git-Kommando sie sieht.
 
 ## Messlatte
 

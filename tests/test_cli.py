@@ -155,10 +155,23 @@ class CliTest(unittest.TestCase):
     def test_control_characters_are_sanitized_in_text_output(self):
         report = self.write_report(
             f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
-            "Tests run: python3 -m unittest \x1b[2Kfake -> exit 0\n"
+            "Tests run: python3 -m unittest \x1b[2K\u202e\x9bfake -> exit 0\n"
         )
         proc = self.invoke("--report", report)
         self.assertNotIn("\x1b", proc.stdout)
+        self.assertNotIn("\u202e", proc.stdout)
+        self.assertNotIn("\x9b", proc.stdout)
+
+    def test_files_option_with_multiple_commits_stays_unverifiable(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+            f"**send_to payload:** `[COMMIT: {self.repo['bad']}]`\n"
+        )
+        proc = self.invoke(
+            "--report", report, "--files", "good.txt,test_ok.py", "--base", self.repo["base"], "--json"
+        )
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["diff_scope"], "UNVERIFIABLE")
 
 
 if __name__ == "__main__":

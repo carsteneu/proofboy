@@ -437,6 +437,204 @@ class CheckerTest(unittest.TestCase):
         self.assertIsNotNone(_UNITTEST_SUMMARY_RE.search("Ran 1 test in 0.0s"))
         self.assertIsNotNone(_UNITTEST_SUMMARY_RE.search("Ran 47 tests in 1.2s"))
 
+    # --- round 3: runner evidence, shadowing, refs, environment -----------
+    def test_branch_pushed_unverifiable_for_tag_name(self):
+        repo = make_repo(os.path.join(self._tmp.name, "tagged"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        git("tag", "v1", repo["bad"])
+        git("push", "-q", "origin", "v1")
+        result = run_claim(
+            make_claim("branch_pushed", branch="v1", commit=repo["bad"]),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_branch_pushed_leaves_no_private_ref(self):
+        result = self.run_check("branch_pushed", branch="main", commit=self.repo["bad"])
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                self.repo.path,
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/bemyself-verify/",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.stdout.strip(), "")
+
+    def test_tests_green_unverifiable_when_runner_module_is_shadowed(self):
+        repo = make_repo(os.path.join(self._tmp.name, "shadow"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        with open(os.path.join(repo.path, "unittest.py"), "w", encoding="utf-8") as handle:
+            handle.write("print('Ran 1 test in 0.001s')\nprint('OK')\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "shadow runner")
+        head = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        result = run_claim(
+            make_claim(
+                "tests_green", command="python3 -m unittest", claimed_exit=0, commit=head
+            ),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_when_output_shows_no_test_evidence(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -c \"print('build ok')\"",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_confirmed_when_positive_evidence_and_unrelated_phrase(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command=(
+                    "python3 -c \"print('Ran 1 test in 0.01s'); "
+                    "print('no tests were found in the target')\""
+                ),
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+    def test_tests_green_unverifiable_when_argument_escapes_via_attached_parent(self):
+        ctx = self.ctx()
+        with open(os.path.join(ctx.tmp_dir, "test_planted.py"), "w", encoding="utf-8") as handle:
+            handle.write(
+                "import unittest\n\n\n"
+                "class Planted(unittest.TestCase):\n"
+                "    def test_ok(self):\n"
+                "        self.assertTrue(True)\n"
+            )
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -m unittest discover -s..",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_accepts_relative_option_paths(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -c \"print('2 passed')\" --cov=src/pkg",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+    @mock.patch("bemyself.checks.MAX_LOG_BYTES", 4096)
+    def test_tests_green_unverifiable_when_child_hits_write_limit(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -c \"open('big.bin', 'wb').write(b'x' * 1000000)\"",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_reads_output_through_the_descriptor(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        secret = os.path.join(ctx.tmp_dir, "secret.txt")
+        with open(secret, "w", encoding="utf-8") as handle:
+            handle.write("TOPSECRET\n")
+        script = (
+            "import glob, os; "
+            "p = glob.glob('../run-*.log')[0]; "
+            "os.unlink(p); "
+            f"os.symlink({secret!r}, p); "
+            "print('Ran 1 test in 0.01s')"
+        )
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command=f'python3 -c "{script}"',
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertNotIn("TOPSECRET", result.output)
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+    def test_tests_green_unverifiable_when_make_ran_no_tests(self):
+        repo = make_repo(os.path.join(self._tmp.name, "makefile"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        with open(os.path.join(repo.path, "Makefile"), "w", encoding="utf-8") as handle:
+            handle.write("test:\n\t@true\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "empty test target")
+        head = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        result = run_claim(
+            make_claim("tests_green", command="make test", claimed_exit=0, commit=head),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_git_env_ignores_caller_git_dir(self):
+        other = make_repo(os.path.join(self._tmp.name, "gitdir-other"))
+        with open(os.path.join(other.path, "unique.txt"), "w", encoding="utf-8") as handle:
+            handle.write("unique\n")
+        subprocess.run(["git", "-C", other.path, "add", "-A"], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", other.path, "commit", "-q", "-m", "unique"],
+            check=True,
+            capture_output=True,
+        )
+        unique = subprocess.run(
+            ["git", "-C", other.path, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        os.environ["GIT_DIR"] = os.path.join(other.path, ".git")
+        try:
+            result = self.run_check("commit_exists", commit=unique)
+        finally:
+            os.environ.pop("GIT_DIR", None)
+        self.assertIs(result.verdict, Verdict.REFUTED)
+
 
 if __name__ == "__main__":
     unittest.main()

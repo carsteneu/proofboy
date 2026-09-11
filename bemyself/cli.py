@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 
-from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, run_claim
+from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, git_env, run_claim
 from bemyself.model import Claim, Verdict
 from bemyself.report import parse_report
 
@@ -20,6 +20,11 @@ MAX_REPORT_BYTES = 1 << 20
 _CONTROL_CHARS = {code: "?" for code in range(0x20) if code != 0x0A}
 _CONTROL_CHARS[0x09] = " "
 _CONTROL_CHARS[0x7F] = "?"
+_CONTROL_CHARS.update({code: "?" for code in range(0x80, 0xA0)})
+_CONTROL_CHARS.update(
+    {code: "?" for code in (0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E,
+                            0x2066, 0x2067, 0x2068, 0x2069)}
+)
 
 
 def _sanitize(value):
@@ -33,6 +38,7 @@ def _resolve_repo_root(path):
         ["git", "-C", path, "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
+        env=git_env(),
     )
     if proc.returncode == 0 and proc.stdout.strip():
         return proc.stdout.strip()
@@ -89,17 +95,19 @@ def _apply_files_override(claims, files_value):
             claim.fields["planned"] = planned
             retargeted = True
     if not retargeted:
-        commit_claim = next((c for c in claims if c.kind == "commit_exists"), None)
-        if commit_claim is not None:
-            claims.append(
-                Claim(
-                    "diff_scope",
-                    commit_claim.line,
-                    "--files override",
-                    {"head": commit_claim.fields["commit"], "planned": planned},
-                )
+        # Bind to the report's commit only when it names exactly one; several
+        # distinct commits would make the binding a guess.
+        commits = {claim.fields["commit"] for claim in claims if claim.kind == "commit_exists"}
+        head = next(iter(commits)) if len(commits) == 1 else None
+        claims.append(
+            Claim(
+                "diff_scope",
+                0,
+                "--files override",
+                {"head": head, "planned": planned},
             )
-            claims.sort(key=lambda c: c.line)
+        )
+        claims.sort(key=lambda c: c.line)
     return claims
 
 
