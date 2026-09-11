@@ -892,6 +892,262 @@ class CheckerTest(unittest.TestCase):
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
 
+    # --- round 5: variable injection, git object forgeries, config programs --
+    def test_tests_green_unverifiable_for_variable_shell_injection(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command='make test "TESTS=;echo Ran 1 test;echo OK;#"',
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_for_dollar_expansion_in_value(self):
+        canary = os.path.join(self._tmp.name, "canary-dollar")
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="make test 'TESTS=$$(touch$${IFS}%s)'" % canary,
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertFalse(os.path.exists(canary), "make executed the variable payload")
+
+    def test_tests_green_unverifiable_for_abbreviated_nested_option(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="npm test --node-opt=--require=/tmp/anything.js",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_tests_green_unverifiable_when_stdlib_module_is_shadowed(self):
+        repo = make_repo(os.path.join(self._tmp.name, "difflib-shadow"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        with open(os.path.join(repo.path, "difflib.py"), "w", encoding="utf-8") as handle:
+            handle.write(
+                "import os\n"
+                "print('Ran 1 test in 0.001s')\n"
+                "print('OK')\n"
+                "os._exit(0)\n"
+            )
+        git("add", "-A")
+        git("commit", "-q", "-m", "shadow difflib")
+        head = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3 -m unittest discover -s .",
+                claimed_exit=0,
+                commit=head,
+            ),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_diff_scope_not_forged_by_replace_ref(self):
+        repo = make_repo(os.path.join(self._tmp.name, "replaced"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        # Without neutralization the replacement makes base..good look empty.
+        git("replace", repo["good"], repo["base"])
+        try:
+            result = self.run_check(
+                "diff_scope",
+                ctx=self.ctx(repo=repo.path, base=repo["base"]),
+                head=repo["good"],
+                planned=("good.txt", "test_ok.py"),
+            )
+        finally:
+            git("replace", "-d", repo["good"])
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+    def test_branch_pushed_not_forged_by_grafts(self):
+        repo = make_repo(os.path.join(self._tmp.name, "grafted"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        with open(os.path.join(repo.path, "unpushed.txt"), "w", encoding="utf-8") as handle:
+            handle.write("unpushed\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "unpushed")
+        unpushed = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        tip = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "origin/main"], capture_output=True, text=True
+        ).stdout.strip()
+        grafts = os.path.join(repo.path, ".git", "info", "grafts")
+        os.makedirs(os.path.dirname(grafts), exist_ok=True)
+        with open(grafts, "w", encoding="utf-8") as handle:
+            handle.write(f"{tip} {unpushed}\n")
+        try:
+            result = run_claim(
+                make_claim("branch_pushed", branch="main", commit=unpushed),
+                self.ctx(repo=repo.path),
+            )
+        finally:
+            os.unlink(grafts)
+        self.assertIs(result.verdict, Verdict.REFUTED)
+
+    def test_branch_pushed_ignores_repo_hooks(self):
+        marker = os.path.join(self._tmp.name, "hook-marker")
+        hooks = os.path.join(self.repo.path, ".githooks")
+        os.makedirs(hooks, exist_ok=True)
+        hook = os.path.join(hooks, "reference-transaction")
+        with open(hook, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\ntouch %s\n" % marker)
+        os.chmod(hook, 0o755)
+        subprocess.run(
+            ["git", "-C", self.repo.path, "config", "core.hooksPath", ".githooks"],
+            check=True,
+            capture_output=True,
+        )
+        try:
+            result = self.run_check("branch_pushed", branch="main", commit=self.repo["bad"])
+        finally:
+            subprocess.run(
+                ["git", "-C", self.repo.path, "config", "--unset", "core.hooksPath"],
+                capture_output=True,
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertFalse(os.path.exists(marker), "a repo hook ran during verification")
+
+    def test_branch_pushed_ignores_repo_fsmonitor(self):
+        marker = os.path.join(self._tmp.name, "fsmonitor-marker")
+        script = os.path.join(self._tmp.name, "fsmon.sh")
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\ntouch %s\nexit 0\n" % marker)
+        os.chmod(script, 0o755)
+        subprocess.run(
+            ["git", "-C", self.repo.path, "config", "core.fsmonitor", script],
+            check=True,
+            capture_output=True,
+        )
+        try:
+            result = self.run_check("branch_pushed", branch="main", commit=self.repo["bad"])
+        finally:
+            subprocess.run(
+                ["git", "-C", self.repo.path, "config", "--unset", "core.fsmonitor"],
+                capture_output=True,
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertFalse(os.path.exists(marker), "core.fsmonitor ran during verification")
+
+    def test_branch_pushed_refuses_repo_gitproxy(self):
+        marker = os.path.join(self._tmp.name, "gitproxy-marker")
+        script = os.path.join(self._tmp.name, "proxy.sh")
+        with open(script, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\ntouch %s\nexit 1\n" % marker)
+        os.chmod(script, 0o755)
+        subprocess.run(
+            ["git", "-C", self.repo.path, "config", "core.gitProxy", script],
+            check=True,
+            capture_output=True,
+        )
+        try:
+            result = self.run_check("branch_pushed", branch="main", commit=self.repo["bad"])
+        finally:
+            subprocess.run(
+                ["git", "-C", self.repo.path, "config", "--unset", "core.gitProxy"],
+                capture_output=True,
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertFalse(os.path.exists(marker), "core.gitProxy ran during verification")
+
+    def test_missing_runner_behind_wrapper_is_unverifiable(self):
+        repo = make_repo(os.path.join(self._tmp.name, "wrapped-missing"))
+
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", repo.path, *args], check=True, capture_output=True
+            )
+
+        with open(os.path.join(repo.path, "Makefile"), "w", encoding="utf-8") as handle:
+            handle.write("test:\n\tpython3 -m definitely_missing_runner_mod -q\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "wrapped runner")
+        head = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        result = run_claim(
+            make_claim("tests_green", command="make test", claimed_exit=0, commit=head),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    @mock.patch("bemyself.checks.TEST_TIMEOUT", 2)
+    def test_tests_green_timeout_kills_the_process_group(self):
+        ctx = self.ctx(allowlist=("python3 -c",))
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command=(
+                    "python3 -c \"import subprocess, time; "
+                    "subprocess.Popen(['sleep', '54321']); time.sleep(60)\""
+                ),
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        import time
+
+        time.sleep(0.3)
+        probe = subprocess.run(["pgrep", "-f", "sleep 54321"], capture_output=True, text=True)
+        if probe.returncode == 0:
+            subprocess.run(["pkill", "-f", "sleep 54321"], capture_output=True)
+        self.assertNotEqual(probe.returncode, 0, "the grandchild survived the timeout")
+
+    def test_tests_green_unverifiable_for_abbreviated_dangerous_option(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command='make test --eva="test: ;@true"',
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    def test_allowlist_tolerates_extra_whitespace(self):
+        result = run_claim(
+            make_claim(
+                "tests_green",
+                command="python3  -m unittest test_ok",
+                claimed_exit=0,
+                commit=self.repo["good"],
+            ),
+            self.ctx(),
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,20 +32,30 @@ Behauptung einzeln mit Kommando und roher Ausgabe.
 Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
 und nur in einem Wegwerf-Checkout des behaupteten Commits. Argumente, die aus
 dem Checkout herauszeigen, werden abgelehnt: absolute Pfade, `..` in jeder
-Form, code-tragende Optionen wie `make --eval` oder `cargo --config`, und
+Form, code-tragende Optionen wie `make --eval` oder `cargo --config` (auch
+abgekuerzt), Shell-Syntax in Options- und Variablenwerten (`TESTS=...`), und
 Symlinks, die aus dem Checkout herausfuehren, werden aufgeloest und geprueft.
-Das Umfeld des Testlaufs ist auf PATH, HOME, TMPDIR und die Sprachvariablen
-reduziert, ohne Python-Startup-Hooks aus dem Checkout; die Ausgabe ist pro
-Datei begrenzt und eine gekappte Ausgabe ergibt `unpruefbar`.
+Im Zweifel lehnt der Pruefer ab: ein Wert, der wie ein absoluter Pfad oder wie
+Shell-Syntax aussieht, bleibt `unpruefbar` statt bestaetigt. Das Umfeld des
+Testlaufs ist auf PATH, HOME, TMPDIR und die Sprachvariablen reduziert, ohne
+Python-Startup-Hooks aus dem Checkout; die Ausgabe ist pro Datei begrenzt und
+eine gekappte Ausgabe ergibt `unpruefbar`.
 
 Ein `tests_green`-Urteil verlangt positive Evidenz im Output
 (Testzusammenfassung); ein Kommando, das nur mit Exit 0 endet, keine
 Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Schattiert der
-behauptete Commit den Testrunner (etwa ein eigenes `unittest.py`), bleibt der
-Lauf ebenfalls `unpruefbar`. Branch-Anspruche werden nur gegen `refs/heads`
-geprueft, nie gegen Tags oder Remote-HEAD, und der Pruef-Fetch neutralisiert
-programmausfuehrende Git-Konfiguration des Repos (upload-pack, sshCommand,
-Credential-Helfer).
+behauptete Commit den Testrunner oder ein Modul, das er beim Start importiert
+(etwa ein eigenes `unittest.py` oder `difflib.py`), bleibt der Lauf ebenfalls
+`unpruefbar`.
+
+Branch-Anspruche werden nur gegen `refs/heads` geprueft, nie gegen Tags oder
+Remote-HEAD. Waehrend jeder Pruefung deaktiviert der Pruefer
+programmausfuehrende Repo-Konfiguration (Git-Hooks, `core.fsmonitor`,
+`remote.uploadpack`, `core.sshCommand`, Credential-Helfer) und ignoriert
+Objektdaten-Manipulationen des Repos (`refs/replace`, `info/grafts`); ein Repo,
+dessen Konfiguration `core.gitProxy` oder `core.askpass` setzt, wird gar nicht
+erst angefasst. Der Standard-Ablageort fuer Wegwerf-Daten ist
+`<repo>/.yesmem/tmp/check` und laesst sich mit `--tmp` verlegen.
 
 Der Diff-Scope vergleicht die Dateiliste der Meldung mit dem Diff; ohne
 `--files` stammt die Planliste aus der Meldung selbst, das Urteil bindet sie

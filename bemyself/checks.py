@@ -14,6 +14,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 
@@ -58,14 +59,23 @@ _TEST_EVIDENCE_PATTERNS = (
     re.compile(r"^\s*(?:pass|fail)\s+[1-9]\d*$", re.IGNORECASE | re.MULTILINE),
 )
 _WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
+_MISSING_MODULE_RE = re.compile(r"No module named '?([A-Za-z_][\w.]*)'?")
 # Option names that make a runner interpret the value as code or config.
 _DANGEROUS_OPTION_NAMES = frozenset(
     {"eval", "exec", "config", "script-shell", "node-options", "preload", "require"}
 )
-# Characters that only occur in arguments a shell (or a runner re-shelling an
-# option value) would treat specially. The verifier itself never uses a shell.
+# Characters that only occur in arguments a shell (or a runner re-shelling a
+# value) would treat specially. The verifier itself never uses a shell, but
+# runners like make/npm hand variable values and arguments to sh.
 _SHELL_METACHARS = frozenset(" \t\n\r;&|$`<>(){}'\"\\")
+# Plain tokens of a command that shells out: no shell syntax anywhere.
+_TOKEN_METACHARS = frozenset(";&|$`<>(){}[]\t\n\r")
+# Python interprets its own arguments (no shell), so shell syntax is inert
+# there; only the path checks below apply.
+_PYTHON_TUPLE_METACHARS = frozenset()
 _KNOWN_RUNNER_MODULES = ("unittest", "pytest", "nose2")
+_PYTHON_COMMAND_TOKENS = ("python", "python2", "python3", "pytest", "py.test")
+_WRAPPER_COMMAND_TOKENS = ("make", "npm", "yarn", "bun", "pnpm", "npx")
 _SANITIZED_ENV_KEYS = (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -90,6 +100,7 @@ DEFAULT_COMMAND_ALLOWLIST = (
     "npm run test",
     "yarn test",
     "bun test",
+    "node --test",
     "make test",
     "make check",
 )
@@ -104,7 +115,19 @@ class Ctx:
 
 
 def _repo_command(ctx, *args):
-    return ["git", "-C", ctx.repo, *args]
+    # Repo-owned config must not execute programs during verification: hooks
+    # (reference-transaction via core.hooksPath) and core.fsmonitor are
+    # neutralized for every command that runs inside the untrusted repo.
+    return [
+        "git",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "core.fsmonitor=false",
+        "-C",
+        ctx.repo,
+        *args,
+    ]
 
 
 def _format(cmd):
@@ -115,6 +138,10 @@ def git_env():
     """Copy the environment but never let a caller's git variables redirect us."""
     env = dict(os.environ)
     env["GIT_TERMINAL_PROMPT"] = "0"
+    # Object-graph overrides in the inspected repo would forge verdicts:
+    # replace refs substitute object content, grafts rewrite ancestry.
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_GRAFT_FILE"] = os.devnull
     for key in _SANITIZED_ENV_KEYS:
         env.pop(key, None)
     return env
@@ -190,15 +217,26 @@ def _valid_branch(name):
     return all(part and not part.startswith(".") for part in name.split("/"))
 
 
-def _path_candidates(arg):
+def _is_dangerous_option_name(name):
+    """Prefix-aware: npm and friends accept abbreviations of long options."""
+    name = name.lower()
+    if name in _DANGEROUS_OPTION_NAMES:
+        return True
+    return len(name) >= 3 and any(d.startswith(name) for d in _DANGEROUS_OPTION_NAMES)
+
+
+def _path_candidates(arg, strict=True):
     """Return the path-like pieces of one argv element, or None to reject it.
 
-    A report-supplied argument must not be able to reach outside the fresh
-    checkout. Since the verifier runs no shell but runners do re-parse their
-    arguments, every place a path or code could hide is enumerated: plain
-    tokens, key=value tokens (both sides), long options, attached short-option
-    values, and whitespace/comma-split values.
+    A report-supplied argument must not reach outside the fresh checkout.
+    Since the verifier runs no shell but runners do re-parse their arguments
+    (and make/npm hand variable values to sh), tokens are checked for shell
+    syntax too -- unless the command runs python directly, where parentheses
+    and braces are ordinary code. Plain tokens, key=value tokens (both
+    sides), long options, attached short-option values, whitespace/comma-split
+    values and values that are themselves options are all checked.
     """
+    metachars = _TOKEN_METACHARS if strict else _PYTHON_TUPLE_METACHARS
     norm = arg.replace("\\", "/")
     pieces = []
     if norm in ("-", "--"):
@@ -207,7 +245,7 @@ def _path_candidates(arg):
         name, sep, value = norm[2:].partition("=")
         if not re.match(r"\A[A-Za-z0-9][A-Za-z0-9-]*\Z", name):
             return None
-        if name.lower() in _DANGEROUS_OPTION_NAMES:
+        if _is_dangerous_option_name(name):
             return None
         if any(ch in norm[2:] for ch in _SHELL_METACHARS):
             return None
@@ -217,7 +255,7 @@ def _path_candidates(arg):
         body = norm[1:]
         if not body:
             return []
-        if body.split("=", 1)[0].lower() in _DANGEROUS_OPTION_NAMES:
+        if _is_dangerous_option_name(body.split("=", 1)[0]):
             return None
         if any(ch in body for ch in _SHELL_METACHARS):
             return None
@@ -229,11 +267,17 @@ def _path_candidates(arg):
             # Attached short-option value: -sVALUE, -C.., -s/abs
             pieces = [body[1:]]
     else:
+        if any(ch in norm for ch in metachars):
+            return None
         head, sep, value = norm.partition("=")
         if sep:
             pieces = [head, value, *value.split(), *value.split(",")]
         else:
             pieces = [norm]
+    for piece in pieces:
+        if piece.startswith("-") and piece not in ("-", "--"):
+            if _path_candidates(piece, strict=strict) is None:
+                return None
     return pieces
 
 
@@ -243,15 +287,15 @@ def _candidate_escapes(piece):
     return ".." in piece.split("/")
 
 
-def _arg_escapes_checkout(arg):
+def _arg_escapes_checkout(arg, strict=True):
     """Flag command arguments that can reach outside the fresh checkout."""
-    pieces = _path_candidates(arg)
+    pieces = _path_candidates(arg, strict=strict)
     if pieces is None:
         return True
     return any(_candidate_escapes(piece) for piece in pieces)
 
 
-def _symlink_escape(argv, checkout):
+def _symlink_escape(argv, checkout, strict=True):
     """Return an argument piece whose real path leaves the checkout.
 
     A committed symlink (``make -C link``) would otherwise run code outside
@@ -259,13 +303,18 @@ def _symlink_escape(argv, checkout):
     """
     root = os.path.realpath(checkout)
     for arg in argv:
-        for piece in _path_candidates(arg) or []:
+        for piece in _path_candidates(arg, strict=strict) or []:
             if not piece or piece.startswith("-"):
                 continue
             resolved = os.path.realpath(os.path.join(root, piece))
             if resolved != root and not resolved.startswith(root + os.sep):
                 return piece
     return None
+
+
+def _is_python_direct(argv):
+    """True when python itself interprets the arguments (no shell involved)."""
+    return bool(argv) and os.path.basename(argv[0]).startswith("python")
 
 
 def _shows_test_evidence(output):
@@ -286,24 +335,32 @@ def _module_present(checkout, module):
 
 
 def _shadowed_module(checkout, argv):
-    """Return a module name when the checkout shadows a test runner.
+    """Return a module name the checkout would shadow for this command.
 
     ``python3 -m unittest`` imports from the working directory first, so a
-    committed ``unittest.py`` would fabricate the runner's output. Wrapper
-    commands (``make test``) hide the runner name, so the known runner
-    modules are checked unconditionally.
+    committed ``unittest.py`` -- or any stdlib module the runner imports at
+    startup, like ``difflib`` -- would fabricate the runner's output.
+    Wrapper commands (``make test``, ``npm test``) hide the runner name, so
+    a known set is checked for them as well.
     """
     for index, arg in enumerate(argv[:-1]):
         if arg != "-m":
             continue
         module = argv[index + 1].split(".")[0]
-        if not module or module in (".", ".."):
-            continue
-        if _module_present(checkout, module):
+        if module and module not in (".", "..") and _module_present(checkout, module):
             return module
-    for module in _KNOWN_RUNNER_MODULES:
-        if _module_present(checkout, module):
-            return module
+    tokens = {os.path.basename(arg) for arg in argv}
+    if any(token.startswith("python") for token in tokens) or tokens & set(
+        _PYTHON_COMMAND_TOKENS
+    ):
+        names = sorted(set(sys.stdlib_module_names) | {"pytest", "nose2"})
+    elif tokens & set(_WRAPPER_COMMAND_TOKENS):
+        names = sorted(set(_KNOWN_RUNNER_MODULES) | {"difflib"})
+    else:
+        return None
+    for name in names:
+        if _module_present(checkout, name):
+            return name
     return None
 
 
@@ -334,11 +391,24 @@ def _test_env(checkout):
     return env
 
 
-def _log_limit_preexec():
+def _child_preexec():
+    # Own process group so a timeout can take the whole tree down; own file
+    # limit so a runaway child cannot fill the disk.
+    os.setsid()
     if resource is not None:
         try:
             resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_LOG_BYTES, MAX_LOG_BYTES))
         except (OSError, ValueError):
+            pass
+
+
+def _kill_process_group(proc):
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except OSError:
+        try:
+            proc.kill()
+        except OSError:
             pass
 
 
@@ -358,7 +428,10 @@ def _repo_guard(ctx):
 
 
 def _is_allowed(command, allowlist):
-    return any(command == prefix or command.startswith(prefix + " ") for prefix in allowlist)
+    normalized = " ".join(command.split())
+    return any(
+        normalized == prefix or normalized.startswith(prefix + " ") for prefix in allowlist
+    )
 
 
 def check_commit_exists(claim: Claim, ctx: Ctx) -> Result:
@@ -410,18 +483,32 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
         )
 
+    # Programs named by the repo's own config must not run during
+    # verification. Hooks and fsmonitor are disabled via _repo_command,
+    # upload-pack and ssh via fetch arguments and http.proxy via -c; gitProxy
+    # and askpass have no working override, so a fetch is refused when a repo
+    # sets them.
+    for key in ("core.gitProxy", "core.askpass"):
+        cfg = _git(ctx, "config", "--get", key)
+        if cfg.returncode == 0 and cfg.stdout.strip():
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command=_format(_repo_command(ctx, "config", "--get", key)),
+                output=_output(cfg),
+                reason=f"repo config sets {key}; refusing to fetch through a repo-configured program",
+            )
+
     # Fetch refs/heads/<branch> into a private ref: a tag or remote HEAD of
     # the same name must not confirm a branch claim, and a private ref keeps
-    # concurrent runs from judging each other's fetch state. The repo's own
-    # config may name programs git would execute (remote.origin.uploadpack,
-    # core.sshCommand, credential.helper), and the repo is untrusted input:
-    # for the duration of this fetch, verifier-owned values win.
+    # concurrent runs from judging each other's fetch state.
     private_ref = f"refs/bemyself-verify/{os.urandom(8).hex()}"
     fetch_args = [
         "-c",
         "core.sshCommand=ssh",
         "-c",
         "credential.helper=",
+        "-c",
+        "http.proxy=",
         "fetch",
         "--quiet",
         "--no-tags",
@@ -565,7 +652,8 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         return Result(Verdict.UNVERIFIABLE, command=command_str, reason=f"could not parse command: {exc}")
     if not argv:
         return Result(Verdict.UNVERIFIABLE, command=command_str, reason="empty command")
-    escaping = [arg for arg in argv if _arg_escapes_checkout(arg)]
+    strict = not _is_python_direct(argv)
+    escaping = [arg for arg in argv if _arg_escapes_checkout(arg, strict=strict)]
     if escaping:
         # Only the cwd is confined; an argument pointing outside the fresh
         # checkout would run code the verified commit never contained.
@@ -622,7 +710,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 "",
                 f"the checkout shadows the {shadow!r} module; the runner would not be the real one",
             )
-        escape = _symlink_escape(argv, checkout)
+        escape = _symlink_escape(argv, checkout, strict=strict)
         if escape is not None:
             return Result(
                 Verdict.UNVERIFIABLE,
@@ -636,19 +724,22 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         log = os.fdopen(log_fd, "w+b")
         log_fd = None
         try:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 argv,
                 cwd=checkout,
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
-                timeout=TEST_TIMEOUT,
                 env=_test_env(checkout),
-                preexec_fn=_log_limit_preexec if resource is not None else None,
+                preexec_fn=_child_preexec,
             )
         except FileNotFoundError as exc:
             return Result(Verdict.UNVERIFIABLE, command_desc, "", f"command not found: {exc}")
+        try:
+            returncode = proc.wait(timeout=TEST_TIMEOUT)
         except subprocess.TimeoutExpired:
+            _kill_process_group(proc)
+            proc.wait()
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
@@ -658,9 +749,9 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         raw_output, log_size = _tail_open(log)
         output = _last_lines(raw_output)
         if (
-            proc.returncode is not None
+            returncode is not None
             and hasattr(signal, "SIGXFSZ")
-            and proc.returncode == -signal.SIGXFSZ
+            and returncode == -signal.SIGXFSZ
         ):
             return Result(
                 Verdict.UNVERIFIABLE,
@@ -678,7 +769,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
                 "the run cannot be verified from truncated output",
             )
-        if proc.returncode == claimed_exit:
+        if returncode == claimed_exit:
             if claim.kind == "tests_green":
                 # Exiting 0 is not proof that tests ran: require a positive
                 # test summary, and treat "no tests" output as unverifiable.
@@ -702,23 +793,19 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.CONFIRMED,
                 command_desc,
                 output,
-                f"{command_str!r} exited {proc.returncode} as claimed",
+                f"{command_str!r} exited {returncode} as claimed",
             )
-        # A missing runner is an environment gap, not evidence that the tests
-        # failed: "python3 -m pytest" without pytest installed must not refute.
-        runner_module = None
-        for index, arg in enumerate(argv[:-1]):
-            if arg == "-m":
-                runner_module = argv[index + 1].split(".")[0]
-                break
-        if runner_module and re.search(
-            rf"No module named '?{re.escape(runner_module)}(?![\w.])", raw_output
-        ):
+        # A missing module is an environment gap, not evidence that the tests
+        # failed -- this must hold for direct commands and for wrappers
+        # (make/npm) that hide the runner name. In doubt: UNVERIFIABLE.
+        missing_match = _MISSING_MODULE_RE.search(raw_output)
+        if missing_match is not None:
+            missing = missing_match.group(1).split(".")[0]
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"the runner module {runner_module!r} is not available in this environment",
+                f"the run failed on a module that is not available: {missing!r}",
             )
         if _WRITE_LIMIT_RE.search(raw_output):
             return Result(
@@ -731,7 +818,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.REFUTED,
             command_desc,
             output,
-            f"claimed exit {claimed_exit}, actually exited {proc.returncode}",
+            f"claimed exit {claimed_exit}, actually exited {returncode}",
         )
     finally:
         if log is not None:
