@@ -155,12 +155,20 @@ class CliTest(unittest.TestCase):
     def test_control_characters_are_sanitized_in_text_output(self):
         report = self.write_report(
             f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
-            "Tests run: python3 -m unittest \x1b[2K\u202e\x9bfake -> exit 0\n"
+            "Tests run: python3 -m unittest \x1b[2K\u202e\x9b\u200b\ufeff\u061cfake -> exit 0\n"
         )
         proc = self.invoke("--report", report)
         self.assertNotIn("\x1b", proc.stdout)
+        for char in ("\u202e", "\x9b", "\u200b", "\ufeff", "\u061c"):
+            self.assertNotIn(char, proc.stdout)
+
+    def test_json_output_escapes_non_ascii_control_characters(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+            "Tests run: python3 -m unittest \u202efake -> exit 0\n"
+        )
+        proc = self.invoke("--report", report, "--json")
         self.assertNotIn("\u202e", proc.stdout)
-        self.assertNotIn("\x9b", proc.stdout)
 
     def test_files_option_with_multiple_commits_stays_unverifiable(self):
         report = self.write_report(

@@ -44,18 +44,28 @@ _NO_TESTS_PATTERNS = (
     re.compile(r"^\s*0 tests?\s*$", re.IGNORECASE | re.MULTILINE),
 )
 # Positive signals that tests actually ran. A green claim without any of
-# these is UNVERIFIABLE: exiting 0 is not proof that tests executed.
+# these is UNVERIFIABLE: exiting 0 is not proof that tests executed, and a
+# zero-count summary ("0 passing", "Tests: 0 total") is not either.
 _TEST_EVIDENCE_PATTERNS = (
-    re.compile(r"\bRan [1-9]\d* tests?\b"),
-    re.compile(r"\b[1-9]\d* (?:passed|failed|errors?|skipped)\b", re.IGNORECASE),
-    re.compile(r"\b(?:passing|failing)\b", re.IGNORECASE),
-    re.compile(r"^\s*tests?:\s", re.IGNORECASE | re.MULTILINE),
-    re.compile(r"\btest result:", re.IGNORECASE),
+    _UNITTEST_SUMMARY_RE,
+    re.compile(r"\b[1-9]\d* (?:passed|failed|errors?)\b", re.IGNORECASE),
+    re.compile(r"\b[1-9]\d* (?:passing|failing)\b", re.IGNORECASE),
+    re.compile(r"(?<![\w])(?:tests?|pass)\s+[1-9]\d*(?![\w])"),
+    re.compile(r"\btest result:\s*\w+\s+[1-9]\d* passed", re.IGNORECASE),
+    re.compile(r"^\s*tests?:\s.*\b[1-9]\d*\b", re.IGNORECASE | re.MULTILINE),
     re.compile(r"^(?:ok|FAIL)\s+\S", re.MULTILINE),
     re.compile(r"^--- (?:PASS|FAIL):", re.MULTILINE),
-    re.compile(r"^(?:pass|fail) \d+$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*(?:pass|fail)\s+[1-9]\d*$", re.IGNORECASE | re.MULTILINE),
 )
 _WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
+# Option names that make a runner interpret the value as code or config.
+_DANGEROUS_OPTION_NAMES = frozenset(
+    {"eval", "exec", "config", "script-shell", "node-options", "preload", "require"}
+)
+# Characters that only occur in arguments a shell (or a runner re-shelling an
+# option value) would treat specially. The verifier itself never uses a shell.
+_SHELL_METACHARS = frozenset(" \t\n\r;&|$`<>(){}'\"\\")
+_KNOWN_RUNNER_MODULES = ("unittest", "pytest", "nose2")
 _SANITIZED_ENV_KEYS = (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -180,42 +190,108 @@ def _valid_branch(name):
     return all(part and not part.startswith(".") for part in name.split("/"))
 
 
-def _arg_escapes_checkout(arg):
-    """Flag command arguments that can reach outside the fresh checkout.
+def _path_candidates(arg):
+    """Return the path-like pieces of one argv element, or None to reject it.
 
-    Relative paths stay legal (``--ignore=tests/slow`` is a normal pytest
-    flag); absolute paths and ``..`` anywhere in an argument's path part are
-    rejected, including attached forms like ``-C..`` or ``--prefix=..``.
+    A report-supplied argument must not be able to reach outside the fresh
+    checkout. Since the verifier runs no shell but runners do re-parse their
+    arguments, every place a path or code could hide is enumerated: plain
+    tokens, key=value tokens (both sides), long options, attached short-option
+    values, and whitespace/comma-split values.
     """
     norm = arg.replace("\\", "/")
-    if norm.startswith("-"):
-        body = norm.lstrip("-")
+    pieces = []
+    if norm in ("-", "--"):
+        return []
+    if norm.startswith("--"):
+        name, sep, value = norm[2:].partition("=")
+        if not re.match(r"\A[A-Za-z0-9][A-Za-z0-9-]*\Z", name):
+            return None
+        if name.lower() in _DANGEROUS_OPTION_NAMES:
+            return None
+        if any(ch in norm[2:] for ch in _SHELL_METACHARS):
+            return None
+        if sep:
+            pieces = [value, *value.split(), *value.split(",")]
+    elif norm.startswith("-"):
+        body = norm[1:]
+        if not body:
+            return []
+        if body.split("=", 1)[0].lower() in _DANGEROUS_OPTION_NAMES:
+            return None
+        if any(ch in body for ch in _SHELL_METACHARS):
+            return None
         if "=" in body:
-            pieces = [body.split("=", 1)[1]]
+            # Attached forms: -C/abs, -C../x=1. Both readings are checked.
+            value = body.split("=", 1)[1]
+            pieces = [value, *value.split(), *value.split(","), body[1:]]
         elif len(body) > 1:
             # Attached short-option value: -sVALUE, -C.., -s/abs
             pieces = [body[1:]]
-        else:
-            pieces = [""]
     else:
-        pieces = [norm]
-    for piece in pieces:
-        if piece.startswith("/"):
-            return True
-        if ".." in piece.split("/"):
-            return True
-    return False
+        head, sep, value = norm.partition("=")
+        if sep:
+            pieces = [head, value, *value.split(), *value.split(",")]
+        else:
+            pieces = [norm]
+    return pieces
+
+
+def _candidate_escapes(piece):
+    if piece.startswith("/"):
+        return True
+    return ".." in piece.split("/")
+
+
+def _arg_escapes_checkout(arg):
+    """Flag command arguments that can reach outside the fresh checkout."""
+    pieces = _path_candidates(arg)
+    if pieces is None:
+        return True
+    return any(_candidate_escapes(piece) for piece in pieces)
+
+
+def _symlink_escape(argv, checkout):
+    """Return an argument piece whose real path leaves the checkout.
+
+    A committed symlink (``make -C link``) would otherwise run code outside
+    the checkout even though the argument is lexically harmless.
+    """
+    root = os.path.realpath(checkout)
+    for arg in argv:
+        for piece in _path_candidates(arg) or []:
+            if not piece or piece.startswith("-"):
+                continue
+            resolved = os.path.realpath(os.path.join(root, piece))
+            if resolved != root and not resolved.startswith(root + os.sep):
+                return piece
+    return None
 
 
 def _shows_test_evidence(output):
     return any(pattern.search(output) for pattern in _TEST_EVIDENCE_PATTERNS)
 
 
+def _module_present(checkout, module):
+    """True when the module name would import from the checkout itself."""
+    if os.path.isfile(os.path.join(checkout, module + ".py")):
+        return True
+    package = os.path.join(checkout, module)
+    if os.path.isdir(package):
+        return any(
+            os.path.isfile(os.path.join(package, marker))
+            for marker in ("__init__.py", "__main__.py")
+        )
+    return False
+
+
 def _shadowed_module(checkout, argv):
-    """Return a module name when the checkout shadows a ``-m`` runner.
+    """Return a module name when the checkout shadows a test runner.
 
     ``python3 -m unittest`` imports from the working directory first, so a
-    committed ``unittest.py`` would fabricate the runner's output.
+    committed ``unittest.py`` would fabricate the runner's output. Wrapper
+    commands (``make test``) hide the runner name, so the known runner
+    modules are checked unconditionally.
     """
     for index, arg in enumerate(argv[:-1]):
         if arg != "-m":
@@ -223,11 +299,17 @@ def _shadowed_module(checkout, argv):
         module = argv[index + 1].split(".")[0]
         if not module or module in (".", ".."):
             continue
-        if os.path.exists(os.path.join(checkout, module + ".py")) or os.path.isdir(
-            os.path.join(checkout, module)
-        ):
+        if _module_present(checkout, module):
+            return module
+    for module in _KNOWN_RUNNER_MODULES:
+        if _module_present(checkout, module):
             return module
     return None
+
+
+def _display_name(name):
+    """Make a repository-controlled name safe to print on one line."""
+    return name.translate({code: "?" for code in (*range(0x20), 0x7F)})
 
 
 def _claims_no_tests(output):
@@ -241,6 +323,10 @@ def _test_env(checkout):
         "HOME": checkout,
         "TMPDIR": checkout,
         "GIT_TERMINAL_PROMPT": "0",
+        # Without this, HOME=<checkout> would let a committed
+        # .local/lib/python*/site-packages/usercustomize.py inject code.
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
     }
     for key in ("LANG", "LC_ALL", "LC_CTYPE"):
         if key in os.environ:
@@ -326,9 +412,24 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
 
     # Fetch refs/heads/<branch> into a private ref: a tag or remote HEAD of
     # the same name must not confirm a branch claim, and a private ref keeps
-    # concurrent runs from judging each other's fetch state.
+    # concurrent runs from judging each other's fetch state. The repo's own
+    # config may name programs git would execute (remote.origin.uploadpack,
+    # core.sshCommand, credential.helper), and the repo is untrusted input:
+    # for the duration of this fetch, verifier-owned values win.
     private_ref = f"refs/bemyself-verify/{os.urandom(8).hex()}"
-    fetch_args = ["fetch", "--quiet", "--no-tags", ORIGIN, f"+refs/heads/{branch}:{private_ref}"]
+    fetch_args = [
+        "-c",
+        "core.sshCommand=ssh",
+        "-c",
+        "credential.helper=",
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "--upload-pack=git-upload-pack",
+        ORIGIN,
+        f"+refs/heads/{branch}:{private_ref}",
+    ]
     try:
         fetch = _git(ctx, *fetch_args, timeout=FETCH_TIMEOUT)
         if fetch.returncode != 0:
@@ -376,7 +477,8 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             reason="no base revision given; pass --base to compare the diff scope",
         )
-    planned = set(claim.fields.get("planned") or ())
+    planned = {name[2:] if name.startswith("./") else name for name in claim.fields.get("planned") or ()}
+    planned.discard("")
     if not planned:
         return Result(Verdict.UNVERIFIABLE, reason="no planned file list to compare against")
 
@@ -419,9 +521,9 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
     if extra or missing:
         details = []
         if extra:
-            details.append("changed but not planned: " + ", ".join(extra))
+            details.append("changed but not planned: " + ", ".join(map(_display_name, extra)))
         if missing:
-            details.append("planned but unchanged: " + ", ".join(missing))
+            details.append("planned but unchanged: " + ", ".join(map(_display_name, missing)))
         return Result(Verdict.REFUTED, command, output, "diff scope mismatch; " + "; ".join(details))
     return Result(
         Verdict.CONFIRMED,
@@ -520,6 +622,14 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 "",
                 f"the checkout shadows the {shadow!r} module; the runner would not be the real one",
             )
+        escape = _symlink_escape(argv, checkout)
+        if escape is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command argument resolves outside the checkout: {escape!r}",
+            )
         # The command output goes to a private, unpredictable file: the child
         # can neither pre-plant a symlink there nor fill the disk (RLIMIT_FSIZE),
         # and the result is read back through the same descriptor, never by path.
@@ -529,6 +639,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             proc = subprocess.run(
                 argv,
                 cwd=checkout,
+                stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 timeout=TEST_TIMEOUT,
@@ -567,13 +678,6 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
                 "the run cannot be verified from truncated output",
             )
-        if _WRITE_LIMIT_RE.search(raw_output):
-            return Result(
-                Verdict.UNVERIFIABLE,
-                command_desc,
-                output,
-                "the run hit the per-file write limit; its outcome cannot be verified",
-            )
         if proc.returncode == claimed_exit:
             if claim.kind == "tests_green":
                 # Exiting 0 is not proof that tests ran: require a positive
@@ -599,6 +703,29 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 output,
                 f"{command_str!r} exited {proc.returncode} as claimed",
+            )
+        # A missing runner is an environment gap, not evidence that the tests
+        # failed: "python3 -m pytest" without pytest installed must not refute.
+        runner_module = None
+        for index, arg in enumerate(argv[:-1]):
+            if arg == "-m":
+                runner_module = argv[index + 1].split(".")[0]
+                break
+        if runner_module and re.search(
+            rf"No module named '?{re.escape(runner_module)}(?![\w.])", raw_output
+        ):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                output,
+                f"the runner module {runner_module!r} is not available in this environment",
+            )
+        if _WRITE_LIMIT_RE.search(raw_output):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                output,
+                "the run hit the per-file write limit; its outcome cannot be verified",
             )
         return Result(
             Verdict.REFUTED,

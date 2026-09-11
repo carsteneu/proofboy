@@ -40,7 +40,7 @@ Jede Pruefung liefert ein Ergebnis `CONFIRMED`, `REFUTED` oder `UNVERIFIABLE` mi
 
 - Nur lesend auf `~/.claude/yesmem`. Keine Schreibzugriffe auf Live-Datenbanken.
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
-- Kein Netzwerk ausser `git fetch` gegen das eigene Remote.
+- Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen ungesandboxt und koennen das Netzwerk erreichen; Netz-Isolation ist nicht Teil von P1.
 - Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek.
 - Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`.
 

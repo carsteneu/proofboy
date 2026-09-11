@@ -31,14 +31,25 @@ Behauptung einzeln mit Kommando und roher Ausgabe.
 
 Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
 und nur in einem Wegwerf-Checkout des behaupteten Commits. Argumente, die aus
-dem Checkout herauszeigen, werden abgelehnt; das Umfeld des Testlaufs ist auf
-PATH, HOME und TMPDIR reduziert; die Ausgabe ist pro Datei begrenzt und eine
-gekappte Ausgabe ergibt `unpruefbar`. Ein `tests_green`-Urteil verlangt
-zusaetzlich positive Evidenz im Output (Testzusammenfassung); ein Kommando,
-das nur mit Exit 0 endet und keine Testsignale zeigt, bleibt `unpruefbar`.
-Schattiert der behauptete Commit den aufgerufenen Runner (etwa ein eigenes
-`unittest.py`), bleibt der Lauf ebenfalls `unpruefbar`. Branch-Anspruche
-werden nur gegen `refs/heads` geprueft, nie gegen Tags oder Remote-HEAD.
+dem Checkout herauszeigen, werden abgelehnt: absolute Pfade, `..` in jeder
+Form, code-tragende Optionen wie `make --eval` oder `cargo --config`, und
+Symlinks, die aus dem Checkout herausfuehren, werden aufgeloest und geprueft.
+Das Umfeld des Testlaufs ist auf PATH, HOME, TMPDIR und die Sprachvariablen
+reduziert, ohne Python-Startup-Hooks aus dem Checkout; die Ausgabe ist pro
+Datei begrenzt und eine gekappte Ausgabe ergibt `unpruefbar`.
+
+Ein `tests_green`-Urteil verlangt positive Evidenz im Output
+(Testzusammenfassung); ein Kommando, das nur mit Exit 0 endet, keine
+Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Schattiert der
+behauptete Commit den Testrunner (etwa ein eigenes `unittest.py`), bleibt der
+Lauf ebenfalls `unpruefbar`. Branch-Anspruche werden nur gegen `refs/heads`
+geprueft, nie gegen Tags oder Remote-HEAD, und der Pruef-Fetch neutralisiert
+programmausfuehrende Git-Konfiguration des Repos (upload-pack, sshCommand,
+Credential-Helfer).
+
+Der Diff-Scope vergleicht die Dateiliste der Meldung mit dem Diff; ohne
+`--files` stammt die Planliste aus der Meldung selbst, das Urteil bindet sie
+also nicht unabhaengig.
 
 Ein Sandkasten ist das nicht: wer das erlaubte Testkommando kontrolliert,
 kontrolliert den Kindprozess, und ein Commit kann gruene Ausgabe selbst

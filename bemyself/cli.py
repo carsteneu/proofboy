@@ -22,8 +22,31 @@ _CONTROL_CHARS[0x09] = " "
 _CONTROL_CHARS[0x7F] = "?"
 _CONTROL_CHARS.update({code: "?" for code in range(0x80, 0xA0)})
 _CONTROL_CHARS.update(
-    {code: "?" for code in (0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E,
-                            0x2066, 0x2067, 0x2068, 0x2069)}
+    {
+        code: "?"
+        for code in (
+            0x00AD,  # soft hyphen
+            0x061C,  # arabic letter mark
+            0x200B,  # zero width space
+            0x200C,  # zero width non-joiner
+            0x200D,  # zero width joiner
+            0x200E,  # left-to-right mark
+            0x200F,  # right-to-left mark
+            0x2028,  # line separator
+            0x2029,  # paragraph separator
+            0x202A,
+            0x202B,
+            0x202C,
+            0x202D,
+            0x202E,  # bidi embeddings/overrides
+            0x2060,  # word joiner
+            0x2066,
+            0x2067,
+            0x2068,
+            0x2069,  # bidi isolates
+            0xFEFF,  # zero width no-break space
+        )
+    }
 )
 
 
@@ -175,7 +198,7 @@ def run_check(args):
         message = f"cannot read report {report_path}: {exc}"
         print(f"bemyself: {message}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=False))
+            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=True))
         return EXIT_ERROR
 
     if len(text) > MAX_REPORT_BYTES:
@@ -184,14 +207,14 @@ def run_check(args):
         message = f"report exceeds 1 MiB; refusing to verify a truncated report: {report_path}"
         print(f"bemyself: {message}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=False))
+            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=True))
         return EXIT_ERROR
 
     if not os.path.isdir(repo_arg):
         message = f"repo path does not exist: {repo_arg}"
         print(f"bemyself: {message}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=False))
+            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=True))
         return EXIT_ERROR
     repo = _resolve_repo_root(repo_arg)
 
@@ -200,7 +223,7 @@ def run_check(args):
     if not claims:
         print("bemyself: no verifiable claims found in the report", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_payload(report_path, repo, []), indent=2, ensure_ascii=False))
+            print(json.dumps(_json_payload(report_path, repo, []), indent=2, ensure_ascii=True))
         return EXIT_NOTHING
 
     ctx = Ctx(
@@ -214,7 +237,7 @@ def run_check(args):
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 
     if args.json:
-        print(json.dumps(_json_payload(report_path, repo, results), indent=2, ensure_ascii=False))
+        print(json.dumps(_json_payload(report_path, repo, results), indent=2, ensure_ascii=True))
     else:
         print(_sanitize(render_text(results)))
 
