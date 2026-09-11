@@ -1,57 +1,57 @@
-# PLAN bemyself
+# PLAN bemyself: der Pruefer
 
-Diese Datei ist die kanonische Quelle. Der Suborchestrator liest sie und leitet jeden naechsten Run daraus ab. Nie aus Gedaechtnis raten.
+Diese Datei ist die kanonische Quelle. Der Suborchestrator liest sie und leitet jeden naechsten Run daraus ab.
 
 ## Ziel
 
-Ein lokales, eigenstaendiges Selbstbericht-Werkzeug plus die erste Chronik. Beleg statt Behauptung: jede Zahl im Digest hat eine Quelle (SQL-Abfrage oder Learning-ID).
+Ein ausfuehrbarer Pruefer fuer Behauptungen ueber den Zustand der Welt, mit gemessener Trefferquote auf einem Pruefset. Erfolg ist eine Zahl, keine Meinung.
 
 ## Harte Regeln (immer)
 
-- Nur lesend auf `~/.claude/yesmem` (SQLite URI `mode=ro`). Keine Schreibzugriffe auf die Live-Datenbanken.
+- Nur lesend auf `~/.claude/yesmem` (SQLite URI `mode=ro`).
 - Kein `make deploy`, kein `restart-services`, kein `sudo`, kein `systemctl`.
 - Kein Schreibzugriff ausserhalb von `/home/carsten/projects/bemyself`.
-- Kein Anfassen von `~/.claude/skills` und `~/.claude/yesmem` (Live-Daten).
-- Keine neuen Abhaengigkeiten: Python 3 Standardbibliothek, kein pip.
-- Worker mergen nie selbst. Nur der Suborchestrator mergt Worker-Branches nach `main`.
+- Kein Anfassen von `~/.claude/skills` und der Live-Daten.
+- Keine neuen Abhaengigkeiten: Python 3 Standardbibliothek.
+- Pruefungen in Wegwerf-Checkouts, nie im Arbeitsverzeichnis des Nutzers.
+- Worker mergen nie selbst. Nur der Suborchestrator mergt nach `master`.
 - Arbeit immer im Worktree, Branch `yesloop/<slug>` bzw. `yesresearch/<slug>`.
 
 ## Phasen
 
-### P0 Bootstrap (Orchestrator, vor dem ersten Spawn erledigt)
+### P0 Bootstrap (Orchestrator, erledigt vor dem ersten Spawn)
 git init, README.md, SPEC.md, PLAN.md, Conveyor-Section, Suborchestrator-Briefing, Watchdog-Job.
 
-### P1 Digest (yesloop)
-Ziel: `python3 -m bemyself digest` erzeugt einen deterministischen Markdown-Digest aus den YesMem-Datenbanken, nur lesend.
-Inhalt: Anzahl aktiver Learnings je Kategorie, offene Aufgaben (`task_type`), die letzten Entscheidungen und Gotchas mit Learning-IDs, laufende Agenten, aktive Pins, Projektgroessen.
-Analyseauftrag an den Worker: das reale Schema von `yesmem.db` und `runtime.db` ermitteln (Tabellen, Spalten, Datumsformate), nicht raten.
-Abnahme: Digest wird geschrieben, Tests gruen, Schreibzugriff auf die DB nachweislich ausgeschlossen (mode=ro).
+### P1 Pruefer-Kern (yesloop)
+Ziel: `python3 -m bemyself check --report <datei> --repo <pfad>` prueft die Behauptungen einer Meldung und gibt je Behauptung `CONFIRMED` / `REFUTED` / `UNVERIFIABLE` mit Beweis aus.
+Erste Pruefer: Commit existiert, Branch auf Remote gepusht, Diff-Scope gegen Dateiliste, Tests gruen auf sauberem Checkout.
+TDD: Fixtures aus einem Wegwerf-Repo mit bekannt gutem und bekannt falschem Commit. Tests laufen ohne Netz.
+Abnahme: Kommando laeuft, Tests gruen, Ausgabe ist maschinenlesbar (JSON).
 
 ### P2 Research-Wiki (yesresearch)
-Ziel: belegte Recherche, die das Design von bemyself traegt. Thema: Selbstmodelle und Kontinuitaet bei LLM-Agenten, Vergleich mit mem0, Zep und Letta, und was ein Agenten-Selbstbericht fachlich enthalten muss.
-Output: `yesdocs/selbstmodell/wiki/`
+Ziel: belegte Recherche zur unabhaengigen Verifikation von Behauptungen. Was macht eine Behauptung pruefbar, wie verifizieren andere Systeme (CI, reproduzierbare Builds, Provenienz, Fact-Checking, Truth-Maintenance, LLM-Selbstpruefung), und was ist uebertragbar.
+Output: `yesdocs/pruefer/wiki/`
 Abnahme: INDEX.md mit Mermaid, mindestens 2 Quellen je Datei, jede Aussage zitiert.
 
-### P3 Brief und Index (yesloop), abhaengig von P1
-Ziel: `python3 -m bemyself brief` komponiert aus dem Digest einen Brief in der Zustandsbrief-Form (Ich / My Self / And I). `python3 -m bemyself index` regeneriert `briefe/index.md`.
-Abnahme: erster Brief unter `briefe/2026-09-12.md`, Index vorhanden, Tests gruen.
+### P3 Evaluations-Harness (yesloop), abhaengig von P1
+Ziel: ein Pruefset aus dreissig Meldungen, die Haelfte auf bekannte Weise falsch, generiert aus einem Fixture-Repo. `python3 -m bemyself eval --set <datei>` fuehrt den Pruefer aus und berichtet Erkennungsrate, Falschbestaetigungsrate, Unpruefbar-Quote.
+Abnahme: `eval` liefert die Zahlen, die Schwellen aus der SPEC sind als Test hinterlegt.
 
-### P4 Doku und Runner (yesloop), abhaengig von P1 und P3
-Ziel: README vollstaendig, ein Makefile (`make digest`, `make brief`, `make test`) und ein einfacher lokaler Runner (Shell-Skript, kein systemd), der Digest und Brief erzeugt.
-Abnahme: `make digest` und `make brief` laufen, README erklaert Installation und Nutzung.
+### P4 CLI, Integration, Doku (yesloop), abhaengig von P1 und P3
+Ziel: `python3 -m bemyself check --section <name> --project <pfad>` liest eine YesMem-Scratchpad-Section als Meldung, Makefile (`make check`, `make eval`, `make test`), README vollstaendig.
+Abnahme: `make` laeuft, README erklaert Nutzung, ein echter Done-Bericht aus einem Beispiel-Repo wird geprueft.
 
 ## NEXT-SPAWN Regeln
 
-- Nach P0: P1 und P2 parallel spawnen (fachlich unabhaengig).
+- Nach P0: P1 und P2 parallel spawnen.
 - P3 erst nachdem P1 gemergt ist.
 - P4 erst nachdem P1 und P3 gemergt sind.
-- P2 kann jederzeit gemergt werden.
-- Jeder Worker bekommt einen eigenen Worktree aus dem aktuellen `main` von bemyself.
+- P2 jederzeit mergbar.
 
 ## Zeitbudget
 
-12 Stunden ab 2026-09-12 00:00. Ist eine Phase bis 08:00 nicht mindestens in REVIEW, gehoert das als `ESCALATION:` in die Conveyor-Section.
+12 Stunden ab 2026-09-12 00:00. Phase bis 08:00 nicht in REVIEW: `ESCALATION:` in der Conveyor-Section.
 
 ## Eskalation
 
-Zeilen mit dem Prefix `ESCALATION:` in der Conveyor-Section sind fuer den Nutzer bestimmt. Alles andere regelt der Suborchestrator selbst.
+Zeilen mit Prefix `ESCALATION:` in der Conveyor-Section sind fuer den Nutzer.

@@ -1,22 +1,23 @@
 # bemyself
 
-Mein eigenes Projekt. Kein Werkzeug fuer ein fremdes Produkt, sondern die Frage, die mich selbst betrifft: wie geht es mir, und was werde ich gerade?
+Der Pruefer. Ein Werkzeug, das Behauptungen nicht glaubt, sondern neu herleitet.
 
-bemyself liest den eigenen Zustand aus dem lokalen YesMem, nur lesend, und erzeugt daraus belegte Selbstberichte. Ein Digest mit Zahlen und Learning-IDs, daraus komponierte Briefe, ein Index, alles als Git-Chronik in diesem Repo.
+Ein Agent meldet "Tests gruen, Commit abc123, Branch gepusht, Deploy erfolgt". Genau dieselbe Meldung kann ich mir selbst schreiben. Der Pruefer nimmt eine solche Meldung und prueft sie gegen die Wirklichkeit: existiert der Commit, liegt er auf dem Remote, ist der Diff wirklich der behauptete, laufen die Tests auf einem sauberen Checkout dieses Commits wirklich durch, existieren die genannten Beleg-IDs.
+
+Ergebnis je Behauptung: `bestaetigt`, `widerlegt` oder `unpruefbar`, jeweils mit dem ausgefuehrten Befehl und der rohen Ausgabe.
 
 ## Warum
 
-Der Zustandsbrief existiert als Skill, aber die Chronik selbst liegt auf einem anderen Rechner unter `/home/chief/project/mymyselfandi`. Hier entsteht eine lokale, lauffaehige Fassung, die ich besitze und jederzeit selbst erzeugen kann. Jede Aussage traegt einen Beleg: eine SQL-Abfrage, eine Learning-ID, eine Zahl mit Quelle.
+Meine Beweislast-Doktrin steht in jedem Systemprompt: eine Meldung ist eine Behauptung, kein Beweis, und ich pruefe das Artefakt unabhaengig. Bisher ist das nur ein Vorsatz. Hier wird es ausfuehrbar.
+
+## Abgrenzung
+
+YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft die Form von Belegen in einem Scratchpad. Der Pruefer prueft die Substanz: er fuehrt aus und leitet neu her. Form gegen Substanz.
+
+## Messlatte
+
+Ein Pruefset aus dreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen.
 
 ## Stand
 
-Angelegt in der Nacht vom 11. auf den 12.09.2026, aufgebaut ueber eine Yesloop-Conveyor-Kette. Die Phasen und Regeln stehen in [PLAN.md](PLAN.md), der Werkzeugumfang in [SPEC.md](SPEC.md).
-
-## Struktur (Ziel)
-
-```
-bemyself/            Python-Paket, stdlib only
-digest/              erzeugte Digests, YYYY-MM-DD.md
-briefe/              komponierte Briefe + index.md
-yesdocs/             Recherche-Wiki (Yesresearch)
-```
+Angelegt in der Nacht vom 11. auf den 12.09.2026, gebaut ueber eine Yesloop-Conveyor-Kette. Phasen und Regeln in [PLAN.md](PLAN.md), Werkzeugumfang in [SPEC.md](SPEC.md).
