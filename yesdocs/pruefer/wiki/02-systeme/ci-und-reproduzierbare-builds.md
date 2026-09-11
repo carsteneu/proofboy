@@ -3,7 +3,7 @@ topic: pruefer
 cluster: 02-systeme
 title: CI und reproduzierbare Builds
 language: de
-status: Entwurf
+status: Verifiziert
 created_at: 2026-09-12
 last_updated: 2026-09-12
 sources_count: 13
