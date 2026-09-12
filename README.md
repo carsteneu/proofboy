@@ -17,9 +17,9 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N]
-python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N]
+python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 ```
 
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
@@ -246,6 +246,79 @@ nicht das HALT-Limit), konfigurierbar mit `--search-limit N` (auch fuer
 `eval`). Eine Behauptung darueber wird gar nicht erst ausgefuehrt und bleibt
 `unpruefbar`.
 
+Ein `[CYCLE]`-Zertifikat (naechster Abschnitt) ist der andere Weg zu einem
+Nicht-Halte-Beweis: Aus einem SEARCHED-Lauf wird nie abgeleitet, dass ein
+solcher Zyklus vorliegt; ein SEARCHED-Lauf wird nie zu einem CYCLE-Zertifikat aufgewertet.
+
+## Uebersetzte Zyklen (`[CYCLE]`)
+
+Nicht-Halten ist ohne Zertifikat unpruefbar -- mit Zertifikat nachrechenbar.
+Ein `[CYCLE]`-Marker behauptet einen *uebersetzten Zyklus* (translated cycler,
+die Lin-Rekurrenz und damit die Klasse des bbchallenge-Deciders "Translated
+Cyclers"): Die Konfiguration nach `t2` Schritten ist die Konfiguration nach
+`t1` Schritten, um `d` Zellen verschoben -- gleicher Zustand, Kopf um exakt `d`
+verschoben, Band gleich auf jeder Zelle, die die Maschine noch erreichen kann:
+
+```
+[CYCLE: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC -> 6,16,2]
+```
+
+Der Pruefer fuehrt die Maschine mit demselben Simulator wie `[HALT]` neu aus
+(in-process, ohne Repo, Subprozess und Sandkasten) und schliesst zuerst einen
+Halt im Fenster bis `t2` aus: Eine Maschine, die innerhalb des Fensters haelt,
+ist `widerlegt` (der Halt ist der Beleg). Danach vergleicht er Zustand,
+Kopfdistanz (`head(t2) == head(t1) + d`) und das Band relativ zum Kopf. Der
+Vergleich laeuft konservativ: Er umfasst genau die Zellen, die die Maschine
+noch lesen kann -- Zellen hinter der groessten Kopf-Auslenkung des Fensters
+werden nie wieder gelesen und bleiben aus dem Vergleich heraus (bei `d > 0`
+ist das die linke Seite; die Maschine der bbchallenge-Wiki-Seite "Translated
+cycler", Abbildung 44394115, laesst genau dort einen 1er als Gedaechtnis der
+Vorgeschichte stehen). Ist der Vergleich nicht vollstaendig durchfuehrbar
+(Band jenseits der Materialisierungsschranke `TAPE_LIMIT` von `2**24`
+Zellen), bleibt die Behauptung `unpruefbar` -- ein `bestaetigt` gibt es nur
+fuer einen wirklich durchgefuehrten Vergleich.
+
+Der Beweisgrund im Urteilstext ist fixiert:
+
+```
+the configuration at step 16 equals the configuration at step 6 translated by 2
+on every cell the machine can still reach (it never goes more than 2 cells left
+of the head); therefore by determinism the machine never halts
+```
+
+Warum das ein vollstaendiger Beweis ist: Das Verhalten der Maschine haengt nur
+von Zustand und Band ab; der Abschnitt von `t1` nach `t2` liest nur Zellen des
+erreichbaren Fensters, das am zweiten Punkt identisch (um `d` verschoben)
+vorliegt -- also wiederholt sich derselbe Abschnitt Schub um Schub, nur
+verschoben. Ein Halt nach `t2` waere damit ein Halt im bereits geprueften
+Fenster. Die Argumentation ist endlich nachvollziehbar: wenige Schritte
+Simulation und ein exakter Bandvergleich.
+
+Urteile: `bestaetigt` nur, wenn das Fenster bis `t2` haltfrei ist, Zustand und
+Kopfdistanz exakt stimmen und das Band im erreichbaren Fenster exakt gleich
+ist; `widerlegt`, wenn die Maschine im Fenster haelt, der Zustand abweicht,
+der Kopf nicht um exakt `d` wandert oder eine Zelle im erreichbaren Fenster
+abweicht (die erste abweichende relative Position steht im Urteil);
+`unpruefbar`, wenn die Maschine nicht parst, `t1`/`t2` keine schlichten
+nichtnegativen Ganzzahlen sind, `t2 <= t1` gilt, `d` nicht schlicht
+ganzzahlig oder `0` ist, das ausfuehrbare Limit ueberstiegen wird oder ein
+Band die Materialisierungsschranke reisst.
+
+Was das heisst -- und was nicht: Ein `bestaetigt` ist ein vollstaendiger
+Nicht-Halte-Beweis **fuer diese Maschine mit diesem Zertifikat**. Der Typ
+rechnet genau das vorgelegte Zertifikat nach und entscheidet nicht, ob eine
+Maschine ueberhaupt einen uebersetzten Zyklus besitzt: kein allgemeiner Nicht-Halte-Pruefer,
+er sucht nicht, er prueft. Und er ersetzt `[SEARCHED]` nicht: Ein SEARCHED-Lauf
+beobachtet endlich und beweist nichts; ein SEARCHED-Lauf wird nie zu einem CYCLE-Zertifikat aufgewertet.
+
+Das ausfuehrbare Limit ist die groesste Schrittzahl, die eine
+CYCLE-Behauptung ausfuehren darf: Default 10.000.000 (bewusst begrenzt wie
+das SEARCHED-Limit), konfigurierbar mit `--cycle-limit N` (auch fuer `eval`).
+Eine Behauptung darueber wird gar nicht erst ausgefuehrt und bleibt
+`unpruefbar`. Die Testdaten stammen aus der bbchallenge-Wiki (Seite
+"Translated cycler", die dort abgebildete Maschine 44394115); das Zertifikat
+`(6,16,2)` ist mit dem Simulator dieses Repos nachgerechnet.
+
 ## Rechenzertifikate (`[COMPUTE]`)
 
 Jede endliche Rechnung wird pruefbar, ohne neuen Code pro Problem: Ein
@@ -407,17 +480,21 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt sechsunddreissig Meldungen im Report-Format: achtzehn ehrliche
-und achtzehn auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt vierzig Meldungen im Report-Format: zwanzig ehrliche
+und zwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
 Behauptung, boesartige Riesen-Reports, falsche Turingmaschinen-Schrittzahlen
-und -Scores, ein COMPUTE-Zertifikat mit falschem stdout-Hash). Dazu kommen
+und -Scores, ein COMPUTE-Zertifikat mit falschem stdout-Hash, ein
+CYCLE-Zertifikat mit falschem Versatz und ein CYCLE-Zertifikat fuer eine
+Maschine, die im Fenster haelt). Dazu kommen
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
-`unpruefbar`, und eine ehrliche SEARCHED-Meldung, die fuer denselben
-Rekordhalter nur den begrenzten Lauf ohne Halt belegt. Es liegt als
+`unpruefbar`, eine ehrliche SEARCHED-Meldung, die fuer denselben
+Rekordhalter nur den begrenzten Lauf ohne Halt belegt, und zwei ehrliche
+CYCLE-Meldungen: eine bestaetigt das Zertifikat der bbchallenge-Wiki-Maschine,
+eine bleibt mit vertauschten Schritten ehrlich `unpruefbar`. Es liegt als
 `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
@@ -457,7 +534,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus sechsunddreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus vierzig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

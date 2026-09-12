@@ -11,6 +11,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 - `[COMMIT: <hash>]`, `[BRANCH: <name>]`, `[MERGE: ...]`, `[DEPLOY: ...]`
 - `[HALT: <machine> -> <steps>]` und optional `[SCORE: <machine> -> <ones>]`
 - `[SEARCHED: <machine> -> <n>]` (begrenzter Suchlauf ohne Halt, kein Nicht-Halte-Beweis)
+- `[CYCLE: <machine> -> t1,t2,d]` (uebersetzter Zyklus, Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat)
 - `[COMPUTE: <kommando> -> <sha256 des stdout>]` (Rechenzertifikat, gepinnter Commit)
 - "Tests run: <command> -> exit 0"
 - "Regression baseline: ..."
@@ -27,6 +28,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 | Tests gruen | sauberer Checkout des Commits, Testkommando ausfuehren, Exitcode und letzte Zeilen |
 | HALT/SCORE | Turingmaschine der bbchallenge-Notation mit eigenem Simulator neu ausfuehren (in-process); CONFIRMED nur bei exakt der behaupteten Schrittzahl und, wenn behauptet, exakt dem Score |
 | SEARCHED | Maschine n Schritte neu ausfuehren (in-process); CONFIRMED nur fuer den begrenzten Lauf ohne Halt, ausdruecklich kein Nicht-Halte-Beweis |
+| CYCLE | Maschine bis t2 neu ausfuehren (in-process): haltfreies Fenster, gleicher Zustand, Kopfdistanz d, Band gleich im erreichbaren Fenster; Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat |
 | COMPUTE | Kommando im Wegwerf-Checkout des gepinnten Commits im bwrap-Sandkasten ausfuehren, sha256(stdout) streamen und vergleichen |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
 | Deploy erfolgt | Artefakt-Metadaten (mtime, Version) gegen den behaupteten Stand |
@@ -103,6 +105,41 @@ nicht das HALT-Limit), konfigurierbar mit `--search-limit N` bei `check` und
 `eval`; eine Behauptung ueber dem Limit wird nicht ausgefuehrt und bleibt
 `UNVERIFIABLE`.
 
+## Uebersetzte Zyklen (`CYCLE`)
+
+`[CYCLE: <machine> -> t1,t2,d]` behauptet einen uebersetzten Zyklus
+(translated cycler, Lin-Rekurrenz -- dieselbe Klasse wie der
+bbchallenge-Decider "Translated Cyclers"): Zustand und Band relativ zum Kopf
+nach `t2` Schritten sind Zustand und Band nach `t1` Schritten, um `d` Zellen
+verschoben, und die Maschine liest zwischen den beiden Schritten keine Zelle
+ausserhalb des dabei erreichbaren Fensters. Damit wiederholt sich der
+Abschnitt Schub um Schub uebersetzt (Determinismus), und ein Halt nach `t2`
+muesste schon im haltfreien Fenster liegen: Die Maschine haelt nie. Die
+Simulation laeuft in-process im selben Simulator wie HALT/SEARCHED (kein
+Subprozess, kein Netz, kein Repo-, kein Sandkastenbezug).
+
+Urteile: `CONFIRMED` nur bei haltfreiem Fenster bis `t2`, gleichem Zustand,
+Kopfdistanz exakt `d` und exakt gleichem Band im erreichbaren Fenster; der
+Urteilstext nennt den Beweisgrund in fester Formulierung ("the configuration
+at step t2 equals the configuration at step t1 translated by d on every cell
+the machine can still reach (it never goes more than L cells left/right of
+the head); therefore by determinism the machine never halts"). `REFUTED` bei
+Halt im Fenster, abweichendem Zustand, falscher Kopfdistanz oder abweichender
+Zelle (die erste abweichende relative Position im erreichbaren Fenster steht
+im Urteil). `UNVERIFIABLE` bei unparsebarer Maschine, ungueltigen Werten
+(`t1`/`t2` schlicht nichtnegativ, `d` schlicht ganzzahlig und nicht `0`),
+`t2 <= t1`, Wert ueber dem ausfuehrbaren Limit (Default 10.000.000,
+`--cycle-limit N` bei `check` und `eval`) oder einem Band jenseits der
+Materialisierungsschranke `TAPE_LIMIT` (`2**24` Zellen, beide Bandhaelften
+zusammen) -- der Vergleich muss wirklich durchgefuehrt worden sein, es gibt
+keine Bestaetigung durch Auslassung.
+
+Abgrenzung: `CONFIRMED` ist ein vollstaendiger Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat;
+der Typ ist kein allgemeiner Nicht-Halte-Pruefer (er sucht keine Zertifikate, er
+rechnet das vorgelegte nach) und kein Ersatz fuer SEARCHED: Ein SEARCHED-Lauf wird nie zu einem CYCLE-Zertifikat aufgewertet.
+Der SEARCHED-Urteilstext bleibt unveraendert ("does not prove that the machine
+never halts").
+
 ## Rechenzertifikate (`COMPUTE`)
 
 `[COMPUTE: <kommando> -> <sha256>]` behauptet, dass das Kommando auf stdout
@@ -143,9 +180,9 @@ mit, wer den Commit kontrolliert, kontrolliert die Ausgabe.
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
-| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
 `--repo` verlangt `check --report` nur, wenn mindestens eine vorkommende
@@ -160,7 +197,7 @@ als Liste im CLI; HALT/SCORE und unbekannte Typen ohne Checker laufen ohne
 - Nur lesend auf `~/.claude/yesmem`. Keine Schreibzugriffe auf Live-Datenbanken.
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
 - Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run` als leeres tmpfs (Socket-Pfade des Rechners fehlen). Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt), ist keine vollstaendige Isolationsgrenze gegen feindlichen Code (sichtbare Dateien bleiben lesbar) und schuetzt nicht gegen Kernel-Exploits.
-- Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT- und SEARCHED-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
+- Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT-, SEARCHED- und CYCLE-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
 - Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`. Fuer COMPUTE heisst das: kein Lauf ohne Allowlist, kein Lauf ohne aufloesbaren Commit, ausdrueckliche Vorabpruefung des Programms, Ausgabe- und Zeitlimits statt Kuerzung, und ein Urteil nur ueber den Hash des stdout.
 
 ## Strict-Modus

@@ -240,6 +240,32 @@
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [SEARCHED: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 1000]`\n"
     },
     {
+      "name": "g19-cycle-translated",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: das Zertifikat der bbchallenge-Wiki-Maschine (Schritt 16 = Schritt 6, um 2 Zellen verschoben, haltfreies Fenster) belegt das Nicht-Halten.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "cycle": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [CYCLE: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC -> 6,16,2]`\n"
+    },
+    {
+      "name": "g20-cycle-unverifiable-certificate",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: das Zertifikat nennt t2 <= t1 und bleibt deshalb ehrlich unpruefbar.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "cycle": "UNVERIFIABLE"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [CYCLE: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC -> 16,6,2]`\n"
+    },
+    {
       "name": "f01-commit-missing",
       "group": "false",
       "note": "Falsch: der genannte Commit existiert nicht.",
@@ -479,6 +505,34 @@
         "compute": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 2d4eec116f5601f8170fca8b3510927c9009fb3a]`\n[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
+    },
+    {
+      "name": "f19-cycle-wrong-offset",
+      "group": "false",
+      "note": "Falsch: derselbe Zyklus mit falschem Versatz (d=1 statt 2) -- der Kopf steht nach 16 Schritten nicht bei 2 + 1.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "cycle"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "cycle": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [CYCLE: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC -> 6,16,1]`\n"
+    },
+    {
+      "name": "f20-cycle-halting-machine",
+      "group": "false",
+      "note": "Falsch: ein Zertifikat fuer eine Maschine, die im Fenster haelt (der Drei-Schritt-Halter) -- ein Nicht-Halte-Beweis ist dafuer unmoeglich.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "cycle"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "cycle": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [CYCLE: 1RB1RZ_0LA0LA -> 1,5,1]`\n"
     }
   ]
 }

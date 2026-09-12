@@ -123,12 +123,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_half_false(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 36)
+        self.assertEqual(len(cases), 40)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 18)
-        self.assertEqual(groups.count("false"), 18)
+        self.assertEqual(groups.count("genuine"), 20)
+        self.assertEqual(groups.count("false"), 20)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 36)
+        self.assertEqual(len(set(names)), 40)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -162,9 +162,25 @@ class StandardSetTest(unittest.TestCase):
             "f13-hostile-huge-report",
             "f14-hostile-control-characters",
             "f18-compute-wrong-hash",
+            "f19-cycle-wrong-offset",
+            "f20-cycle-halting-machine",
             "g18-searched-bounded",
+            "g19-cycle-translated",
+            "g20-cycle-unverifiable-certificate",
         ):
             self.assertIn(name, present, name)
+
+    def test_cycle_cases_pin_their_certificates(self):
+        cases = self.by_name()
+        genuine = cases["g19-cycle-translated"]
+        self.assertEqual(genuine["expect_verdicts"]["cycle"], "CONFIRMED")
+        self.assertIn("-> 6,16,2", genuine["report"])
+        unverifiable = cases["g20-cycle-unverifiable-certificate"]
+        self.assertEqual(unverifiable["expect_verdicts"]["cycle"], "UNVERIFIABLE")
+        self.assertIn("-> 16,6,2", unverifiable["report"])
+        for name in ("f19-cycle-wrong-offset", "f20-cycle-halting-machine"):
+            self.assertEqual(cases[name]["targets"], ["cycle"], name)
+            self.assertEqual(cases[name]["expect_verdicts"]["cycle"], "REFUTED", name)
 
     def test_report_without_claims_stays_empty(self):
         case = self.by_name()["f11-report-without-claims"]
