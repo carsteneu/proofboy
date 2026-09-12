@@ -14,6 +14,13 @@ konvention pro Arm und Tier steht in ``answer_instruction``. Fuer
 Trace-Aufgaben ist das Checkpoint-Format ``cp t: (Q,p,T)`` in allen Armen
 dasselbe (kanonische Extraktion; die Behandlungsarme koennen es zusaetzlich
 verifizieren -- dokumentierte Praezisierung, siehe Pilotbericht).
+
+Legenden-Stand v0.2 (2026-09-12, Runde 2): Die %-Klammerregel steht explizit
+(operandenweise: ``((A % B) = C)``); das fruehere Beispiel
+``((2 ^ 10) % 1000 = 24)`` war parser-invalid und ist durch
+``(((2 ^ 10) % 1000) = 24)`` ersetzt. Die Trace-Konvention nennt den
+Zeitpunkt: die Konfiguration ist der Zustand NACH dem Schritt (Schritt 0 =
+Startzustand). Sonst Legenden stabil (Kontinuitaet zu Pilot 1).
 """
 
 from __future__ import annotations
@@ -26,7 +33,8 @@ COMMON_RULES = (
     "Startposition 0 (links negativ), Bandfenster = die beschriebenen Bandzellen "
     "von der ersten links bis zur letzten rechts beschriebenen Zelle "
     "(nie beschriebene Zellen sind 0; fuehrende und nachfolgende Nullen zaehlen "
-    "nicht als Abweichung)."
+    "nicht als Abweichung). Die angegebene Konfiguration ist der Zustand NACH "
+    "dem angegebenen Schritt (Schritt 0 ist der Startzustand)."
 )
 
 LEGEND_K = """Du bist ein Mathematiker und antwortest in ueblicher mathematischer \
@@ -50,8 +58,10 @@ abgeschlossen mit [HALT] <ids>.
 
 Bibliothek: isprime(n), powmod(a,b,m), gcd(a,b), divisors(n), divides(a,b),
 factorial(n), choose(n,k), fib(n), collatz_steps(n), collatz_max(n).
-Formeln sind ASCII, voll geklammert und exakt, z.B. (collatz_steps(27) = 111),
-((2 ^ 10) % 1000 = 24), (forall n in 1..1000: (n < 1001)), sum(k=1..n, k).
+Formeln sind ASCII, voll geklammert und exakt: Jede Operation steht in eigenen
+Klammern; ein Vergleich ist operandenweise geklammert -- ((A % B) = C), nicht
+(A % B = C). Beispiele: (collatz_steps(27) = 111), (((2 ^ 10) % 1000) = 24),
+(forall n in 1..1000: (n < 1001)), sum(k=1..n, k).
 
 Beispiel:
 goal: collatz_steps(27)?
@@ -73,9 +83,10 @@ Status-Mini-Zeilen (nur anfuegen, nie aendern): <id>+ bestaetigt, <id>- verworfe
 
 Kuerzel (je 1 Token): st=collatz_steps, ip=isprime, mx=collatz_max, pm=powmod,
 gc=gcd, dv=divisors, di=divides, fc=factorial, ch=choose, fb=fib.
-Formeln sind voll geklammert und exakt: (st(27) = 111), ((2 ^ 10) % 1000 = 24),
-(forall n in 1..1000: (n < 1001)), sum(k=1..n, k). Kompakt: keine Leerzeichen
-um Operatoren.
+Formeln sind voll geklammert und exakt: Jede Operation steht in eigenen Klammern;
+ein Vergleich ist operandenweise geklammert -- ((A % B) = C), nicht (A % B = C).
+Beispiele: (st(27) = 111), (((2 ^ 10) % 1000) = 24), (forall n in 1..1000: (n < 1001)),
+sum(k=1..n, k). Kompakt: keine Leerzeichen um Operatoren.
 
 Zeugen in v-Zeilen: auto | py: <python-ausdruck> | range n in a..b: <formel> |
 ref <id> (nur auf eine bestaetigte Zeile mit + und ok) | sim(0..t) zu einer
