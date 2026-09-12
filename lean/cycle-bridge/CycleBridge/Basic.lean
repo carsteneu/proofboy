@@ -59,6 +59,12 @@ def write (band : Int → Bool) (i : Int) (b : Bool) : Int → Bool :=
     write band i b j = band j := by
   rw [write_apply, if_neg h]
 
+/-- Writing `false` over an all-`false` tape changes nothing. -/
+theorem write_false (h : Int) :
+    write (fun _ : Int => false) h false = (fun _ : Int => false) := by
+  funext i
+  by_cases hi : i = h <;> simp [write_apply, hi]
+
 /-- A deterministic two-symbol Turing machine over states `σ`. `trans` is
 consulted only outside the halting state. -/
 structure TM (σ : Type) where

@@ -183,9 +183,9 @@ Querverweise: [01-modellprofil/01-03-tokenizer-zahlen.md](01-modellprofil/01-03-
 | [03-02-autoformalisierung.md](03-formale-bruecke/03-02-autoformalisierung.md) | Autoformalisierung: Verfahren, Benchmarks, Fehlertaxonomie und das Spezifikationsproblem | Verifiziert | 21 | 61 | 2 Img / 1 Diagr |
 | [03-03-llm-prover-stand.md](03-formale-bruecke/03-03-llm-prover-stand.md) | LLM-Theorembeweiser: AlphaProof, DeepSeek-Prover, Gödel-Prover, Hilbert und das RL-Signal aus dem Verifier | Verifiziert | 19 | 44 | 1 Img / 1 Diagr |
 | [03-04-zeugen-zertifikate.md](03-formale-bruecke/03-04-zeugen-zertifikate.md) | Was 'prüfbar' konkret heißt: Beweisterme, Zertifikate, SAT/UNSAT-Kerne, HALT-Zeugen | Verifiziert | 18 | 22 | 1 Img / 1 Diagr |
-| [03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md) | Rücküberführbarkeit: Definition, Konservativität, Compiler-Skizze und Round-Trip-Tests | Verifiziert | 19 | 18 | 1 Img / 2 Diagr |
+| [03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md) | Rücküberführbarkeit: Definition, Konservativität, Compiler-Skizze und Round-Trip-Tests | Verifiziert | 22 | 18 | 1 Img / 2 Diagr |
 
-Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/05-03-mapping-formal.md)
+Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/05-03-mapping-formal.md), [lean/cycle-bridge/README.md](../../../lean/cycle-bridge/README.md) — erster Kernel-Beweis der Zyklus-Zelle (03-05 §6, 2026-09-12)
 
 ## 04 — Offene Probleme (Testfeld-Auswahl)
 

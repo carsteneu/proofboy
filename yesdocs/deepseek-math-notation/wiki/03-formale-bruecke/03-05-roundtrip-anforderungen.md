@@ -6,8 +6,8 @@ language: de
 status: Verifiziert
 last_updated: 2026-09-12
 created_at: 2026-09-12
-sources_count: 19
-citations_count: 48
+sources_count: 22
+citations_count: 53
 images_count: 1
 diagrams_count: 2
 related: ["03-01-formale-systeme.md", "03-02-autoformalisierung.md", "03-03-llm-prover-stand.md", "03-04-zeugen-zertifikate.md", "05-03-mapping-formal.md"]
@@ -187,6 +187,16 @@ Kein Kriterium verlangt, dass die Notation *Neues* kann — Absicht: Die Brücke
 - **Keine Robustheit gegen Modellwechsel.** Die Testevidenz ist an dieses Modell gebunden; die Architektur der Rücküberführung (Emitter, Checker, Roundtrips) ist modellunabhängig. Was bei einem Modellwechsel bricht, gehört in die Risiko-Rechnung von [05-06](../05-entwurf-testplan/05-06-erfolgskriterien-risiken.md).
 - **Kein Ersatz für Bedeutung.** Die stärkste erreichte Stufe bleibt: formale Aussage kernel-geprüft, Zeugen deterministisch nachgerechnet, Übersetzung roundtrip-stabil. Ob die formale Aussage die gemeinte ist, stützen Menschen, Zweitformalisierung oder Vergleichsprüfungen — nie der Kernel allein.
 
+## 6. Nachtrag (2026-09-12): Erste geschlossene Zelle — `0LA0LA` im Lean-Kernel
+
+Dieser Nachtrag schließt die in §1.1 (Zeugen-Fähigkeit) und §5 wiederholt vertagte erste Zelle der Rücküberführbarkeit („braucht Lean") für den Demonstrierfall: Der maschinenverifizierte `[CYCLE]`-Zeuge der Live-Demo bekommt einen formalen Zwilling, dessen Beweis der Lean-Kernel akzeptiert. Damit ist nicht die Notation „bewiesen" — gezeigt wird, dass die Kette Blatt → Verdikt → formaler Beweis für einen echten Fall durchgeht.
+
+**Was geschlossen ist.** Das Blatt aus `DEMO-v11-showcase.md` (lokale Quelle) bezeugt den Lauf der Maschine `0LA0LA` (Aufgabe B3-0005) mit `v h1: cyc(0,1,-1)`; der `[CYCLE]`-Checker (`bemyself/claimtypes/cycle.py`, lokale Quelle) verdiktet `CONFIRMED`. Das Lean-Projekt `lean/cycle-bridge/` (Lean 4.33.1, kein mathlib; lokale Quelle) formalisiert den zugrunde liegenden Schluss generisch: `TM.step_shift` beweist die Translations-Äquivarianz `step (shift c d) = shift (step c) d`, `cycle_never_halts` beweist „Translations-Zyklus ⇒ Nicht-Halten" (Block-Iteration `step^[n·k + r] c = shiftN n (step^[r] c)`, Divisionsargument `t = (t/k)·k + t mod k`, Shift-Invarianz des Haltens), und `never_halts_of_certificate` konsumiert exakt die `(t1, t2, d)`-Form des Zertifikats mit der Bedingung „kein Halt in den ersten `t2` Schritten". Daraus folgt kernel-geprüft `machine_0LA0LA_never_halts` (Zertifikat `(0, 1, −1)`); zusätzlich ist die zweite Demo-Maschine `0RB1RB_0RA0LZ` (B3-0006, Zertifikat `(1, 3, 2)`, mit `t1 = 1 > 0`) kernel-geprüft. Evidenz: `lake build` grün ohne Warnungen, kein `sorry`/`admit`, `#print axioms` zeigt für alle Theoreme nur `propext`/`Quot.sound` (lokale Quelle: `lean/cycle-bridge/README.md`). Der Audit folgt dem Emitter-Audit-Muster aus §2.1; die Zelle ist die Demo-Instanz der T3/T6-Anforderungen aus §4.
+
+**Schnittstelle [CYCLE]-Check ↔ Theorem-Hypothesen.** Der Check vergleicht die Konfigurationen bei `t1` und `t2` nur auf den erreichbaren Zellen (Lin-Fenster; `bemyself/claimtypes/cycle.py`, lokale Quelle); der Satz nimmt die volle Translations-Gleichheit der Konfiguration an. Für Läufe auf dem leeren Band (die beiden Demo-Maschinen) fallen beide Bedingungen zusammen — dort ist die Zelle geschlossen. Die Differenz ist die benannte Grenze zwischen Check und Theorem, kein Formfehler: Zellen außerhalb des Fensters können abweichen, ohne die Nicht-Halt-Aussage zu verletzen.
+
+**Was offen bleibt.** (1) Eine Fenster-Variante des Satzes (Abweichungen hinter der maximalen Kopf-Auslenkung erlaubt) ist nicht formalisiert; das TM-Modul bräuchte dafür einen Begriff des erreichbaren Fensters samt Kompositionslemma. (2) Die Autoformalisierung Blatt → Lean-Lemma bleibt manuell: Die Übersetzung wurde von Hand gebaut, der Kernel prüft nur das Ergebnis; die Treue-Lücke aus §2.3 besteht unverändert. (3) `cycle.py` verlangt `d ≠ 0` für Zertifikate; der formale Satz gilt auch für `d = 0` (reine Periodizität) und ist damit konservativ gegenüber dem Check.
+
 ## Quellen
 
 1. F. Wiedijk, *Formal Proof — Getting Started*, Notices of the AMS 55(11), 1408–1414, 2008. https://www.cs.ru.nl/~freek/pubs/notices.pdf (accessed 2026-09-12)
@@ -211,3 +221,6 @@ Kein Kriterium verlangt, dass die Notation *Neues* kann — Absicht: Die Brücke
 7. `yesdocs/deepseek-math-notation/wiki/04-offene-probleme/04-05-bruecke-pruefer.md` — P7-Anschluss, Bestand und Lücken der Prüfkette (lokale Quelle, gelesen 2026-09-12)
 8. `bemyself/claimtypes/halt.py` und `bemyself/turing.py` — `[HALT]`/`[SCORE]`-Mechanik, endliche Zeugen, Limit, unabhängiger Simulator (lokale Quelle, Branch `yesloop/bemyself-p7-halt`, gelesen 2026-09-12)
 9. `yesdocs/deepseek-math-notation/PLAN.md` — Dateiauftrag 03-05, Risiko-Datei 05-06 (lokale Quelle, gelesen 2026-09-12)
+10. `DEMO-v11-showcase.md` — Live-Demo B3-0005 (`0LA0LA`), Zertifikat `cyc(0,1,-1)`, Verdikt `#ok: v1 c1` (lokale Quelle, gelesen 2026-09-12)
+11. `bemyself/claimtypes/cycle.py` — `[CYCLE]`-Semantik: `t2 > t1`, `d ≠ 0`, Konfigurationsvergleich auf den erreichbaren Zellen (Lin-Fenster) (lokale Quelle, gelesen 2026-09-12)
+12. `lean/cycle-bridge/` (Branch `yesloop/bemyself-l1-lean-bruecke`, 2026-09-12) — generisches TM-Modul, `cycle_never_halts`, `never_halts_of_certificate`, `machine_0LA0LA_never_halts`, `machine_0RB1RB_0RA0LZ_never_halts`; `lake build` grün, kein `sorry`/`admit`, `#print axioms` nur `propext`/`Quot.sound` (lokale Quelle, gebaut 2026-09-12)
