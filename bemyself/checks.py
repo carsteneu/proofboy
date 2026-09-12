@@ -442,6 +442,12 @@ def _sandbox_prefix(program, checkout):
         "/dev",
         "--proc",
         "/proc",
+        # The ro root leaves host runtime sockets (D-Bus, systemd, docker)
+        # reachable: --unshare-net separates IP networking, not AF_UNIX
+        # pathname sockets. An empty /run hides them; /var/run follows
+        # because it is a symlink to /run.
+        "--tmpfs",
+        "/run",
         "--bind",
         checkout,
         checkout,
@@ -469,8 +475,11 @@ def _sandbox_probe(bwrap, checkout):
     """
     try:
         proc = subprocess.run(
-            _sandbox_prefix(bwrap, checkout) + ["true"],
+            # An absolute interpreter path, not a PATH lookup: the probe must
+            # not fail on a host whose PATH lacks the binary it would use.
+            _sandbox_prefix(bwrap, checkout) + [sys.executable, "-c", ""],
             cwd=checkout,
+            env=_test_env(checkout),
             capture_output=True,
             text=True,
             timeout=SANDBOX_PROBE_TIMEOUT,
@@ -769,6 +778,13 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
     # require is a hard gate: when no bwrap is on PATH the command is never
     # run, not even unsandboxed -- a fallback would be silent by construction.
     mode = ctx.sandbox
+    if mode not in SANDBOX_MODES:
+        # A typo like "Require" must not degrade into an auto fallback.
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"unknown sandbox mode: {mode!r}",
+        )
     bwrap = None if mode == "off" else find_bwrap()
     if mode == "require" and bwrap is None:
         return Result(
@@ -881,7 +897,11 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             )
         except FileNotFoundError as exc:
             return Result(
-                Verdict.UNVERIFIABLE, command_desc, "", f"command not found: {exc}" + note_suffix
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command not found: {exc}" + note_suffix,
+                sandboxed=sandboxed,
             )
         try:
             returncode = proc.wait(timeout=TEST_TIMEOUT)
@@ -892,7 +912,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 _last_lines(_tail_open(log)[0]),
-                f"command timed out after {TEST_TIMEOUT}s" + note_suffix,
+                f"command timed out after {TEST_TIMEOUT}s" + note_suffix, sandboxed=sandboxed,
             )
         raw_output, log_size = _tail_open(log)
         output = _last_lines(raw_output)
@@ -905,7 +925,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes" + note_suffix,
+                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes" + note_suffix, sandboxed=sandboxed,
             )
         # CPython ignores SIGXFSZ and dies with another code once the write
         # limit is hit, so the capped file is the reliable signal.
@@ -915,7 +935,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 output,
                 f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
-                "the run cannot be verified from truncated output" + note_suffix,
+                "the run cannot be verified from truncated output" + note_suffix, sandboxed=sandboxed,
             )
         if returncode == claimed_exit:
             if claim.kind == "tests_green":
@@ -928,20 +948,20 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         output,
-                        "the command exited 0 but reported that no tests were executed" + note_suffix,
+                        "the command exited 0 but reported that no tests were executed" + note_suffix, sandboxed=sandboxed,
                     )
                 else:
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         output,
-                        "the command exited 0 but its output shows no evidence that tests ran" + note_suffix,
+                        "the command exited 0 but its output shows no evidence that tests ran" + note_suffix, sandboxed=sandboxed,
                     )
             return Result(
                 Verdict.CONFIRMED,
                 command_desc,
                 output,
-                f"{command_str!r} exited {returncode} as claimed" + note_suffix,
+                f"{command_str!r} exited {returncode} as claimed" + note_suffix, sandboxed=sandboxed,
             )
         # A missing runner module is an environment gap, not evidence that the
         # tests failed -- but only when the report's own command names it.
@@ -960,20 +980,20 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     output,
-                    f"the runner module {missing!r} is not available in this environment" + note_suffix,
+                    f"the runner module {missing!r} is not available in this environment" + note_suffix, sandboxed=sandboxed,
                 )
         if _WRITE_LIMIT_RE.search(raw_output):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                "the run hit the per-file write limit; its outcome cannot be verified" + note_suffix,
+                "the run hit the per-file write limit; its outcome cannot be verified" + note_suffix, sandboxed=sandboxed,
             )
         return Result(
             Verdict.REFUTED,
             command_desc,
             output,
-            f"claimed exit {claimed_exit}, actually exited {returncode}" + note_suffix,
+            f"claimed exit {claimed_exit}, actually exited {returncode}" + note_suffix, sandboxed=sandboxed,
         )
     finally:
         if log is not None:

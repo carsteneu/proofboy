@@ -103,6 +103,7 @@ def _case_record(index, case, fixture, tmp_root, sandbox="auto"):
                 "reason": result.reason,
                 "command": result.command,
                 "output": result.output,
+                "sandboxed": result.sandboxed,
             }
             for claim, result in results
         ],

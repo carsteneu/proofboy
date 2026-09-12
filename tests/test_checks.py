@@ -1305,6 +1305,24 @@ _BROKEN_BWRAP = (
     "echo \"bwrap: Creating new namespace failed: Operation not permitted\" >&2\n"
     "exit 1\n"
 )
+_RUNTIME_PROBE = (
+    "import socket\n"
+    "import unittest\n"
+    "\n\n"
+    "class TestRuntimeSocket(unittest.TestCase):\n"
+    "    def test_connects_to_the_host_runtime_socket(self):\n"
+    "        sock = socket.socket(socket.AF_UNIX)\n"
+    "        sock.connect({path!r})\n"
+    "        sock.close()\n"
+)
+_WRITE_PROBE = (
+    "import pathlib\n"
+    "import unittest\n"
+    "\n\n"
+    "class TestWritable(unittest.TestCase):\n"
+    "    def test_writes_into_the_checkout(self):\n"
+    "        pathlib.Path(\"written-in-sandbox.txt\").write_text(\"x\", encoding=\"utf-8\")\n"
+)
 
 
 class SandboxTest(unittest.TestCase):
@@ -1406,6 +1424,7 @@ class SandboxTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
         self.assertIn("sandboxed with bwrap", result.reason)
         self.assertIn("bwrap", result.command)
+        self.assertIs(result.sandboxed, True)
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
     @mock.patch("bemyself.checks.TEST_TIMEOUT", 1)
@@ -1435,6 +1454,7 @@ class SandboxTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("bwrap is not available", result.reason)
         self.assertIn("refusing to run the command unsandboxed", result.reason)
+        self.assertIsNone(result.sandboxed)
         self.assertFalse(os.path.exists(os.path.join(ctx.tmp_dir, "escape-probe.txt")))
 
     def test_require_with_broken_bwrap_never_runs_the_command(self):
@@ -1477,6 +1497,93 @@ class SandboxTest(unittest.TestCase):
         self.assertIn("not sandboxed", result.reason)
         self.assertIn("--sandbox=off", result.reason)
         self.assertNotIn("bwrap", result.command)
+        self.assertIs(result.sandboxed, False)
+
+    @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
+    def test_sandbox_masks_host_runtime_sockets(self):
+        # The ro root keeps AF_UNIX sockets reachable -- --unshare-net covers
+        # IP traffic, not filesystem sockets. An empty /run hides the host's
+        # D-Bus/systemd/docker sockets.
+        runtime = os.path.join("/run/user", str(os.getuid()))
+        if not os.path.isdir(runtime):
+            self.skipTest("no per-user runtime directory on this host")
+        socket_path = os.path.join(runtime, f"bemyself-probe-{os.getpid()}.sock")
+        if os.path.exists(socket_path):
+            os.unlink(socket_path)
+        listener = socket.socket(socket.AF_UNIX)
+        listener.bind(socket_path)
+        listener.listen(1)
+        self.addCleanup(listener.close)
+        self.addCleanup(lambda: os.path.exists(socket_path) and os.unlink(socket_path))
+        repo, commit = self.probe_repo("runtime-probe", _RUNTIME_PROBE.format(path=socket_path))
+        claim = self.probe_claim(commit)
+
+        open_run = run_claim(claim, self.ctx(repo.path, sandbox="off"))
+        self.assertIs(open_run.verdict, Verdict.CONFIRMED, open_run.output)
+
+        sandboxed = run_claim(claim, self.ctx(repo.path, sandbox="require"))
+        self.assertIs(sandboxed.verdict, Verdict.REFUTED, sandboxed.output)
+        self.assertIn("errors=1", sandboxed.output.lower())
+
+    @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
+    def test_sandbox_keeps_the_checkout_writable(self):
+        # The other direction of the bind: a read-only sandbox would also pass
+        # the escape test, but it would break every test suite that writes.
+        repo = make_repo(os.path.join(self._tmp.name, "writable"))
+        commit = commit_probe(repo, "test_probe.py", _WRITE_PROBE)
+        result = run_claim(self.probe_claim(commit), self.ctx(repo.path, sandbox="require"))
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIs(result.sandboxed, True)
+
+    def test_unknown_sandbox_mode_is_never_executed(self):
+        repo, commit = self.probe_repo("unknown-mode", _ESCAPE_PROBE)
+        ctx = self.ctx(repo.path, sandbox="Require")
+        result = run_claim(self.probe_claim(commit), ctx)
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("unknown sandbox mode", result.reason)
+        self.assertIsNone(result.sandboxed)
+        self.assertFalse(os.path.exists(os.path.join(ctx.tmp_dir, "escape-probe.txt")))
+
+    @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
+    def test_probe_survives_a_path_without_true(self):
+        # A minimal PATH that can resolve the command but not `true` must not
+        # be misread as a broken sandbox.
+        shim = os.path.join(self._tmp.name, "bin-probe")
+        os.makedirs(shim, exist_ok=True)
+        for name in ("python3", "git", "bwrap"):
+            link = os.path.join(shim, name)
+            if not os.path.lexists(link):
+                os.symlink(shutil.which(name), link)
+        repo = make_repo(os.path.join(self._tmp.name, "path-probe"))
+        with mock.patch.dict(os.environ, {"PATH": shim}):
+            result = run_claim(
+                make_claim(
+                    "tests_green",
+                    command="python3 -m unittest test_ok",
+                    claimed_exit=0,
+                    commit=repo["good"],
+                ),
+                self.ctx(repo.path, sandbox="auto"),
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIs(result.sandboxed, True)
+
+    def test_a_crafted_command_cannot_fake_the_sandbox_state(self):
+        # The reason text quotes the report's command; a machine consumer must
+        # read the structured field, which a command string cannot counterfeit.
+        repo = make_repo(os.path.join(self._tmp.name, "crafted"))
+        claimed = make_claim(
+            "tests_exit",
+            command="make test sandboxed with bwrap",
+            claimed_exit=2,
+            commit=repo["good"],
+        )
+        with mock.patch("bemyself.checks.find_bwrap", return_value=None):
+            result = run_claim(claimed, self.ctx(repo.path, sandbox="auto"))
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIs(result.sandboxed, False)
+        self.assertIn("make test sandboxed with bwrap", result.reason)
+        self.assertIn("not sandboxed", result.reason)
 
 
 if __name__ == "__main__":

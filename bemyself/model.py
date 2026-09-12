@@ -30,3 +30,7 @@ class Result:
     command: str = ""
     output: str = ""
     reason: str = ""
+    # Whether a test command ran inside the sandbox: True/False for executed
+    # runs, None when no command was executed. Machine-readable counterpart of
+    # the note in ``reason``, which is display text and echo of report input.
+    sandboxed: bool | None = None

@@ -230,6 +230,7 @@ def _json_payload(source, repo, results):
                 "reason": result.reason,
                 "command": result.command,
                 "output": result.output,
+                "sandboxed": result.sandboxed,
             }
             for claim, result in results
         ],

@@ -308,6 +308,7 @@ class CliTest(unittest.TestCase):
         self.assertEqual(tests[0]["verdict"], "CONFIRMED")
         self.assertIn("not sandboxed: --sandbox=off", tests[0]["reason"])
         self.assertNotIn("bwrap", tests[0]["command"])
+        self.assertIs(tests[0]["sandboxed"], False)
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
     def test_default_auto_sandboxes_when_bwrap_is_available(self):
@@ -317,6 +318,7 @@ class CliTest(unittest.TestCase):
         self.assertEqual(tests[0]["verdict"], "CONFIRMED")
         self.assertIn("sandboxed with bwrap", tests[0]["reason"])
         self.assertIn("bwrap", tests[0]["command"])
+        self.assertIs(tests[0]["sandboxed"], True)
 
     def test_unknown_sandbox_mode_is_a_usage_error(self):
         proc = self.invoke("--report", self.sandbox_report(), "--sandbox=banana")
