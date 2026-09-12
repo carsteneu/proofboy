@@ -3,16 +3,21 @@ topic: deepseek-math-notation
 cluster: 04-offene-probleme
 title: Brücke zum Prüfer — [HALT]/[SCORE] und die Prüfer-Doktrin
 language: de
-status: Entwurf
+status: Verifiziert
 last_updated: 2026-09-12
 created_at: 2026-09-12
-sources_count: 12
-citations_count: 30
+sources_count: 15
+citations_count: 36
 images_count: 0
 diagrams_count: 1
 related: ["04-01-wahlkriterien", "04-03-rechenfragmente-daten", "04-04-empfehlung"]
-tags: [pruefer, halt-claim, buschbeaver, verifikation, lokale-infrastruktur]
-persona_review: {}
+tags: [pruefer, halt-claim, busy-beaver, verifikation, lokale-infrastruktur]
+persona_review:
+  personas_tested: [Engineer, Executive]
+  gaps_found: 9
+  gaps_fixed: 9
+  gaps_deferred: ["Übergabeformat/Datei-Vertrag Harness → Prüfkette → 05-04 (geplant)", "Schemata für Trace-/Regel-Claims → 05-04 (geplant)", "Lean-/SAT-Anschluss → Cluster 03/05 (geplant)", "konkrete Budgetwerte (Timeout) → 05-04 (geplant)"]
+  note: "Reviewer meldeten 9 Punkte; 3 datei-intern behoben (Prioritätenliste P1–P5 in §4, Mindestumfang für Tragfähigkeit, Budget als P2 benannt); übrige Cross-Cluster-Punkte delegiert (gaps_deferred)."
 ---
 
 # Brücke zum Prüfer — [HALT]/[SCORE] und die Prüfer-Doktrin
@@ -79,6 +84,8 @@ Neue Claim-Typen sind als Erweiterungspunkt vorgesehen: ein Modul im Paket `bemy
 6. **Report-Budget/Timeouts fehlen.** Das Claim-Limit ist pro Claim; ein Bericht mit vielen langen Claims kann Minuten binden („one claim at the limit means roughly five seconds") [ebd.](git:yesloop/bemyself-p7-halt:bemyself/claimtypes/halt.py, accessed 2026-09-12). Für A/B-Läufe mit hunderten Aufgaben braucht der Harness (05-04) ein Gesamtbudget.
 7. **Formale Brücke fehlt.** Für Lean-verifizierte Aufgaben (formal-conjectures, FrontierMath-Erdős) gibt es keinen lokalen Anschluss; `lake build` als Kernel-Check wäre die nächste Ausbaustufe [formal-conjectures](https://github.com/google-deepmind/formal-conjectures, accessed 2026-09-12).
 8. **Visualisierung/Logging für A/B.** Weder Token-Zählung noch Trial-Logs sind Teil des Prüfer-Scopes; der Test-Harness muss sie selbst mitbringen (Grenze zieht `evalset.py`, das nur deterministische Fixtures kennt) [evalset.py](git:yesloop/bemyself-p7-halt:bemyself/evalset.py, accessed 2026-09-12).
+
+**Priorität für den Testplan (Vorschlag, eigene Analyse):** P1 Trace-Prüfung für die Aufgabenfamilie T2 (nur damit ist die Kernmessung der Notationsexposition möglich), P2 Gesamtbudget/Timeouts im Harness, P3 Trajektorien-/Zeugen-Claims (Collatz, Partitionen), P4 Decider-Zertifikate für Nicht-Halte-Fälle, P5 SAT-/Lean-Anschlüsse. **Mindestumfang für einen tragfähigen A/B-Test:** die bestehende `[HALT]`-Kette plus P1; P3–P5 sind Ausbaustufen.
 
 ```mermaid
 graph TD
