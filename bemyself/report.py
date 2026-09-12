@@ -65,16 +65,20 @@ def _truncation_ellipsis(value: str) -> bool:
 
     ``e5b68dd1…`` is a truncated digest and a bare ``...`` is a template
     slot -- both name no value. ``go test ./...`` is not a template: its
-    ellipsis is the tail of a path pattern (like ``pkg/...``), and a real
-    command must stay a claim.
+    ASCII ellipsis is the tail of a path pattern (like ``pkg/...``), and a
+    real command must stay a claim. The path exception applies to ``...``
+    only: a Unicode ``…`` never ends a path pattern.
     """
     stripped = value.strip()
     for ellipsis in _ELLIPSES:
         if not stripped.endswith(ellipsis):
             continue
         cut = len(stripped) - len(ellipsis)
-        if cut == 0 or stripped[cut - 1] not in "/.":
+        if cut == 0:
             return True
+        if ellipsis == "..." and stripped[cut - 1] in "/.":
+            return False
+        return True
     return False
 
 
@@ -86,9 +90,14 @@ def looks_like_placeholder(value: str) -> bool:
     names nothing, so the claim it appears in is not an assertion. True for
     an angle token anywhere in the value, for a truncating ellipsis (a
     truncated digest like ``e5b68dd1…``), and for the literal ``TODO``.
+    Surrounding backticks are ignored, so a marker-quoted template
+    (``[COMPUTE: x -> `e5b68dd1…`]``) is recognised like an unquoted one.
     Everything else is a value, however unusual it looks -- the parser must
-    never silently drop a claim that some real world could satisfy.
+    never silently drop a claim that some real world could satisfy; the
+    shapes where that promise loses to the form alone are enumerated in the
+    README (section "Grenzen").
     """
+    value = value.strip().strip("`")
     if not value:
         return False
     if _ANGLE_TOKEN_RE.search(value):

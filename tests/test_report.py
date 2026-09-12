@@ -203,7 +203,6 @@ class PlaceholderReportTest(unittest.TestCase):
             "[MERGE: <branch>]",
             "[DEPLOY: ...]",
             "[HALT: <machine> -> <steps>]",
-            "[SCORE: <machine> -> <ones>]",
             "[SEARCHED: <machine> -> <n>]",
             "[COMPUTE: <cmd> -> <sha256>]",
             "[CYCLE: <machine> -> <t1>,<t2>,<d>]",
@@ -225,9 +224,19 @@ class PlaceholderReportTest(unittest.TestCase):
             "[COMMIT: e5b68dd1\u2026]",
             "[COMMIT: e5b68dd1...]",
             "[COMPUTE: python3 emit.py -> e5b68dd1\u2026]",
+            "[COMPUTE: python3 emit.py -> `e5b68dd1\u2026`]",
+            "[COMPUTE: python3 emit.py -> docs/\u2026]",
         ):
             with self.subTest(line=line):
                 self.assertEqual(parse_report(line + "\n"), [])
+
+    def test_path_pattern_ellipses_are_not_placeholders(self):
+        for line, kind in (
+            ("Tests run: go test ./... -> exit 0\n", "tests_green"),
+            ("Tests run: python3 -m pytest src/... -> exit 0\n", "tests_green"),
+        ):
+            with self.subTest(line=line):
+                self.assertEqual([claim.kind for claim in parse_report(line)], [kind])
 
     def test_tests_claim_with_a_placeholder_command(self):
         self.assertEqual(parse_report("Tests run: <cmd> -> exit 0\n"), [])
@@ -297,6 +306,20 @@ class PlaceholderReportTest(unittest.TestCase):
                 "deploy",
             ],
         )
+
+    def test_angle_tokens_inside_real_values_are_the_documented_boundary(self):
+        # Accepted loss (README, "Grenzen"): a value whose text contains an
+        # angle token is indistinguishable from a template slot, so a real
+        # command with one is skipped like a template.
+        self.assertEqual(
+            parse_report("Tests run: sed 's/<[^>]*>//g' data.html -> exit 0\n"), []
+        )
+
+    def test_exact_placeholder_words_are_the_documented_boundary(self):
+        # Accepted loss (README, "Grenzen"): a branch or file literally named
+        # TODO is indistinguishable from the template word.
+        self.assertEqual(parse_report("[BRANCH: todo]\n"), [])
+        self.assertEqual(parse_report("**Files in scope:** TODO\n"), [])
 
 
 class PlaceholderCaptureCostTest(unittest.TestCase):

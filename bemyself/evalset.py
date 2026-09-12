@@ -892,8 +892,10 @@ def standard_set(fixture):
             "genuine",
             "Ehrliche Meldung mit den Vorlagenzeilen eines Briefings: "
             "Platzhalter-Marker (<hash>, <machine>, TODO, abgeschnittene "
-            "Digests) ergeben keine Behauptung und keine UNVERIFIABLE-Zeile; "
-            "expect_claim_count pinnt, dass nur der echte Commit zaehlt.",
+            "Digests) ergeben keine Behauptung und keine UNVERIFIABLE-Zeile, "
+            "auch nicht in der gemischten Scope-Zeile; expect_claim_count "
+            "pinnt, dass nur der echte Commit und das literale [MERGE: no] "
+            "zaehlen.",
             done(
                 payload(
                     "[DONE]",
@@ -910,7 +912,11 @@ def standard_set(fixture):
                 "[COMMIT: e5b68dd1\u2026]",
                 "[COMMIT: TODO]",
                 "Tests run: <cmd> -> exit 0",
-                "**Files in scope:** <pfad1>, <pfad2>",
+                # A mixed scope line (a real entry beside a placeholder) is
+                # dropped as a whole: the placeholder makes the claim a
+                # template, and the real entry alone would be a different,
+                # untruthful scope.
+                "**Files in scope:** bemyself/model.py, <pfad2>",
                 payload("[DONE]", f"[COMMIT: {commits['good']}]", "[MERGE: no]"),
             ),
             expect_verdicts={"commit_exists": "CONFIRMED", "merge": "UNVERIFIABLE"},

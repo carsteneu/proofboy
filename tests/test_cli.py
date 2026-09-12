@@ -109,6 +109,21 @@ class CliTest(unittest.TestCase):
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["diff_scope"], "REFUTED")
 
+    def test_files_override_binds_the_real_commit_beside_a_placeholder(self):
+        # A placeholder COMMIT marker names no commit (P15), so it must not
+        # keep the diff scope from binding to the one real hash: before, the
+        # placeholder counted as a second, unresolvable commit and the scope
+        # ended UNVERIFIABLE instead of being checked.
+        report = self.write_report(
+            "**send_to payload:** `[DONE] [COMMIT: <hash>] "
+            f"[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+        )
+        proc = self.invoke("--report", report, "--files", "good.txt", "--base", self.repo["base"], "--json")
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["diff_scope"], "REFUTED")
+        self.assertEqual(verdicts["branch_pushed"], "CONFIRMED")
+
     def test_nothing_verified_is_not_success(self):
         report = self.write_report("**send_to payload:** `[MERGE: no]`\n")
         proc = self.invoke("--report", report, "--json")

@@ -69,6 +69,14 @@ ihre Bedeutung. Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei
 Exit 0 mergen, also `python3 -m bemyself check --strict --report <datei>
 --repo <pfad>`.
 
+Die Zusage gilt den Behauptungen, die die Meldung aufstellt: eine Zeile, die
+als Vorlage gelesen wird (siehe "Grenzen"), stellt keine auf und erscheint in
+keiner Ausgabe -- weder im JSON noch im Exit-Code ist unterscheidbar, ob sie
+fehlte oder als Platzhalter dastand. Ein Gate darf das Fehlen einer Zeile
+deshalb nicht als Nachweis lesen; wo eine Zeile Pflicht ist, muss das Gate sie
+fordern (etwa als Pflichtzeile im Report-Template), nicht ihre Abwesenheit
+messen.
+
 ## Grenzen
 
 Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
@@ -123,15 +131,21 @@ literale Marker -- etwa `[DEPLOY: no]` oder `[MERGE: no]` neben
 `[COMMIT: <hash>]` --, bleiben diese Behauptungen bestehen und behalten ihr
 bisheriges Urteil.
 
-Grenzfaelle sind ausgemessen und festgelegt: `go test ./...` bleibt eine
-Testbehauptung (die Ellipse ist das Ende eines Pfadmusters, kein
-abgeschnittener Wert), ein `<` ohne schliessendes `>` (etwa ein Dateiname
-`a<b.txt`) bleibt eine Behauptung, ein kurzer oder unbekannter, aber
-ausgeschriebener Wert (`e5b68dd1`, `HEAD`, die Beispielmaschine `M`) bleibt
-eine Behauptung. Umgekehrt wird ein formal gueltiger Wert, der nicht von
-einem Platzhalter zu unterscheiden ist (etwa ein Pfad, der auf `...` endet),
-ignoriert -- die Form allein entscheidet; wo die Form mehrdeutig ist, gilt
-das bisherige Verhalten.
+Grenzfaelle sind ausgemessen und festgelegt. Erhalten bleiben: `go test ./...`
+und `src/...` (die ASCII-Ellipse ist das Ende eines Pfadmusters), ein leeres
+`<>` (etwa die Shell-Umleitung `3<>file`) und ein `<` ohne schliessendes `>`
+(etwa ein Dateiname `a<b.txt`), sowie jeder ausgeschriebene Wert (`e5b68dd1`,
+`HEAD`, die Beispielmaschine `M`). Bewusst ignoriert wird dagegen ein Wert,
+dessen Text einen Winkel-Token enthaelt -- auch wenn er echt ist, etwa das
+Kommando `sed 's/<[^>]*>//g' data.html` --, ein Wert, der mit einer
+abschneidenden Ellipse endet (`weird...`, `docs/…`, `pkg/...` als Pfadmuster
+ausgenommen), und ein Wert, der genau `TODO` lautet (auch ein Branch oder
+eine Datei dieses Namens): diese Formen sind von einer Vorlage nicht zu
+unterscheiden, und die Form allein entscheidet. Traegt eine Behauptung den
+Platzhalter in einem Feld, entfaellt die ganze Behauptung -- auch ein `[HALT]`
+mit echter Maschine und echtem Schrittzahl-Wert, wenn das angehaengte
+`[SCORE]` einen Platzhalter traegt. Umschliessende Backticks aendern die
+Erkennung nicht.
 
 Der Sandkasten (siehe unten) haertet den Lauf, aendert aber nichts an der
 Grundregel: wer das erlaubte Testkommando kontrolliert, kontrolliert den
@@ -863,8 +877,9 @@ Fixture-Repos) und eine ehrliche MERGE-Meldung auf dem Merge-Commit des
 Fixtures (ein Parent ist der Tip von `topic`, der andere liegt auf `main`).
 Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings
 (`g26-placeholder-lines`): ihre Platzhalter-Marker ergeben keine Behauptung
-und keine `unpruefbar`-Zeile, nur der echte Commit und das literale
-`[MERGE: no]` zaehlen — `expect_claim_count` pinnt das.
+und keine `unpruefbar`-Zeile -- auch die gemischte Scope-Zeile
+(`bemyself/model.py, <pfad2>`) entfaellt als Ganzes --, nur der echte Commit
+und das literale `[MERGE: no]` zaehlen; `expect_claim_count` pinnt das.
 Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`

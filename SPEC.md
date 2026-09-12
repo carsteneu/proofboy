@@ -28,10 +28,14 @@ wird wie eine Zeile ohne Marker ignoriert und nie als `UNVERIFIABLE`
 gemeldet. Die Regel gilt auf allen Parser-Flaechen (die Marker oben, die
 `Tests run:`-Zeile, die `Files in scope:`-Zeile und die Felder jedes
 registrierten Behauptungstyps) und pro Behauptung: literale Marker auf
-derselben Zeile bleiben Behauptungen. `./...` am Ende eines Kommandos ist
-ein Pfadmuster und kein Platzhalter; ein `<` ohne schliessendes `>` ebenso
-wenig. Siehe README, Abschnitt "Grenzen", fuer die ausgemessenen
-Grenzfaelle.
+derselben Zeile bleiben Behauptungen, ein Platzhalter in einem Feld laesst
+die ganze Behauptung entfallen. Umschliessende Backticks aendern die
+Erkennung nicht. `./...` und `src/...` (ASCII-Ellipse am Pfadmuster-Ende)
+sind keine Platzhalter, ein leeres `<>` und ein `<` ohne schliessendes `>`
+ebenso wenig. Eine Vorlage erscheint in keiner Ausgabe (kein JSON-Eintrag,
+kein Exit-Code-Effekt): das Fehlen einer Zeile und eine als Vorlage
+gelesene Zeile sind nicht unterscheidbar. Siehe README, Abschnitt
+"Grenzen", fuer die ausgemessenen Grenzfaelle.
 
 ## Behauptungstypen und Pruefungen
 

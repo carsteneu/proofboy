@@ -25,10 +25,12 @@ python3 yesdocs/audit/audit_sections.py
 ```
 
 Die Sektions-Baselines (je `--base`) sind die Regressions-Baselines, die die
-Sections selbst in ihren Phase-4-Bloecken dokumentieren; `p1` und `p3`
-dokumentieren keine nutzbare Basis und laufen ohne `--base`. Die Sections
-werden ausschliesslich lesend aus der YesMem-Scratchpad-DB gelesen
-(`--project /home/carsten/projects/bemyself`).
+Sections selbst in ihren Phase-4-Bloecken dokumentieren; `p3` nennt in seiner
+Meldung die Basis `7c7392c`, `p1` dokumentiert keine und laeuft ohne `--base`.
+Die Sections werden ausschliesslich lesend aus der YesMem-Scratchpad-DB
+gelesen (`--project /home/carsten/projects/bemyself`). Laeuft eine Section in
+einen Fehler (kein lesbares JSON), zaehlt sie nicht als null Claims: das
+Skript listet die Fehllaeufe am Ende und endet mit Exit 1.
 
 ## Ergebnis der Sections (13 Worker)
 

@@ -35,10 +35,10 @@ import subprocess
 import sys
 
 # The 13 yesloop worker sections (p1..p14, no p2) with the base revision
-# each one documents for its own regression baseline.
+# each one documents for its own regression baseline (p1 documents none).
 SECTIONS = {
     "yesloop-bemyself-p1-verifier": None,
-    "yesloop-bemyself-p3-eval": None,
+    "yesloop-bemyself-p3-eval": "7c7392c",
     "yesloop-bemyself-p4-cli": "ead3dc7",
     "yesloop-bemyself-p5-strict": "5068e5f",
     "yesloop-bemyself-p6-sandbox": "b8f437f",
@@ -146,6 +146,7 @@ def audit_exit_codes(checkout, project, workdir):
                 "exit": default.returncode,
                 "strict_exit": strict.returncode,
                 "summary": summary,
+                "stderr": default.stderr.strip()[:200] if summary is None else "",
             }
         )
     return rows
@@ -159,6 +160,11 @@ def _totals(rows):
         for verdict, count in row["summary"].items():
             totals[verdict] += count
     return totals
+
+
+def _failed(rows):
+    """Rows whose run produced no parsable summary (never counted as zero)."""
+    return [row for row in rows if row["summary"] is None]
 
 
 def main(argv=None):
@@ -211,6 +217,15 @@ def main(argv=None):
         short = ", ".join(f"{key[0]}:{value}" for key, value in summary.items())
         print(f"{row['name']:36s} {row['exit']:>4} {row['strict_exit']:>6}  {short}")
 
+    failed = _failed(sections) + _failed(matrix)
+    if failed:
+        # A crashed or unparsable run must not read as "zero claims".
+        print()
+        print(f"FAILED RUNS: {len(failed)} (not counted in the totals above)")
+        for row in failed:
+            name = row.get("section") or row.get("name")
+            print(f"  !! {name}: {row.get('stderr', '')}")
+
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:
             json.dump(
@@ -218,7 +233,7 @@ def main(argv=None):
                 handle,
                 indent=2,
             )
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
