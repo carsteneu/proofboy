@@ -458,5 +458,157 @@ class EvaluateRoundsTest(unittest.TestCase):
         self.assertTrue(runs[0]["rounds"][0]["solved"])
 
 
+_TASK_TRACE_FIX = {
+    "id": "B-0001",
+    "tier": "B",
+    "tier_b_kind": "trace",
+    "machine": "1RB1RZ_0LA0LA",
+    "checkpoints_t": [1, 2],
+    "checkpoints_gold": [[1, "B", 1, "1"], [2, "A", 0, "1"]],
+    "prompt": "Simuliere.",
+}
+
+_TASK_CYC_FIX = {
+    "id": "B-0012",
+    "tier": "B",
+    "tier_b_kind": "cyc",
+    "machine": "0LA0LA",
+    "certificate": [0, 1, -1],
+    "prompt": "Zyklus?",
+}
+
+
+class ReviewFixTest(unittest.TestCase):
+    """Phase-5-Fixes: Kollisions-Leak, Zyklus-Sanitizer, Retry, CLI-Grenzen, Layouts."""
+
+    def _root(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(dir=tmp_root))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def test_id_collision_does_not_leak_sim_values(self):
+        # Claim-id 'v1' (parser-legal) darf den v-Line-Befund v1 nicht
+        # umetikettieren: sonst waehlt der Sanitizer den falschen Kind und
+        # der Referenzwert steht roh in der Rueckfuetterung (Review 5.2/1).
+        bad = (
+            "a: M = 1RB1RZ_0LA0LA\n"
+            "h1: cp 1: (B,4,1)\n"
+            "v1 h1: sim(0..2)\n"
+            "h1+\n"
+            "CLAIM v1: (((2 ^ 10) % 1000) = 124)\n"
+            "WITNESS v1: auto\n"
+            "[HALT] v1"
+        )
+        evidence = {}
+        harness.evaluate_run("C", _TASK_TRACE_FIX, {"content": bad}, 0.1, None, None, evidence_out=evidence)
+        verdicts, notes = harness.feedback_lines("C", _TASK_TRACE_FIX, evidence)
+        joined = "\n".join(verdicts + notes)
+        self.assertTrue(any("#xx: v1" in line for line in verdicts))
+        self.assertIn("v1: sim:", joined)  # der sim-Befund bleibt existent
+        self.assertNotIn("the head is at", joined)  # aber ohne Referenzwerte
+
+    def test_cyc_refutation_note_is_sanitized(self):
+        bad = (
+            "a: M = 0LA0LA\n"
+            "h1: M zyklisch (Translation)\n"
+            "v h1: cyc(0,1,-2)\n"
+            "h1+\n"
+            "CLAIM c1: M zyklisch (Translation)\n"
+            "WITNESS c1: ref h1\n"
+            "[HALT] c1"
+        )
+        evidence = {}
+        harness.evaluate_run("C", _TASK_CYC_FIX, {"content": bad}, 0.1, None, None, evidence_out=evidence)
+        reason = evidence["result"].v_results[0].reason
+        self.assertIn("is at cell", reason)  # der echte Grund nennt Zellwerte
+        verdicts, notes = harness.feedback_lines("C", _TASK_CYC_FIX, evidence)
+        joined = "\n".join(verdicts + notes)
+        self.assertIn("#xx: v1", verdicts)
+        self.assertNotIn("is at cell", joined)
+
+    def test_persistent_transport_error_ends_run(self):
+        class AlwaysDown:
+            def __init__(self):
+                self.calls = 0
+
+            def __call__(self, messages, timeout):
+                self.calls += 1
+                return None, None, 0.1, "URLError: down"
+
+        fake = AlwaysDown()
+        summary = harness.run_rounds("C", TASK_A, 1, self._root(), _FakeArgs(), call=fake)
+        self.assertFalse(summary["final_solved"])
+        self.assertEqual(len(summary["rounds"]), 1)
+        self.assertEqual(summary["rounds"][0]["error"], "URLError: down")
+        self.assertEqual(summary["transport_retries"], 1)
+        self.assertEqual(fake.calls, 2)  # Erstversuch + ein Retry, dann Ende
+
+    def test_max_repairs_zero_still_runs_round0(self):
+        fake = _FakeCall([_SHEET_BAD, _SHEET_OK])
+        summary = harness.run_rounds("C", TASK_A, 1, self._root(), _FakeArgs(max_repairs=0), call=fake)
+        self.assertEqual(len(summary["rounds"]), 1)
+        self.assertFalse(summary["final_solved"])
+        self.assertEqual(summary["repairs_used"], 0)
+        self.assertEqual(fake.calls, 1)
+
+    def test_negative_max_repairs_rejected(self):
+        import contextlib
+        import io
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit):
+                harness.main(["batch", "--max-repairs", "-1"])
+
+    def test_mixed_layout_loads_legacy_runs(self):
+        root = self._root()
+        harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=_FakeCall([_SHEET_OK]))
+        legacy_dir = root / "A-0001" / "K-rep1"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "parsed.json").write_text(
+            json.dumps({"arm": "K", "tier": "A", "solved": True, "duration_s": 1.0, "usage": {}}),
+            encoding="utf-8",
+        )
+        _manifest, runs = evaluate.load_runs(root)
+        self.assertEqual(len(runs), 2)
+
+    def test_rounds_beyond_two_are_rendered(self):
+        rounds = [
+            {"round": i, "solved": i == 3, "error": None, "duration_s": 1.0,
+             "completion_tokens": 10, "reasoning_tokens": 5, "format_errors": 0}
+            for i in range(4)
+        ]
+        runs = [
+            {
+                "summary": {
+                    "arm": "C", "tier": "A",
+                    "rounds": rounds, "final_solved": True, "rounds_to_ok": 3,
+                    "repairs_used": 3,
+                },
+                "rounds": [None, None, None, None],
+                "path": "x",
+            },
+        ]
+        aggregated = evaluate.summarize_runs(runs)
+        text = evaluate.render_round_markdown(aggregated, {})
+        self.assertIn("0/0/0/1/0", text)  # Runde 3 sichtbar, keine stille Auslassung
+
+    def test_full_answer_is_replayed_not_clipped(self):
+        big = _SHEET_BAD + "\n" + "x" * 25000
+        self.assertGreater(len(big), 20000)
+        fake = _FakeCall([big, _SHEET_OK])
+        root = self._root()
+        harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=fake)
+        assistant = [m for m in fake.messages_seen[-1] if m["role"] == "assistant"][0]
+        self.assertEqual(len(assistant["content"]), len(big))
+
+    def test_machine_arm_without_evidence_gets_neutral_redo(self):
+        text = prompts.build_repair_message("B", _TASK_CYC_FIX, [], [], [])
+        self.assertIn("Ueberarbeite deine Antwort", text)
+        self.assertNotIn("Blatt geprueft", text)
+
+
 if __name__ == "__main__":
     unittest.main()

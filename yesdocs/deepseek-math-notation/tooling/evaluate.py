@@ -56,22 +56,27 @@ def load_runs(runs_root):
     manifest_path = root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
     runs = []
-    for summary_path in sorted(root.glob("*/[!_]*-rep*/summary.json")):
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        rounds = []
-        for index in range(len(summary.get("rounds", []))):
-            parsed_path = summary_path.parent / f"round{index}" / "parsed.json"
-            rounds.append(
-                json.loads(parsed_path.read_text(encoding="utf-8"))
-                if parsed_path.exists()
-                else None
-            )
-        runs.append({"summary": summary, "rounds": rounds, "path": str(summary_path)})
-    if not runs:
-        for parsed in sorted(root.glob("*/[!_]*-rep*/parsed.json")):
-            data = json.loads(parsed.read_text(encoding="utf-8"))
-            data["_path"] = str(parsed)
-            runs.append({"summary": None, "rounds": [data], "path": str(parsed)})
+    # Fallback pro Lauf: ein gemischter Baum (Runden-Layout + V11-Flachlayout)
+    # verliert nichts mehr.
+    for run_dir in sorted(root.glob("*/[!_]*-rep*")):
+        summary_path = run_dir / "summary.json"
+        if summary_path.exists():
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            rounds = []
+            for index in range(len(summary.get("rounds", []))):
+                parsed_path = run_dir / f"round{index}" / "parsed.json"
+                rounds.append(
+                    json.loads(parsed_path.read_text(encoding="utf-8"))
+                    if parsed_path.exists()
+                    else None
+                )
+            runs.append({"summary": summary, "rounds": rounds, "path": str(summary_path)})
+            continue
+        legacy_path = run_dir / "parsed.json"
+        if legacy_path.exists():
+            data = json.loads(legacy_path.read_text(encoding="utf-8"))
+            data["_path"] = str(legacy_path)
+            runs.append({"summary": None, "rounds": [data], "path": str(legacy_path)})
     return manifest, runs
 
 
@@ -102,12 +107,18 @@ def summarize_runs(runs):
     out = {}
     for (arm, tier), rows in sorted(groups.items()):
         n = len(rows)
-        r0_solved = sum(1 for run in rows if run["summary"]["rounds"][0]["solved"])
+        r0_solved = sum(
+            1
+            for run in rows
+            if run["summary"]["rounds"] and run["summary"]["rounds"][0]["solved"]
+        )
         final_solved = sum(1 for run in rows if run["summary"]["final_solved"])
         repaired = sum(
             1
             for run in rows
-            if run["summary"]["final_solved"] and not run["summary"]["rounds"][0]["solved"]
+            if run["summary"]["rounds"]
+            and run["summary"]["final_solved"]
+            and not run["summary"]["rounds"][0]["solved"]
         )
         hist = {"0": 0, "1": 0, "2": 0, "unresolved": 0}
         for run in rows:
@@ -140,9 +151,7 @@ def summarize_runs(runs):
         r0_format_errors = sum(
             1
             for run in rows
-            if any(
-                (run["rounds"][0] or {}).get("format_errors") or []
-            )
+            if run["rounds"] and ((run["rounds"][0] or {}).get("format_errors") or [])
         )
         low, high = wilson(final_solved, n)
         r0_low, r0_high = wilson(r0_solved, n)
@@ -184,14 +193,23 @@ def render_round_markdown(summary, manifest):
         f"- Tier-A-Set: {manifest.get('tier_a_set', {}).get('version', '?')} sha256 {manifest.get('tier_a_set', {}).get('sha256', '?')[:16]}…",
         f"- Tier-B-Set: {manifest.get('tier_b_set', {}).get('version', '?')} sha256 {manifest.get('tier_b_set', {}).get('sha256', '?')[:16]}…",
         "",
-        "| Arm-Tier | n | R0 gelöst | R0-Rate | Formfehler-Läufe R0 | Final gelöst | Final-Rate (95%-CI) | repariert | Reparaturgewinn | Runden bis ok (0/1/2/offen) | #xx-Auflösung | Tokens gesamt | Tokens/Treffer | Zeit gesamt |",
+        "| Arm-Tier | n | R0 gelöst | R0-Rate | Formfehler-Läufe R0 | Final gelöst | Final-Rate (95%-CI) | repariert | Reparaturgewinn | Runden bis ok (0..max/offen) | #xx-Auflösung | Tokens gesamt | Tokens/Treffer | Zeit gesamt |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for entry in summary.values():
         hist = entry["rounds_to_ok"]
+        # Dynamische Buckets: kein stilles Auslassen, falls je mehr als zwei
+        # Reparaturrunden gefahren werden.
+        keys = sorted((k for k in hist if k != "unresolved"), key=int)
+        hist_str = "/".join(str(hist[k]) for k in keys + ["unresolved"])
         resolution = entry["xx_resolution"]
+        tokens_per_solved = (
+            entry["tokens_per_final_solved"]
+            if entry["tokens_per_final_solved"] is not None
+            else "—"
+        )
         lines.append(
-            "| {arm}-{tier} | {n} | {r0} | {r0r} | {ferr} | {fin} | {finr} ({lo:.2f}–{hi:.2f}) | {rep} | +{gain} pp | {h0}/{h1}/{h2}/{hu} | {res}/{tot} | {tok} | {tps} | {wall}s |".format(
+            "| {arm}-{tier} | {n} | {r0} | {r0r} | {ferr} | {fin} | {finr} ({lo:.2f}–{hi:.2f}) | {rep} | +{gain} pp | {hist} | {res}/{tot} | {tok} | {tps} | {wall}s |".format(
                 arm=entry["arm"],
                 tier=entry["tier"],
                 n=entry["n"],
@@ -204,21 +222,19 @@ def render_round_markdown(summary, manifest):
                 hi=entry["final_ci95"][1],
                 rep=entry["repaired"],
                 gain=entry["repair_gain_pp"],
-                h0=hist.get("0", 0),
-                h1=hist.get("1", 0),
-                h2=hist.get("2", 0),
-                hu=hist.get("unresolved", 0),
+                hist=hist_str,
                 res=resolution["resolved"],
                 tot=resolution["total"],
                 tok=entry["tokens_total"],
-                tps=entry["tokens_per_final_solved"],
+                tps=tokens_per_solved,
                 wall=entry["wallclock_total_s"],
             )
         )
     lines.append("")
     lines.append(
         "Hinweise: `repariert` = R0 nicht gelöst, final gelöst; `Reparaturgewinn` = Differenz "
-        "in Prozentpunkten über n; `#xx-Auflösung` = Anteil der in Runde r refutierten ids, "
+        "in Prozentpunkten über n; `Runden bis ok` zählt die Buckets 0..max in Ordnung, dann "
+        "die offenen Läufe; `#xx-Auflösung` = Anteil der in Runde r refutierten ids, "
         "die in Runde r+1 nicht mehr refutiert sind; `Tokens` = completion über "
         "alle Runden (enthaelt reasoning). Keine Signifikanzaussagen."
     )

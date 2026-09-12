@@ -361,16 +361,27 @@ def feedback_lines(arm, task, evidence):
     result = evidence.get("result")
     if result is None:
         return [], []
-    kinds = {vline.vid: (vline.spec.kind if vline.spec else None) for vline in sheet.vlines}
+    # Getrennte Lookups: Claim-ids wie "v1" sind parserlegal; ein gemeinsames
+    # Dict ueber nackte ids wuerde den v-Line-Kind umetikettieren und den
+    # Sanitizer die Referenzwerte durchlassen.
+    kinds_v = {vline.vid: (vline.spec.kind if vline.spec else None) for vline in sheet.vlines}
+    kinds_c = {}
     for claim in sheet.claims:
         witness = sheet.witness_for(claim.cid)
-        kinds[claim.cid] = witness.spec.kind if witness is not None and witness.spec else None
+        kinds_c[claim.cid] = witness.spec.kind if witness is not None and witness.spec else None
     notes = []
-    for row in list(result.v_results) + list(result.claim_results):
-        rid = getattr(row, "vid", None) or row.cid
+    for row in result.v_results:
         if row.verdict.value == "CONFIRMED":
             continue
-        notes.append(f"{rid}: {_sanitize_reason(kinds.get(rid), row.verdict.value, row.reason)}")
+        notes.append(
+            f"{row.vid}: {_sanitize_reason(kinds_v.get(row.vid), row.verdict.value, row.reason)}"
+        )
+    for row in result.claim_results:
+        if row.verdict.value == "CONFIRMED":
+            continue
+        notes.append(
+            f"{row.cid}: {_sanitize_reason(kinds_c.get(row.cid), row.verdict.value, row.reason)}"
+        )
     return list(result.appendix), notes
 
 
@@ -421,7 +432,10 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
         record = evaluate_run(arm, task, payload, duration, error, args, evidence_out=evidence)
         record["round"] = round_index
         record["feedback_in"] = feedback_in
-        answer = record.get("answer", "")
+        # Im Verlauf wird die volle Antwort zurueckgespielt, nicht die im
+        # Protokoll gekuerzte Fassung (record["answer"] ist bei 20000 Zeichen
+        # beschnitten; max_tokens 8192 kann laenger werden).
+        answer_full = (payload.get("content") or "") if payload else ""
         solved = bool(record["solved"])
         usage = record.get("usage") or {}
         rounds.append(
@@ -450,7 +464,7 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
 
         if stop:
             break
-        messages.append({"role": "assistant", "content": answer})
+        messages.append({"role": "assistant", "content": answer_full})
         messages.append({"role": "user", "content": repair_text})
         feedback_in = repair_text
 
@@ -536,7 +550,7 @@ def cmd_batch(args):
                 summary = run_rounds(arm, task, rep, runs_root, args)
                 solved += bool(summary["final_solved"])
                 marker = "OK " if summary["final_solved"] else "   "
-                r0 = summary["rounds"][0]
+                r0 = summary["rounds"][0] if summary["rounds"] else {"solved": False}
                 print(
                     f"{marker}{task['id']} rep{rep} {arm}: "
                     f"rounds={len(summary['rounds'])} r0={'ok' if r0['solved'] else 'no'} "
@@ -606,6 +620,8 @@ def main(argv=None):
     dry.set_defaults(func=cmd_dry)
 
     args = parser.parse_args(argv)
+    if args.max_repairs < 0:
+        parser.error("--max-repairs must be >= 0")
     return args.func(args)
 
 

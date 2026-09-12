@@ -218,6 +218,13 @@ def build_repair_message(arm, task, verdict_lines, note_lines, format_errors):
     """
     if arm == "K":
         return _k_selfcheck(task)
+    if not (verdict_lines or note_lines or format_errors):
+        # Nichts wurde maschinell geprueft (z. B. Arm B auf dem Zyklus-Pfad,
+        # der kein Blatt auswertet): kein "Blatt geprueft" behaupten.
+        return (
+            "Ueberarbeite deine Antwort: korrigiere die betroffenen Angaben und "
+            "antworte erneut im geforderten Format."
+        )
     parts = ["Der Zeugen-Runner hat dein Blatt geprueft."]
     if verdict_lines:
         parts.append("Verdikte:")
