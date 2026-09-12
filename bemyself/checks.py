@@ -125,8 +125,10 @@ DEFAULT_COMMAND_ALLOWLIST = (
 
 @dataclass
 class Ctx:
-    repo: str
-    tmp_dir: str
+    # None only while no claim kind in the run declares a repo need: a checker
+    # that declares one always receives a real path.
+    repo: str | None
+    tmp_dir: str | None
     base: str | None = None
     allowlist: tuple[str, ...] = DEFAULT_COMMAND_ALLOWLIST
     sandbox: str = "auto"
@@ -540,6 +542,17 @@ def _is_allowed(command, allowlist):
     )
 
 
+def needs_repo(checker):
+    """Declaration: this checker re-derives its claim in a git repository.
+
+    The CLI requires ``--repo`` for a report only while some occurring claim
+    kind declares this (see :func:`kind_needs_repo`).
+    """
+    checker.needs_repo = True
+    return checker
+
+
+@needs_repo
 def check_commit_exists(claim: Claim, ctx: Ctx) -> Result:
     guard = _repo_guard(ctx)
     if guard is not None:
@@ -555,6 +568,7 @@ def check_commit_exists(claim: Claim, ctx: Ctx) -> Result:
     return Result(Verdict.REFUTED, command, "", f"commit {value} does not exist in {ctx.repo}")
 
 
+@needs_repo
 def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
     guard = _repo_guard(ctx)
     if guard is not None:
@@ -669,6 +683,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
         _git(ctx, "update-ref", "-d", private_ref)
 
 
+@needs_repo
 def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
     guard = _repo_guard(ctx)
     if guard is not None:
@@ -736,6 +751,7 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
     )
 
 
+@needs_repo
 def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
     guard = _repo_guard(ctx)
     if guard is not None:
@@ -1025,6 +1041,20 @@ REGISTRY = {
     "tests_green": check_tests_green,
     "tests_exit": check_tests_green,
 }
+
+
+def kind_needs_repo(kind: str, registry: dict | None = None) -> bool:
+    """Whether the checker for ``kind`` declares a repository need.
+
+    Resolution mirrors :func:`run_claim`: the built-in registry first, then
+    the optional claim types. A kind without any checker needs nothing -- it
+    stays UNVERIFIABLE ("no checker registered").
+    """
+    registry = REGISTRY if registry is None else registry
+    checker = registry.get(kind)
+    if checker is None:
+        return claimtypes.type_needs_repo(kind)
+    return bool(getattr(checker, "needs_repo", False))
 
 
 def run_claim(claim: Claim, ctx: Ctx, registry: dict | None = None) -> Result:

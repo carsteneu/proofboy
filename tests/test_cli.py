@@ -1,12 +1,18 @@
+import contextlib
+import io
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
+from bemyself import claimtypes, cli
+from bemyself.model import ClaimType, Result, Verdict
 from tests.fixtures import make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -366,6 +372,61 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--halt-limit", proc.stderr)
 
+    # --- --repo: required only for claim kinds that need it ----------------
+    def invoke_without_repo(self, *args):
+        return subprocess.run(
+            [sys.executable, "-m", "bemyself", "check"] + list(args),
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_halt_only_report_without_repo_confirms(self):
+        proc = self.invoke_without_repo("--report", self.halt_report(), "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["halt"]["verdict"], "CONFIRMED")
+
+    def test_commit_claim_without_repo_is_a_usage_error(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n", name="commit-only.txt"
+        )
+        proc = self.invoke_without_repo("--report", report)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--repo is required", proc.stderr)
+        self.assertIn("commit_exists", proc.stderr)
+        self.assertIn("usage", proc.stderr.lower())
+
+    def test_mixed_report_without_repo_is_a_usage_error(self):
+        report = self.write_report(
+            f"**send_to payload:** `[DONE] [COMMIT: {self.repo['good']}] "
+            "[HALT: 1RB1RZ_0LA0LA -> 3]`\n",
+            name="mixed.txt",
+        )
+        proc = self.invoke_without_repo("--report", report)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--repo is required", proc.stderr)
+
+    def test_report_without_claims_needs_no_repo(self):
+        report = self.write_report("Everything went fine, nothing to verify.\n", name="empty.txt")
+        proc = self.invoke_without_repo("--report", report, "--json")
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        self.assertEqual(json.loads(proc.stdout)["claims"], [])
+        self.assertNotIn("--repo is required", proc.stderr)
+
+    def test_kind_without_checker_needs_no_repo(self):
+        report = self.write_report("**send_to payload:** `[MERGE: no]`\n", name="merge-only.txt")
+        proc = self.invoke_without_repo("--report", report, "--json")
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["merge"]["verdict"], "UNVERIFIABLE")
+
+    def test_files_override_needs_the_repo_of_its_diff_scope_claim(self):
+        proc = self.invoke_without_repo("--report", self.halt_report(), "--files", "a.txt")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--repo is required", proc.stderr)
+        self.assertIn("diff_scope", proc.stderr)
+
 
 class CliSectionTest(unittest.TestCase):
     """``check --section`` reads the message from a scratchpad database.
@@ -509,10 +570,73 @@ class CliSectionTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--project", proc.stderr)
 
-    def test_report_still_requires_repo(self):
-        proc = self.invoke_raw("--report", os.path.join(self._tmp.name, "report.txt"))
+    def test_section_mode_runs_repo_free_claims_without_repo(self):
+        self.add_section("halt-only", "**send_to payload:** `[DONE] [HALT: 1RB1RZ_0LA0LA -> 3]`\n")
+        proc = self.invoke("halt-only", "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(self.verdicts(proc.stdout)["halt"], "CONFIRMED")
+
+    def test_report_with_a_repo_needing_claim_still_requires_repo(self):
+        path = os.path.join(self._tmp.name, "commit-report.txt")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n")
+        proc = self.invoke_raw("--report", path)
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--repo", proc.stderr)
+
+
+class RepoNeedRegistryTest(unittest.TestCase):
+    """The ``--repo`` requirement must come from the claim-type registry.
+
+    The CLI has no kind list: only a type's ``needs_repo`` declaration makes
+    its claims demand a repository, and a report from repo-free types runs
+    without one.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+
+    def write_report(self, text):
+        path = os.path.join(self._tmp.name, "report.txt")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        return path
+
+    def dummy_type(self, needs_repo):
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="the dummy claim holds")
+
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        return ClaimType(
+            kind="dummy",
+            pattern=re.compile(r"\[DUMMY:[ \t]*(\w+)[ \t]*\]"),
+            parse=parse,
+            check=check,
+            needs_repo=needs_repo,
+        )
+
+    def test_a_type_declaring_a_repo_need_is_required_without_repo(self):
+        report = self.write_report("[DUMMY: x]\n")
+        stderr = io.StringIO()
+        with mock.patch.object(claimtypes, "CLAIM_TYPES", (self.dummy_type(True),)):
+            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as caught:
+                cli.main(["check", "--report", report])
+        self.assertEqual(caught.exception.code, 2)
+        self.assertIn("--repo is required", stderr.getvalue())
+        self.assertIn("dummy", stderr.getvalue())
+
+    def test_a_type_without_repo_need_runs_without_repo(self):
+        report = self.write_report("[DUMMY: x]\n")
+        stdout = io.StringIO()
+        with mock.patch.object(claimtypes, "CLAIM_TYPES", (self.dummy_type(False),)):
+            with contextlib.redirect_stdout(stdout):
+                code = cli.main(["check", "--report", report, "--json"])
+        self.assertEqual(code, 0)
+        claims = json.loads(stdout.getvalue())["claims"]
+        self.assertEqual(claims[0]["verdict"], "CONFIRMED")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from bemyself.checks import (
     SANDBOX_MODES,
     Ctx,
     git_env,
+    kind_needs_repo,
     run_claim,
 )
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
@@ -123,7 +124,10 @@ def build_parser():
         "--db",
         help=f"path to the YesMem database (default {DEFAULT_DB}), opened read-only",
     )
-    check.add_argument("--repo", help="path to the git repository")
+    check.add_argument(
+        "--repo",
+        help="path to the git repository; required with --report only when a claim kind in it needs one",
+    )
     check.add_argument(
         "--base",
         help="base revision for diff-scope; without it diff-scope claims stay UNVERIFIABLE",
@@ -292,6 +296,10 @@ def _tmp_dir(args, repo):
     """
     if args.tmp:
         return os.path.abspath(args.tmp)
+    if repo is None:
+        # No repository in this run: there is no checkout to place, and a
+        # repo-free checker does not touch the tmp dir.
+        return None
     candidate = os.path.join(repo, ".yesmem", "tmp", "check")
     repo_real = os.path.realpath(repo)
     candidate_real = os.path.realpath(candidate)
@@ -310,8 +318,8 @@ def _validate_check_args(parser, args):
         parser.error("one of --report or --section is required")
     if args.report is not None and args.section is not None:
         parser.error("--report and --section are mutually exclusive")
-    if args.report is not None and args.repo is None:
-        parser.error("--repo is required with --report")
+    # --repo is decided in run_check, not here: whether a report needs a
+    # repository depends on the claim kinds it contains.
     if args.section is not None and args.project is None:
         parser.error("--project is required with --section")
 
@@ -324,7 +332,7 @@ def _source_error(as_json, source, repo, message):
     return EXIT_ERROR
 
 
-def run_check(args):
+def run_check(args, parser):
     if args.section is not None:
         # The descriptor names the source in the JSON output: there is no
         # report file behind a section, and the exit code alone cannot say
@@ -353,7 +361,7 @@ def run_check(args):
             )
     else:
         source = os.path.abspath(args.report)
-        repo_arg = os.path.abspath(args.repo)
+        repo_arg = os.path.abspath(args.repo) if args.repo is not None else None
         try:
             with open(source, encoding="utf-8", errors="replace") as handle:
                 text = handle.read(MAX_REPORT_BYTES + 1)
@@ -369,11 +377,24 @@ def run_check(args):
                 f"report exceeds 1 MiB; refusing to verify a truncated report: {source}",
             )
 
-    if not os.path.isdir(repo_arg):
-        return _source_error(args.json, source, repo_arg, f"repo path does not exist: {repo_arg}")
-    repo = _resolve_repo_root(repo_arg)
+    if repo_arg is not None:
+        if not os.path.isdir(repo_arg):
+            return _source_error(args.json, source, repo_arg, f"repo path does not exist: {repo_arg}")
+        repo = _resolve_repo_root(repo_arg)
+    else:
+        repo = None
 
     claims = _apply_files_override(parse_report(text), args.files)
+
+    if repo is None:
+        needed = next((claim.kind for claim in claims if kind_needs_repo(claim.kind)), None)
+        if needed is not None:
+            # Decidable only now: a report needs --repo once one of its claim
+            # kinds declares a repository need.
+            parser.error(
+                "--repo is required with --report "
+                f"(claim kind {needed!r} needs a repository)"
+            )
 
     if not claims:
         kind = "section" if args.section is not None else "report"
@@ -383,7 +404,10 @@ def run_check(args):
         return EXIT_NOTHING
 
     tmp_dir = _tmp_dir(args, repo)
-    if tmp_dir is None:
+    if repo is not None and tmp_dir is None:
+        # A None tmp_dir is an error only for a repo-backed run: it means the
+        # default resolves outside the repo (committed .yesmem symlink). A
+        # repo-free run has no default to resolve.
         message = (
             "default tmp dir resolves outside the repo (committed .yesmem symlink?); "
             "pass --tmp to place it elsewhere"
@@ -415,7 +439,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.command == "check":
         _validate_check_args(parser, args)
-        return run_check(args)
+        return run_check(args, parser)
     if args.command == "eval":
         # Imported here so the check path does not load the eval harness.
         from bemyself.eval import run_eval
