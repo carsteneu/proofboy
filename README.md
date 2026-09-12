@@ -441,8 +441,9 @@ der CHECKER-Gegenlauf (frischer Checkout + bwrap + Lauf) braucht dafuer
 insgesamt etwa 15 s. Die Laufzeit ist empirisch, keine Schranke. Der
 Speicherbedarf waechst linear mit `N`: die Merktabelle der kleinsten
 Primfaktoren hat `2N` Eintraege (gemessen: `N = 1.000.000` etwa 90 MB
-Peak-RSS); ein weit groesseres `N` kann am Speicher scheitern und endet dann
-mit Exit 2 statt eine Aussage zu erfinden.
+Peak-RSS); ein weit groesseres `N` kann am Speicher scheitern -- der Lauf
+endet dann mit einem Fehl-Exit (Exit 2 aus dem Modul oder vom Kernel
+beendet), nie mit einer erfundenen Aussage.
 
 Artefakt dieses Branches: `python3 -m bemyself.experiments.erdos_straus
 1000000` -> sha256
