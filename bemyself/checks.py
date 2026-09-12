@@ -1046,12 +1046,156 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             pass
 
 
+# The report values of a [MERGE] marker that name no branch: a yesloop DONE
+# payload uses [MERGE: no|pending-PR|blocked-PR] as a status token, and a
+# status is not a branch claim. A value that names no branch stays
+# UNVERIFIABLE -- never a confirmation by imagination.
+_MERGE_STATUS_VALUES = frozenset({"", "-", "no", "none", "pending-pr", "blocked-pr"})
+
+
+def _merge_target_branch(ctx):
+    """The branch a merge landed on, as ``(name, commit)``, or None.
+
+    Order: the remote's default branch (``refs/remotes/origin/HEAD``), a
+    local main or master, the current branch. Without any resolvable
+    candidate the target is unknown and the merge claim stays UNVERIFIABLE --
+    the target is never guessed.
+    """
+    proc = _git(ctx, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+    name = proc.stdout.strip() if proc.returncode == 0 else ""
+    if name:
+        commit = _rev_parse(ctx, name)
+        if commit is not None:
+            return name, commit
+    for candidate in ("main", "master"):
+        commit = _rev_parse(ctx, f"refs/heads/{candidate}")
+        if commit is not None:
+            return candidate, commit
+    proc = _git(ctx, "symbolic-ref", "--short", "HEAD")
+    if proc.returncode == 0 and proc.stdout.strip():
+        commit = _rev_parse(ctx, "HEAD")
+        if commit is not None:
+            return proc.stdout.strip(), commit
+    return None
+
+
+# The [MERGE] claim: the bound commit is the merge of the named branch. The
+# checks are structural and local (no fetch): the commit must exist and have
+# exactly two parents, one parent must be the tip of the named branch (a
+# local branch first, then the origin-tracking ref of the same name), and the
+# other parent must lie on the target branch or be its tip. A contradiction
+# is REFUTED and names the parents that really exist. A claim without a
+# branch (a status token like "no") or without the one hash-shaped [COMMIT]
+# marker stays UNVERIFIABLE. The checker declares no repository need, so a
+# report that only carries [MERGE: no] keeps running without --repo; without
+# a repository the claim is UNVERIFIABLE.
+def check_merge(claim: Claim, ctx: Ctx) -> Result:
+    if ctx.repo is None:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="no repository given; a [MERGE] claim needs --repo to compare the merge parents",
+        )
+    guard = _repo_guard(ctx)
+    if guard is not None:
+        return guard
+    branch = (claim.fields.get("value") or "").strip()
+    if branch.lower() in _MERGE_STATUS_VALUES or not _valid_branch(branch):
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"the claim names no branch to check: {branch!r}",
+        )
+    value = (claim.fields.get("commit") or "").strip()
+    if not value:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="no commit hash to bind the merge claim; the report needs one hash-shaped [COMMIT] marker",
+        )
+    if not _COMMIT_HASH_RE.match(value):
+        return Result(Verdict.UNVERIFIABLE, reason=f"not a commit hash: {value!r}")
+    commit = _rev_parse(ctx, value)
+    if commit is None:
+        return Result(Verdict.REFUTED, reason=f"commit {value} does not exist in {ctx.repo}")
+    parents_args = ("rev-list", "--parents", "-n", "1", commit)
+    parents_proc = _git(ctx, *parents_args)
+    command = _format(_repo_command(ctx, *parents_args))
+    if parents_proc.returncode != 0:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command,
+            _output(parents_proc),
+            reason=f"could not read the parents of {commit[:12]}",
+        )
+    parents = parents_proc.stdout.split()[1:]
+    actual = ", ".join(parent[:12] for parent in parents) or "none"
+    if len(parents) != 2:
+        return Result(
+            Verdict.REFUTED,
+            command,
+            parents_proc.stdout.strip(),
+            f"not a merge commit: {commit[:12]} has {len(parents)} parent(s) ({actual})",
+        )
+    tip = _rev_parse(ctx, f"refs/heads/{branch}") or _rev_parse(
+        ctx, f"refs/remotes/origin/{branch}"
+    )
+    if tip is None:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command,
+            parents_proc.stdout.strip(),
+            f"branch {branch!r} does not resolve in {ctx.repo} (neither locally nor on origin)",
+        )
+    if tip not in parents:
+        return Result(
+            Verdict.REFUTED,
+            command,
+            parents_proc.stdout.strip(),
+            f"the parents of {commit[:12]} are {actual}; none is the tip of {branch!r} ({tip[:12]})",
+        )
+    other = parents[1] if parents[0] == tip else parents[0]
+    target = _merge_target_branch(ctx)
+    if target is None:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command,
+            parents_proc.stdout.strip(),
+            reason="cannot determine the target branch (no origin/HEAD, no local main or master, "
+            "no current branch); the other parent cannot be compared",
+        )
+    target_name, target_commit = target
+    ancestor_args = ("merge-base", "--is-ancestor", other, target_commit)
+    ancestor = _git(ctx, *ancestor_args)
+    ancestor_command = _format(_repo_command(ctx, *ancestor_args))
+    if ancestor.returncode == 0:
+        return Result(
+            Verdict.CONFIRMED,
+            ancestor_command,
+            parents_proc.stdout.strip(),
+            f"{commit[:12]} is a merge of {branch!r}: parent {tip[:12]} is its tip and "
+            f"parent {other[:12]} lies on {target_name}",
+        )
+    if ancestor.returncode == 1:
+        return Result(
+            Verdict.REFUTED,
+            ancestor_command,
+            parents_proc.stdout.strip(),
+            f"the other parent {other[:12]} of {commit[:12]} lies on no {target_name}: "
+            f"its tip {target_commit[:12]} does not contain it; the parents are {actual}",
+        )
+    return Result(
+        Verdict.UNVERIFIABLE,
+        ancestor_command,
+        _output(ancestor),
+        reason=f"could not compare {other[:12]} with {target_name}",
+    )
+
+
 REGISTRY = {
     "commit_exists": check_commit_exists,
     "branch_pushed": check_branch_pushed,
     "diff_scope": check_diff_scope,
     "tests_green": check_tests_green,
     "tests_exit": check_tests_green,
+    "merge": check_merge,
 }
 
 

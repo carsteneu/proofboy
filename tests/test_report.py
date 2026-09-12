@@ -51,6 +51,22 @@ class ParseReportTest(unittest.TestCase):
         self.assertEqual(len(self.by_kind("merge")), 1)
         self.assertEqual(len(self.by_kind("deploy")), 1)
 
+    def test_merge_claim_binds_to_the_single_commit(self):
+        claims = parse_report(
+            "**send_to payload:** `[COMMIT: aaaa1111] [MERGE: yesloop/demo]`\n"
+        )
+        merge = [c for c in claims if c.kind == "merge"][0]
+        self.assertEqual(merge.fields["value"], "yesloop/demo")
+        self.assertEqual(merge.fields["commit"], "aaaa1111")
+
+    def test_merge_claim_stays_unbound_with_several_distinct_commits(self):
+        text = (
+            "**send_to payload:** `[COMMIT: aaaa1111] [MERGE: yesloop/demo]`\n"
+            "**send_to payload:** `[COMMIT: bbbb2222]`\n"
+        )
+        merge = [c for c in parse_report(text) if c.kind == "merge"][0]
+        self.assertIsNone(merge.fields["commit"])
+
     def test_line_numbers(self):
         self.assertEqual(self.by_kind("commit_exists")[0].line, 3)
         self.assertEqual(self.by_kind("diff_scope")[0].line, 4)

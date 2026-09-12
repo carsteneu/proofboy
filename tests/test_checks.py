@@ -9,7 +9,7 @@ from unittest import mock
 from bemyself.checks import Ctx, run_claim
 from bemyself.model import Claim, Verdict
 
-from tests.fixtures import commit_probe, make_repo
+from tests.fixtures import commit_probe, make_repo, merge_into_main
 
 
 def make_claim(kind, **fields):
@@ -251,6 +251,127 @@ class CheckerTest(unittest.TestCase):
     def test_unknown_claim_kind_is_unverifiable(self):
         result = self.run_check("merge", value="no")
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+
+    # --- merge -------------------------------------------------------------
+    def merge_repo(self, name):
+        repo = make_repo(os.path.join(self._tmp.name, name))
+        tip, merge = merge_into_main(repo)
+        return repo, tip, merge
+
+    def test_merge_confirmed_for_a_real_merge(self):
+        repo, tip, merge = self.merge_repo("merge-ok")
+        result = run_claim(
+            make_claim("merge", value="topic", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertIn(tip[:12], result.reason)
+        self.assertIn("main", result.reason)
+
+    def test_merge_confirmed_when_the_branch_lives_only_on_origin(self):
+        repo, tip, merge = self.merge_repo("merge-origin")
+        subprocess.run(
+            ["git", "-C", repo.path, "push", "-q", "origin", "topic"], check=True
+        )
+        subprocess.run(
+            ["git", "-C", repo.path, "branch", "-D", "topic"],
+            check=True,
+            capture_output=True,
+        )
+        result = run_claim(
+            make_claim("merge", value="topic", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+    def test_merge_refuted_for_a_normal_commit(self):
+        repo, tip, merge = self.merge_repo("merge-single-parent")
+        result = run_claim(
+            make_claim("merge", value="topic", commit=repo["good"]),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+        self.assertIn("not a merge commit", result.reason)
+
+    def test_merge_refuted_for_the_target_branch_as_the_merged_branch(self):
+        repo, tip, merge = self.merge_repo("merge-wrong-branch")
+        result = run_claim(
+            make_claim("merge", value="main", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+        # The verdict names the parents that really exist.
+        self.assertIn(repo["unpushed"][:12], result.reason)
+        self.assertIn(tip[:12], result.reason)
+
+    def test_merge_refuted_for_a_merge_created_on_the_named_branch(self):
+        # Merging main into the topic branch advances topic to the merge
+        # commit; topic's tip is then not a parent of it, and the commit is
+        # not the merge OF topic.
+        repo, tip, merge = self.merge_repo("merge-reversed")
+        subprocess.run(
+            ["git", "-C", repo.path, "checkout", "-q", "topic"], check=True
+        )
+        subprocess.run(
+            ["git", "-C", repo.path, "merge", "-q", "--no-ff", "-m", "merge main", "main"],
+            check=True,
+        )
+        reversed_merge = subprocess.run(
+            ["git", "-C", repo.path, "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        result = run_claim(
+            make_claim("merge", value="topic", commit=reversed_merge),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+
+    def test_merge_refuted_for_a_commit_that_does_not_exist(self):
+        repo, tip, merge = self.merge_repo("merge-ghost")
+        result = run_claim(
+            make_claim("merge", value="topic", commit="0" * 40),
+            self.ctx(repo=repo.path),
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+
+    def test_merge_unverifiable_for_a_status_value(self):
+        result = self.run_check("merge", value="no", commit=self.repo["good"])
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("names no branch", result.reason)
+
+    def test_merge_unverifiable_without_a_commit(self):
+        result = self.run_check("merge", value="topic", commit=None)
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("no commit hash", result.reason)
+
+    def test_merge_unverifiable_for_an_unknown_branch(self):
+        repo, tip, merge = self.merge_repo("merge-unknown-branch")
+        result = run_claim(
+            make_claim("merge", value="ghost", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("does not resolve", result.reason)
+
+    def test_merge_without_repo_is_unverifiable(self):
+        result = run_claim(
+            make_claim("merge", value="topic", commit="a" * 8),
+            Ctx(repo=None, tmp_dir=None),
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("no repository", result.reason)
+
+    def test_merge_unverifiable_when_no_target_branch_can_be_determined(self):
+        repo, tip, merge = self.merge_repo("merge-no-target")
+        subprocess.run(
+            ["git", "-C", repo.path, "checkout", "-q", "--detach"], check=True
+        )
+        subprocess.run(
+            ["git", "-C", repo.path, "branch", "-D", "main"], check=True, capture_output=True
+        )
+        result = run_claim(
+            make_claim("merge", value="topic", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("target branch", result.reason)
 
     # --- hostile report fields (review round 2) ----------------------------
     def test_branch_pushed_rejects_option_injection(self):

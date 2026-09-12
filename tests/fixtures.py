@@ -54,6 +54,22 @@ def commit_probe(repo, name, source):
     return _commit(repo.path, name)
 
 
+def merge_into_main(repo, from_commit="good", branch="topic"):
+    """Merge a branch off ``from_commit`` into main with ``--no-ff``.
+
+    Returns ``(branch_tip, merge_commit)``; main points at the merge commit
+    afterwards. The branch tip stays where it is, so the merge parents are
+    ``(previous main tip, branch tip)`` -- the shape the merge checker
+    confirms.
+    """
+    _git(repo.path, "checkout", "-q", "-b", branch, repo[from_commit])
+    _write(repo.path, branch + ".txt", branch + "\n")
+    tip = _commit(repo.path, branch + " work")
+    _git(repo.path, "checkout", "-q", "main")
+    _git(repo.path, "merge", "-q", "--no-ff", "-m", "merge " + branch, branch)
+    return tip, _git(repo.path, "rev-parse", "HEAD").stdout.strip()
+
+
 def make_repo(root, with_remote=True):
     """Create a fixture repo under ``root``.
 
