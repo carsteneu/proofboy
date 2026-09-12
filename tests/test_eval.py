@@ -298,6 +298,21 @@ class EvalCliTest(unittest.TestCase):
         self.assertEqual(payload["rates"]["false_confirmation_rate"], 0.0)
         self.assertEqual(payload["expectation_misses"], 0)
 
+    def test_sandbox_mode_reaches_every_test_run(self):
+        proc = self.invoke("--json", "--sandbox", "off", tmp="run-sandbox-off")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["ok"])
+        ran = [
+            claim
+            for case in payload["cases"]
+            for claim in case["claims"]
+            if claim["kind"] in ("tests_green", "tests_exit")
+            and claim["verdict"] in ("CONFIRMED", "REFUTED")
+        ]
+        self.assertTrue(ran, "the set must yield executed test runs")
+        self.assertTrue(all("--sandbox=off" in claim["reason"] for claim in ran))
+
     def test_text_run_prints_the_table(self):
         proc = self.invoke(tmp="run-text")
         self.assertEqual(proc.returncode, 0, proc.stderr)

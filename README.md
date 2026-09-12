@@ -17,9 +17,9 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict]
-python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict]
+python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off]
+python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off]
 ```
 
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
@@ -100,11 +100,57 @@ Der Diff-Scope vergleicht die Dateiliste der Meldung mit dem Diff; ohne
 `--files` stammt die Planliste aus der Meldung selbst, das Urteil bindet sie
 also nicht unabhaengig.
 
-Ein Sandkasten ist das nicht: wer das erlaubte Testkommando kontrolliert,
-kontrolliert den Kindprozess, und ein Commit kann gruene Ausgabe selbst
-faelschen. Der Pruefer laeuft gegen den behaupteten Commit; die Ehrlichkeit
-des Repos kann er nicht garantieren. Branch-Namen, Commit-Hashes und
+Der Sandkasten (siehe unten) haertet den Lauf, aendert aber nichts an der
+Grundregel: wer das erlaubte Testkommando kontrolliert, kontrolliert den
+Kindprozess, und ein Commit kann gruene Ausgabe selbst faelschen. Der Pruefer
+laeuft gegen den behaupteten Commit; die Ehrlichkeit des Repos kann er nicht
+garantieren. Branch-Namen, Commit-Hashes und
 Basis-Revisionen werden streng geprueft, bevor ein Git-Kommando sie sieht.
+
+## Sandkasten
+
+Testkommandos laufen in einem Sandkasten, wenn `bwrap` (bubblewrap)
+installiert ist und startet: die Wurzel wird read-only gebunden, nur der
+Wegwerf-Checkout des behaupteten Commits ist beschreibbar
+(`git clone --no-hardlinks`), das Kommando bekommt einen eigenen Netz-,
+PID- und UTS-Namensraum, und `/run` wird durch ein leeres tmpfs maskiert.
+Damit ist kein IP-Netzwerk und kein Host-Prozess erreichbar, und die
+Socket-Pfade des Rechners (D-Bus, systemd, docker.sock unter `/run` und
+`/var/run`) fehlen im Sandkasten; ein Schreibversuch ausserhalb des
+Checkouts scheitert mit `Read-only file system` (ausser auf den frisch
+eingehaengten privaten tmpfs unter `/run` und `/dev`, die nichts mit dem
+Rechner teilen). Unix-Sockets an anderen
+sichtbaren Pfaden (etwa unter `/tmp`) bleiben erreichbar, und die Wurzel
+ist lesbar: der Sandkasten begrenzt Schreiben, IP-Netz und Prozesssicht,
+nicht Lesezugriffe.
+
+| Wert | Wirkung |
+|---|---|
+| `--sandbox=auto` | Standard: sandboxen, wenn bwrap vorhanden ist und einen Sandkasten startet; sonst laeuft das Kommando ungesandboxt |
+| `--sandbox=require` | sandboxen oder ablehnen: ohne nutzbares bwrap laeuft das Kommando gar nicht, die Testbehauptung bleibt `unpruefbar`, und mit `--strict` faellt der Lauf (Exit 4) |
+| `--sandbox=off` | nie sandboxen |
+
+Jeder ausgefuehrte Testlauf nennt seinen Zustand: `sandboxed with bwrap` oder
+`not sandboxed: <Grund>` (bwrap fehlt, bwrap kann keinen Sandkasten starten,
+Sandkasten abgeschaltet); das JSON nennt ihn zusaetzlich maschinenlesbar als
+Feld `sandboxed` (`true`/`false`/`null`). Vor jedem Lauf prueft der Pruefer
+den Sandkasten mit einem Probeaufruf, damit ein vorhandenes, aber
+unbrauchbares bwrap (etwa durch AppArmor oder Kernelschalter) nicht als
+fehlgeschlagener Test fehlgedeutet wird. `--sandbox=require` kennt keinen
+stillen Rueckfall: ohne nutzbaren Sandkasten wird das Kommando nicht
+ausgefuehrt.
+
+Der Sandkasten ersetzt die Allowlist nicht: nur erlaubte Testkommandos werden
+ueberhaupt ausgefuehrt, und alle uebrigen Beschraenkungen (Wegwerf-Checkout,
+Argumentpruefung, reduzierte Umgebung, Ausgabegrenze) gelten unveraendert.
+bwrap ist eine Abschottung gegen Fehler und Neugier des getesteten Codes,
+keine Grenze gegen Kernel-Exploits und keine vollstaendige Isolationsgrenze
+fuer feindlichen Code: Luecken im Kernel oder in bwrap selbst faengt er
+nicht ab, und sichtbare Dateien bleiben lesbar. `bwrap` selbst wird per
+`PATH` gefunden und gehoert wie `git` und `python3` zur vertrauenswuerdigen
+Umgebung des Aufrufers; wer diesen `PATH` kontrolliert, kontrolliert den
+Pruefer. `eval` nimmt dieselbe Option und reicht sie an jeden Testlauf des
+Sets weiter.
 
 ## Evaluation
 

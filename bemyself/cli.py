@@ -8,7 +8,13 @@ import os
 import subprocess
 import sys
 
-from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, git_env, run_claim
+from bemyself.checks import (
+    DEFAULT_COMMAND_ALLOWLIST,
+    SANDBOX_MODES,
+    Ctx,
+    git_env,
+    run_claim,
+)
 from bemyself.model import Claim, Verdict
 from bemyself.report import parse_report
 from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
@@ -129,10 +135,30 @@ def build_parser():
     check.add_argument(
         "--allow", action="append", default=[], help="extra allowlisted command prefix (repeatable)"
     )
+    check.add_argument(
+        "--sandbox",
+        choices=SANDBOX_MODES,
+        default="auto",
+        help=(
+            "how test commands run: auto sandboxes with bwrap when available "
+            "(the default), require refuses to run without a working sandbox, "
+            "off runs unsandboxed"
+        ),
+    )
     evaluate = sub.add_parser("eval", help="measure the verifier against a labelled message set")
     evaluate.add_argument("--set", required=True, help="path to the evaluation set (JSON)")
     evaluate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     evaluate.add_argument("--tmp", help="directory for the throwaway fixture and checkouts")
+    evaluate.add_argument(
+        "--sandbox",
+        choices=SANDBOX_MODES,
+        default="auto",
+        help=(
+            "how test commands run: auto sandboxes with bwrap when available "
+            "(the default), require refuses to run without a working sandbox, "
+            "off runs unsandboxed"
+        ),
+    )
     evaluate.add_argument(
         "--strict",
         action="store_true",
@@ -204,6 +230,7 @@ def _json_payload(source, repo, results):
                 "reason": result.reason,
                 "command": result.command,
                 "output": result.output,
+                "sandboxed": result.sandboxed,
             }
             for claim, result in results
         ],
@@ -340,6 +367,7 @@ def run_check(args):
         tmp_dir=tmp_dir,
         base=args.base,
         allowlist=DEFAULT_COMMAND_ALLOWLIST + tuple(args.allow),
+        sandbox=args.sandbox,
     )
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 

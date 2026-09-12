@@ -28,6 +28,8 @@ from bemyself.model import Claim, Result, Verdict
 GIT_TIMEOUT = 60
 FETCH_TIMEOUT = 30
 TEST_TIMEOUT = 300
+SANDBOX_MODES = ("auto", "require", "off")
+SANDBOX_PROBE_TIMEOUT = 10
 ORIGIN = "origin"
 LAST_LINES = 5
 MAX_OUTPUT_BYTES = 1 << 16
@@ -125,6 +127,7 @@ class Ctx:
     tmp_dir: str
     base: str | None = None
     allowlist: tuple[str, ...] = DEFAULT_COMMAND_ALLOWLIST
+    sandbox: str = "auto"
 
 
 def _repo_command(ctx, *args):
@@ -415,6 +418,81 @@ def _test_env(checkout):
     return env
 
 
+def find_bwrap():
+    """The bubblewrap binary, or None when it is not on PATH."""
+    path = shutil.which("bwrap")
+    return os.path.abspath(path) if path else None
+
+
+def _sandbox_prefix(program, checkout):
+    """The bwrap wrapper for one test run.
+
+    The filesystem root is bound read-only; only the throwaway checkout is
+    writable. The command gets its own network, PID and UTS namespaces, so it
+    can neither reach the host network nor see host processes. ``--die-with-parent``
+    keeps a sandbox from outliving the verifier.
+    """
+    return [
+        program,
+        "--die-with-parent",
+        "--ro-bind",
+        "/",
+        "/",
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        # The ro root leaves host runtime sockets (D-Bus, systemd, docker)
+        # reachable: --unshare-net separates IP networking, not AF_UNIX
+        # pathname sockets. An empty /run hides them; /var/run follows
+        # because it is a symlink to /run.
+        "--tmpfs",
+        "/run",
+        "--bind",
+        checkout,
+        checkout,
+        "--unshare-net",
+        "--unshare-pid",
+        "--unshare-uts",
+        "--chdir",
+        checkout,
+        "--",
+    ]
+
+
+def _sandbox_display(command_str):
+    """The sandboxed command line as shown in a result."""
+    return " ".join(_sandbox_prefix("bwrap", "<checkout>")) + " " + command_str
+
+
+def _sandbox_probe(bwrap, checkout):
+    """Return None when bwrap can start the sandbox, else a failure description.
+
+    A bwrap that exists but cannot create its namespaces (apparmor, kernel
+    settings) is not available in any meaningful sense; probing separates
+    "the sandbox does not work" from "the test command failed", which would
+    otherwise turn every test run into a false REFUTED.
+    """
+    try:
+        proc = subprocess.run(
+            # An absolute interpreter path, not a PATH lookup: the probe must
+            # not fail on a host whose PATH lacks the binary it would use.
+            _sandbox_prefix(bwrap, checkout) + [sys.executable, "-c", ""],
+            cwd=checkout,
+            env=_test_env(checkout),
+            capture_output=True,
+            text=True,
+            timeout=SANDBOX_PROBE_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return f"the sandbox probe timed out after {SANDBOX_PROBE_TIMEOUT}s"
+    except OSError as exc:
+        return f"the sandbox probe could not run: {exc}"
+    if proc.returncode != 0:
+        return _last_lines(_output(proc)) or f"the sandbox probe exited {proc.returncode}"
+    return None
+
+
 def _child_preexec():
     # Own process group so a timeout can take the whole tree down; own file
     # limit so a runaway child cannot fill the disk.
@@ -697,6 +775,25 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             reason=f"unsafe command argument: {escaping[0]!r}",
         )
 
+    # require is a hard gate: when no bwrap is on PATH the command is never
+    # run, not even unsandboxed -- a fallback would be silent by construction.
+    mode = ctx.sandbox
+    if mode not in SANDBOX_MODES:
+        # A typo like "Require" must not degrade into an auto fallback.
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"unknown sandbox mode: {mode!r}",
+        )
+    bwrap = None if mode == "off" else find_bwrap()
+    if mode == "require" and bwrap is None:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason="sandbox required (--sandbox=require) but bwrap is not available in PATH; "
+            "refusing to run the command unsandboxed",
+        )
+
     try:
         os.makedirs(ctx.tmp_dir, exist_ok=True)
         checkout = tempfile.mkdtemp(prefix="checkout-", dir=ctx.tmp_dir)
@@ -752,6 +849,37 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 "",
                 f"command argument resolves outside the checkout: {escape!r}",
             )
+        # A bwrap that exists but cannot start a sandbox is not usable; the
+        # probe must pass before the command runs, or require stays hard and
+        # auto falls back with an explicit note instead of misreporting the
+        # command as failed.
+        sandbox_error = _sandbox_probe(bwrap, checkout) if bwrap is not None else None
+        if mode == "require" and sandbox_error is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                "sandbox required (--sandbox=require) but bwrap could not start a sandbox: "
+                f"{sandbox_error}; refusing to run the command unsandboxed",
+            )
+        sandboxed = bwrap is not None and sandbox_error is None
+        if sandboxed:
+            run_argv = _sandbox_prefix(bwrap, checkout) + argv
+            note = "sandboxed with bwrap"
+            command_desc = (
+                f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && "
+                + _sandbox_display(command_str)
+            )
+        elif mode == "off":
+            run_argv = argv
+            note = "not sandboxed: --sandbox=off"
+        elif bwrap is None:
+            run_argv = argv
+            note = "not sandboxed: bwrap not available"
+        else:
+            run_argv = argv
+            note = "not sandboxed: bwrap cannot start a sandbox"
+        note_suffix = f" ({note})"
         # The command output goes to a private, unpredictable file: the child
         # can neither pre-plant a symlink there nor fill the disk (RLIMIT_FSIZE),
         # and the result is read back through the same descriptor, never by path.
@@ -759,7 +887,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         log_fd = None
         try:
             proc = subprocess.Popen(
-                argv,
+                run_argv,
                 cwd=checkout,
                 stdin=subprocess.DEVNULL,
                 stdout=log,
@@ -768,7 +896,14 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 preexec_fn=_child_preexec,
             )
         except FileNotFoundError as exc:
-            return Result(Verdict.UNVERIFIABLE, command_desc, "", f"command not found: {exc}")
+            # Only bwrap itself can be missing here (the probe ran the same
+            # binary path moments ago); the command never executed.
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command not found: {exc}" + note_suffix,
+            )
         try:
             returncode = proc.wait(timeout=TEST_TIMEOUT)
         except subprocess.TimeoutExpired:
@@ -778,7 +913,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 _last_lines(_tail_open(log)[0]),
-                f"command timed out after {TEST_TIMEOUT}s",
+                f"command timed out after {TEST_TIMEOUT}s" + note_suffix, sandboxed=sandboxed,
             )
         raw_output, log_size = _tail_open(log)
         output = _last_lines(raw_output)
@@ -791,7 +926,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes",
+                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes" + note_suffix, sandboxed=sandboxed,
             )
         # CPython ignores SIGXFSZ and dies with another code once the write
         # limit is hit, so the capped file is the reliable signal.
@@ -801,7 +936,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 output,
                 f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
-                "the run cannot be verified from truncated output",
+                "the run cannot be verified from truncated output" + note_suffix, sandboxed=sandboxed,
             )
         if returncode == claimed_exit:
             if claim.kind == "tests_green":
@@ -814,20 +949,20 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         output,
-                        "the command exited 0 but reported that no tests were executed",
+                        "the command exited 0 but reported that no tests were executed" + note_suffix, sandboxed=sandboxed,
                     )
                 else:
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         output,
-                        "the command exited 0 but its output shows no evidence that tests ran",
+                        "the command exited 0 but its output shows no evidence that tests ran" + note_suffix, sandboxed=sandboxed,
                     )
             return Result(
                 Verdict.CONFIRMED,
                 command_desc,
                 output,
-                f"{command_str!r} exited {returncode} as claimed",
+                f"{command_str!r} exited {returncode} as claimed" + note_suffix, sandboxed=sandboxed,
             )
         # A missing runner module is an environment gap, not evidence that the
         # tests failed -- but only when the report's own command names it.
@@ -846,20 +981,20 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     output,
-                    f"the runner module {missing!r} is not available in this environment",
+                    f"the runner module {missing!r} is not available in this environment" + note_suffix, sandboxed=sandboxed,
                 )
         if _WRITE_LIMIT_RE.search(raw_output):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                "the run hit the per-file write limit; its outcome cannot be verified",
+                "the run hit the per-file write limit; its outcome cannot be verified" + note_suffix, sandboxed=sandboxed,
             )
         return Result(
             Verdict.REFUTED,
             command_desc,
             output,
-            f"claimed exit {claimed_exit}, actually exited {returncode}",
+            f"claimed exit {claimed_exit}, actually exited {returncode}" + note_suffix, sandboxed=sandboxed,
         )
     finally:
         if log is not None:
