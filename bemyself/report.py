@@ -12,8 +12,9 @@ The report is a yesloop Phase-6 DONE report. Recognised claim sources:
   (:data:`bemyself.claimtypes.CLAIM_TYPES`), for example ``[HALT: ...]``
 
 Parsing is deliberately permissive: unknown lines are ignored, and a claim is
-only emitted when its source is present. Absurdly long lines are skipped so a
-hostile report cannot trigger pathological regex work.
+only emitted when its source is present. Absurdly long lines are skipped, and
+the marker patterns are written to scan linearly (see their comments); the
+worst case per line stays bounded.
 """
 
 from __future__ import annotations
