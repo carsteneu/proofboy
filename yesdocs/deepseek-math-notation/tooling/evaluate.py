@@ -24,6 +24,7 @@ ROOT = HERE.parents[2]
 
 _HEAD_RE = re.compile(r"\A(S[0-9]+|g[0-9]*|d[0-9]*|a[0-9]*|c[0-9]*|h[0-9]*|q[0-9]*|=[0-9]*):")
 _STATUS_RE = re.compile(r"\A[a-zA-Z=][a-zA-Z0-9]*[0-9][+\-?!]\Z")
+_VLINE_RE = re.compile(r"\Av[0-9]*\s+[a-zA-Z=][a-zA-Z0-9]*\s*:")
 
 
 def wilson(successes, total, z=1.959963984540054):
@@ -57,7 +58,12 @@ def _sheet_marker_stats(answer):
         if not line or line.startswith("```"):
             continue
         total += 1
-        if _HEAD_RE.match(line) or _STATUS_RE.match(line) or line.startswith(("CLAIM ", "WITNESS ", "[HALT]")):
+        if (
+            _HEAD_RE.match(line)
+            or _STATUS_RE.match(line)
+            or _VLINE_RE.match(line)
+            or line.startswith(("CLAIM ", "WITNESS ", "[HALT]"))
+        ):
             valid += 1
     return total, valid
 

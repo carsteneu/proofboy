@@ -310,6 +310,11 @@ def _run_py(expr, ctx):
             sandboxed = True
         else:
             sandboxed = False
+            print(
+                "warning: py: witness runs WITHOUT bwrap (sandbox=auto, bwrap not found); "
+                "the restricted builtins are no containment -- use --sandbox require to refuse",
+                file=sys.stderr,
+            )
     elif ctx.sandbox == "off":
         sandboxed = False
     else:
@@ -347,7 +352,7 @@ def _run_py(expr, ctx):
             f"py: the runner produced no result (exit {proc.returncode}): {tail}",
             sandboxed,
         )
-    if payload["kind"] == "bool":
+    if payload.get("kind") == "bool" and isinstance(payload.get("value"), bool):
         if payload["value"]:
             return WitnessResult(Verdict.CONFIRMED, "py: the expression evaluated to True", sandboxed)
         return WitnessResult(Verdict.REFUTED, "py: the expression evaluated to False", sandboxed)
@@ -412,6 +417,12 @@ def _run_sim(spec, target_body, ctx):
         return WitnessResult(Verdict.UNVERIFIABLE, f"sim: {error}")
     low = int(spec.parts["low"])
     high = int(spec.parts["high"])
+    if high > ctx.halt_limit:
+        return WitnessResult(
+            Verdict.UNVERIFIABLE,
+            f"sim: the segment end {high} exceeds halt_limit {ctx.halt_limit}; "
+            "the simulation would run unbounded",
+        )
     checkpoints = _CP_RE.findall(target_body)
     if not checkpoints:
         return WitnessResult(

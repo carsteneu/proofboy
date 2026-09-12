@@ -34,7 +34,7 @@ from bemyself.msheet.library import RESOLVED, GuardError
 # The largest exponent a power may carry, and the largest number of elements a
 # range may iterate: guards against computational bombs, not approximations.
 POWER_GUARD = 10**6
-RANGE_GUARD = 10**7
+RANGE_GUARD = 10**6
 # The deepest chain of user-definition calls.
 CALL_GUARD = 100
 
@@ -267,7 +267,10 @@ class _Parser:
 def parse_formula(text, defs=None):
     """Parse one formula of the fragment; raises :class:`FormulaError`."""
     parser = _Parser(_tokenize(text))
-    node = parser.parse_expr()
+    try:
+        node = parser.parse_expr()
+    except RecursionError:
+        raise FormulaError("the formula nests too deeply") from None
     if parser.peek()[0] != "eof":
         raise FormulaError(f"trailing text after the formula: {parser.peek()[1]!r}")
     return Formula(text, node, dict(defs) if defs else {})
@@ -466,7 +469,7 @@ class _Evaluator:
             return a // b if kind == "//" else a % b
         # kind in ("^", "**")
         if isinstance(b, int) and not isinstance(b, bool):
-            if b > POWER_GUARD:
+            if abs(b) > POWER_GUARD:
                 raise EvaluationError(f"exponent {b} exceeds the guard of {POWER_GUARD}")
             if isinstance(a, int):
                 if b >= 0:

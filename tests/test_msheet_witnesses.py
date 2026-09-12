@@ -136,6 +136,18 @@ class PyTest(unittest.TestCase):
         self.assertEqual(ok.verdict, Verdict.CONFIRMED)
         self.assertTrue(ok.sandboxed)
 
+    def test_restricted_builtins_are_not_containment(self):
+        # Documented limitation (security review 2026-09-12): the restricted
+        # builtins only shadow names; attribute access on library callables
+        # still reaches the real builtins. Containment comes from bwrap alone.
+        result = run(
+            'py: isprime.__globals__["__builtins__"]["__import__"]("os").getcwd() is not None',
+            "x",
+            sandbox="off",
+        )
+        self.assertEqual(result.verdict, Verdict.CONFIRMED)
+        self.assertFalse(result.sandboxed)
+
     def test_require_without_bwrap(self):
         from unittest import mock
 
@@ -224,6 +236,12 @@ class SimTest(unittest.TestCase):
         result = run("sim(0..2)", "cp 1: (B,1,1)")
         self.assertEqual(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("machine", result.reason)
+
+    def test_segment_beyond_halt_limit_is_unverifiable(self):
+        machines = {"M": turing.parse(BB5_CHAMPION)}
+        result = run("sim(0..1000000000000)", "cp 5: (C,1,1111)", machines=machines, halt_limit=1000)
+        self.assertEqual(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("halt_limit", result.reason)
 
     def test_bb5_champion_checkpoints(self):
         machines = {"M": turing.parse(BB5_CHAMPION)}

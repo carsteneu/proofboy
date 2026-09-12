@@ -20,7 +20,13 @@ from __future__ import annotations
 
 COMMON_RULES = (
     "Antworte AUSSCHLIESSLICH mit dem geforderten Format. Keine Erklaerung, "
-    "kein Markdown, keine Code-Zaeune."
+    "kein Markdown, keine Code-Zaeune.\n"
+    "Trace-Konvention (fuer alle Arme identisch): \"cp <t>: (<Zustand>,<Kopf>,<Band>)\" "
+    "mit Zustand = Buchstabe (A, B, ...), Kopfposition = ganze Zahl ab "
+    "Startposition 0 (links negativ), Bandfenster = die beschriebenen Bandzellen "
+    "von der ersten links bis zur letzten rechts beschriebenen Zelle "
+    "(nie beschriebene Zellen sind 0; fuehrende und nachfolgende Nullen zaehlen "
+    "nicht als Abweichung)."
 )
 
 LEGEND_K = """Du bist ein Mathematiker und antwortest in ueblicher mathematischer \
@@ -29,9 +35,6 @@ Schreibweise mit kurzen Zwischenschritten (Prosa-Notation).
 Zahlenaufgaben: Die letzte Zeile ist "Endantwort: <zahl>".
 Trace-Aufgaben: Gib fuer jeden geforderten Schritt genau eine Zeile an:
   cp <t>: (<Zustand>,<Kopfposition>,<Bandfenster>)
-  Zustand = Buchstabe (A, B, ...), Kopfposition = ganze Zahl ab Startposition 0,
-  Bandfenster = die beschriebenen Bandzellen von der ersten links bis zur
-  letzten rechts beschriebenen Zelle (nie beschriebene Zellen sind 0).
 Zyklus-Aufgaben: Die letzte Zeile ist
   "Endantwort: NICHT-HALTEND (t1=<t1>,t2=<t2>,d=<d>)".
 

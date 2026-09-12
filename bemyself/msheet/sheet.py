@@ -34,6 +34,11 @@ _BINDING_RE = re.compile(r"\A([A-Za-z][A-Za-z0-9_]*)\s*=\s*(\S+)\Z")
 _CALC_RE = re.compile(r"\A[+\-*/=]?\s*[0-9][0-9\s]*\Z")
 _CLAIM_ID_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9_]*\Z")
 _HALT_PREFIX = "[HALT]"
+_HALT_LINE_RE = re.compile(r"\A\[HALT\](?:\s|\Z)")
+_EXPLICIT_VID_RE = re.compile(r"(?m)^v([0-9]+)\s")
+# A bbchallenge machine string: "<write 0/1><move L/R><state A-Z or ->" blocks.
+# "n=27" (a plain V1 assignment) must not be treated as a machine binding.
+_MACHINE_LIKE_RE = re.compile(r"\A[01][LR][0-9A-Za-z_-]+\Z")
 
 
 @dataclass(frozen=True)
@@ -150,6 +155,7 @@ def parse_sheet(text):
     calc_block = False
     auto_vindex = 0
     seen_vids = set()
+    explicit_vids = {f"v{number}" for number in _EXPLICIT_VID_RE.findall(text)}
     seen_cids = set()
     raw_claims: list[tuple[str, str, int]] = []
     raw_witnesses: list[tuple[str, str, int]] = []
@@ -162,11 +168,15 @@ def parse_sheet(text):
         if not line:
             continue
         # The HALT marker (ids separated by spaces and/or commas).
-        if line == _HALT_PREFIX or line.startswith(_HALT_PREFIX + " "):
+        if _HALT_LINE_RE.match(line):
             if sheet.halt is not None:
                 error(lineno, "a second [HALT] marker; one sheet declares its result once")
                 continue
-            sheet.halt = [part for part in re.split(r"[,\s]+", line[len(_HALT_PREFIX) :]) if part]
+            ids = [part for part in re.split(r"[,\s]+", line[len(_HALT_PREFIX) :]) if part]
+            if not ids:
+                error(lineno, "empty [HALT] marker; name at least one claim")
+                continue
+            sheet.halt = ids
             calc_block = False
             continue
         # The claim zone. Lines of every kind may interleave with the claim
@@ -195,6 +205,9 @@ def parse_sheet(text):
                 error(lineno, "malformed WITNESS line (expected 'WITNESS <id>: <witness>')")
                 continue
             cid, body = parsed
+            if cid in {seen for seen, _body, _line in raw_witnesses}:
+                error(lineno, f"a second witness for {cid!r}; the first one counts")
+                continue
             raw_witnesses.append((cid, body, lineno))
             continue
         # The thinking zone.
@@ -216,6 +229,8 @@ def parse_sheet(text):
                 vid = f"v{explicit}"
             else:
                 auto_vindex += 1
+                while f"v{auto_vindex}" in seen_vids or f"v{auto_vindex}" in explicit_vids:
+                    auto_vindex += 1
                 vid = f"v{auto_vindex}"
             if vid in seen_vids:
                 error(lineno, f"duplicate v-line id {vid!r}")
@@ -244,11 +259,13 @@ def parse_sheet(text):
                 binding = _BINDING_RE.match(body)
                 if binding:
                     name, value = binding.groups()
+                    if not _MACHINE_LIKE_RE.match(value):
+                        continue
                     try:
                         machine = turing.parse(value)
-                    except turing.MachineError:
-                        machine = None
-                    if machine is not None:
+                    except turing.MachineError as exc:
+                        error(lineno, f"cannot parse the machine binding {name!r}: {exc}")
+                    else:
                         if name in sheet.machines:
                             error(lineno, f"machine {name!r} is bound twice")
                         else:

@@ -113,8 +113,25 @@ CONFIRMED ohne exakte Prüfung; alles Unsichere wird UNVERIFIABLE mit Grund.
 
 - `py:`-Ausdrücke laufen als Subprozess mit Zeit-Limit; die Ausgabe ist als
   ein JSON-Objekt (`kind`: bool|nonbool|error) spezifiziert.
+- **Sandbox-Ehrlichkeit:** Die eingeschränkten Builtins sind *kein*
+  Containment — Attributzugriff auf Bibliotheks-Funktionen erreicht die echten
+  Builtins (`isprime.__globals__["__builtins__"]...`). Containment leistet
+  allein `bwrap`. Ohne `bwrap` läuft `--sandbox auto` unsandboxed **mit
+  Warnung auf stderr**; für fremde Blätter `--sandbox require` verwenden
+  (verweigert die Ausführung ohne bwrap).
+- **Rechen-Grenzen:** `RANGE_GUARD` = 10^6 Elemente je Quantor (10^7 dauerte
+  Sekunden bis Minuten — Review-Messung 2026-09-12); `POWER_GUARD` = 10^6,
+  für beide Exponenten-Vorzeichen; `sim(a..b)` ist auf `halt_limit`
+  begrenzt (Default `DEFAULT_HALT_LIMIT`); `sum`/`prod` und geschachtelte
+  Quantoren multiplizieren die Arbeit — mehrere große Bereiche in einem
+  Blatt können den Lauf dennoch lange beschäftigen (kein Wall-Clock-Timeout
+  im In-Process-Pfad).
 - Unbeschränkte Quantoren (`Z`/`N`/`Q`) sind `UNVERIFIABLE`
   (`unbounded_claim`) — auf dieser Maschine nicht ausführbar.
-- Der `sim`-Checkpoint vergleicht das beschriebene Fenster **exakt**; eine
-  abweichende Fensterkonvention des Modells ist ein REFUTED, kein
-  verziehen.
+- Der `sim`-Checkpoint vergleicht das beschriebene Fenster **exakt** (bis auf
+  führende/nachfolgende Nullen, wertgleich); eine abweichende
+  Fensterkonvention des Modells ist ein REFUTED, kein Verziehen.
+- Sprachdetails, die dokumentiert (nicht versteckt) sind: `|`/`&` werten
+  kurzschließend aus; unäres Minus bindet stärker als der folgende Operator
+  (`(- 2 ^ 2)` = 4); `True`/`False` sind reservierte Wörter, aber keine
+  auswertbaren Literale der formalen Sprache.

@@ -61,8 +61,13 @@ _TIER_B_SET = "tier_b_v11-b-0.1.json"
 
 
 def _api_key():
-    with open(AUTH_PATH, "r", encoding="utf-8") as handle:
-        return json.load(handle)["deepseek"]["key"]
+    try:
+        with open(AUTH_PATH, "r", encoding="utf-8") as handle:
+            return json.load(handle)["deepseek"]["key"]
+    except (OSError, KeyError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"cannot read the deepseek key from {AUTH_PATH}: {type(exc).__name__}: {exc}"
+        ) from None
 
 
 def _load_set(filename):
@@ -101,7 +106,12 @@ def call_model(system, user, timeout):
         duration = time.monotonic() - start
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
         return None, None, time.monotonic() - start, f"{type(exc).__name__}: {exc}"
-    message = raw["choices"][0]["message"]
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return None, None, time.monotonic() - start, f"malformed response: {exc}"
+    try:
+        message = raw["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError) as exc:
+        return None, raw, time.monotonic() - start, f"unexpected response shape: {exc!r}"
     payload = {
         "content": message.get("content") or "",
         "reasoning": message.get("reasoning_content") or "",
@@ -165,10 +175,43 @@ def _checkpoint_score(answer, gold):
     return matched, first_deviation, {str(k): v for k, v in sorted(pairs.items())}
 
 
-def _sheet_evaluation(arm, answer):
+def _sheet_evaluation(answer):
     sheet = parse_sheet(extract_sheet_text(answer))
     result = run_sheet(sheet, sandbox="auto", timeout=20.0)
     return sheet, result
+
+
+def _sheet_block(sheet, result):
+    """The persisted sheet evidence: verdicts, witness kind/text, errors."""
+    kinds = {v.vid: (v.spec.kind if v.spec else "unparsable") for v in sheet.vlines}
+    texts = {v.vid: v.witness_text for v in sheet.vlines}
+    block = {
+        "format_errors": result.format_errors,
+        "appendix": result.appendix,
+        "v": [
+            {
+                "id": v.vid,
+                "target": v.target,
+                "verdict": v.verdict.value,
+                "kind": kinds.get(v.vid, "?"),
+                "witness": texts.get(v.vid, ""),
+            }
+            for v in result.v_results
+        ],
+    }
+    if result.claim_results:
+        block["claims"] = [
+            {
+                "id": c.cid,
+                "verdict": c.verdict.value,
+                "reason": c.reason,
+                "witness": (
+                    sheet.witness_for(c.cid).text if sheet.witness_for(c.cid) else ""
+                ),
+            }
+            for c in result.claim_results
+        ]
+    return block
 
 
 def evaluate_run(arm, task, payload, duration, error, args):
@@ -198,26 +241,20 @@ def evaluate_run(arm, task, payload, duration, error, args):
             record["endanswer"] = value
             record["solved"] = value == task["expected"]
         else:
-            sheet, result = _sheet_evaluation(arm, answer)
-            record["format_errors"] = result.format_errors
-            record["v"] = [
-                {"id": v.vid, "target": v.target, "verdict": v.verdict.value}
-                for v in result.v_results
-            ]
-            record["claims"] = [
-                {"id": c.cid, "verdict": c.verdict.value, "reason": c.reason}
-                for c in result.claim_results
-            ]
-            record["appendix"] = result.appendix
+            sheet, result = _sheet_evaluation(answer)
+            record.update(_sheet_block(sheet, result))
             claim_texts = {claim.cid: claim.text for claim in sheet.claims}
             confirmed = [
                 c
                 for c in result.claim_results
-                if c.verdict.value == "CONFIRMED" and _contains_token(claim_texts.get(c.cid, ""), task["expected"])
+                if c.verdict.value == "CONFIRMED"
+                and _contains_token(claim_texts.get(c.cid, ""), task["expected"])
             ]
-            record["solved"] = bool(result.claim_results) and all(
-                c.verdict.value == "CONFIRMED" for c in result.claim_results
-            ) and bool(confirmed)
+            record["solved"] = (
+                bool(result.claim_results)
+                and all(c.verdict.value == "CONFIRMED" for c in result.claim_results)
+                and bool(confirmed)
+            )
     elif task.get("tier_b_kind") == "trace":
         matched, first_deviation, pairs = _checkpoint_score(answer, task["checkpoints_gold"])
         record["checkpoints_matched"] = matched
@@ -226,13 +263,8 @@ def evaluate_run(arm, task, payload, duration, error, args):
         record["checkpoints"] = pairs
         record["solved"] = matched == len(task["checkpoints_gold"])
         if arm in ("B", "C", "D"):
-            sheet, result = _sheet_evaluation(arm, answer)
-            record["format_errors"] = result.format_errors
-            record["appendix"] = result.appendix
-            record["v"] = [
-                {"id": v.vid, "target": v.target, "verdict": v.verdict.value}
-                for v in result.v_results
-            ]
+            sheet, result = _sheet_evaluation(answer)
+            record.update(_sheet_block(sheet, result))
     elif task.get("tier_b_kind") == "cyc":
         t1, t2, d = (str(x) for x in task["certificate"])
         if arm in ("K", "B"):
@@ -243,25 +275,17 @@ def evaluate_run(arm, task, payload, duration, error, args):
                 and f"d={d}" in answer
             )
         else:
-            sheet, result = _sheet_evaluation(arm, answer)
-            record["format_errors"] = result.format_errors
-            record["appendix"] = result.appendix
-            record["claims"] = [
-                {"id": c.cid, "verdict": c.verdict.value, "reason": c.reason}
-                for c in result.claim_results
-            ]
-            record["v"] = [
-                {"id": v.vid, "target": v.target, "verdict": v.verdict.value}
-                for v in result.v_results
-            ]
+            sheet, result = _sheet_evaluation(answer)
+            record.update(_sheet_block(sheet, result))
             # The sheet must reason about the task's machine: a self-consistent
-            # sheet about another machine must not count as an answer.
+            # sheet about another machine must not count as an answer (and no
+            # extra unrelated bindings either).
             task_machine = task["machine"].replace(" ", "").replace("_", "").upper()
             bound = {
                 machine.source.replace(" ", "").replace("_", "").upper()
                 for machine in sheet.machines.values()
             }
-            record["machine_bound"] = task_machine in bound
+            record["machine_bound"] = bool(bound) and bound == {task_machine}
             record["solved"] = (
                 bool(result.claim_results)
                 and all(c.verdict.value == "CONFIRMED" for c in result.claim_results)

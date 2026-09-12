@@ -142,6 +142,25 @@ class DefTest(unittest.TestCase):
             formula.parse_def("def isprime(n) = n")
 
 
+    def test_exponent_guard_bounds_both_signs(self):
+        with self.assertRaises(formula.EvaluationError):
+            ev("(2 ^ 1000001)")
+        with self.assertRaises(formula.EvaluationError):
+            ev("(2 ^ -1000001)")
+        self.assertEqual(ev("(2 ^ -3)"), Fraction(1, 8))
+
+    def test_range_guard_bounds_the_element_count(self):
+        # 10^6 elements run in well under a second per the security review
+        # measurement (10^7 would take seconds to minutes).
+        self.assertIs(ev("(forall k in 1..1000000: (k = k))"), True)
+        with self.assertRaises(formula.EvaluationError):
+            ev("(forall k in 1..1000001: (k = k))")
+
+    def test_deep_nesting_is_a_formula_error_not_a_recursion_error(self):
+        with self.assertRaises(formula.FormulaError):
+            formula.parse_formula("(" * 3000 + "1" + ")" * 3000)
+
+
 class SyntaxTest(unittest.TestCase):
     def test_full_parenthesization_is_required(self):
         with self.assertRaises(formula.FormulaError):

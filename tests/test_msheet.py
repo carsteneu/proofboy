@@ -135,13 +135,42 @@ WITNESS c1: auto
         self.assertEqual(sheet.halt, ["c1", "c2"])
         self.assertEqual([e.message for e in sheet.errors], [])
 
+    def test_halt_with_tab_and_empty_halt_is_an_error(self):
+        sheet = parse_sheet("CLAIM c1: (1 = 1)\nWITNESS c1: auto\n[HALT]\tc1\n")
+        self.assertEqual(sheet.halt, ["c1"])
+        self.assertEqual([e.message for e in sheet.errors], [])
+        sheet = parse_sheet("CLAIM c1: (1 = 1)\nWITNESS c1: auto\n[HALT]\n")
+        messages = [e.message for e in sheet.errors]
+        self.assertTrue(any("empty [HALT]" in m for m in messages), messages)
+
+    def test_duplicate_witness_is_an_error(self):
+        sheet = parse_sheet(
+            "CLAIM c1: (1 = 1)\nWITNESS c1: auto\nWITNESS c1: py: True\n[HALT] c1\n"
+        )
+        messages = [e.message for e in sheet.errors]
+        self.assertTrue(any("second witness" in m for m in messages), messages)
+
+    def test_broken_machine_binding_is_an_error(self):
+        sheet = parse_sheet("a: M = 1RB9X_0LA0LA\n")
+        messages = [e.message for e in sheet.errors]
+        self.assertTrue(any("machine" in m for m in messages), messages)
+        # A plain V1 assignment is not a machine binding and stays silent.
+        sheet = parse_sheet("a: n=27\n")
+        self.assertFalse(any("machine" in m for m in [e.message for e in sheet.errors]))
+
+    def test_auto_vids_skip_taken_ids(self):
+        sheet = parse_sheet("h1: (1 = 1)\nh2: (2 = 2)\nv1 h1: auto\nv h2: auto\n")
+        self.assertEqual([v.vid for v in sheet.vlines], ["v1", "v2"])
+        messages = [e.message for e in sheet.errors]
+        self.assertFalse(any("duplicate v-line" in m for m in messages), messages)
+
     def test_hostile_whitespace_is_bounded(self):
-        text = "h1: " + " " * 5000 + "\n[HALT]" + " " * 3000 + "\n"
+        text = "h1: " + " " * 5000 + "\n[HALT]" + " " * 3000 + "c1"
         start = time.monotonic()
         sheet = parse_sheet(text)
         elapsed = time.monotonic() - start
         self.assertLess(elapsed, 1.0)
-        self.assertIsNotNone(sheet.halt)
+        self.assertEqual(sheet.halt, ["c1"])
 
 
 class RunnerTest(unittest.TestCase):

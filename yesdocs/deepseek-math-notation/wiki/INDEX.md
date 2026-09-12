@@ -20,8 +20,9 @@ Modells zugeschnittene Notation macht es bei Mathematik besser/schneller und ble
 prüfbare Mathematik rücküberführbar (Zeugen, nicht Glauben).
 
 Instanz unter Test: `deepseek/deepseek-flash` (Provider `deepseek`; Kontext 1.000.000, Output 8.192 Tokens;
-interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Dies ist die
-**Lern- und Entwurfsphase**; Werkzeugbau und A/B-Tests folgen als separate Phase (Testplan: 05-04/05-05).
+interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Stand 2026-09-12:
+Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/) und erster Pilotlauf (05-08) sind erfolgt;
+die nächsten Runden (Arm D, Reparatur-Loop, Klammerregel) sind in 05-08 §8 skizziert.
 
 **Umfang:** 32 Dateien in 5 Clustern · 72020 Wörter ·
 702 Quellenangaben (Datei-Summen) · 1071 Inline-Zitate · Visuals in `assets/` je Cluster.

@@ -33,6 +33,17 @@ evaluate = _load("evaluate")
 
 
 class EvaluateTest(unittest.TestCase):
+    def test_marker_stats_count_v_lines_as_valid(self):
+        # Review finding I1 (2026-09-12): v-lines are valid line heads.
+        total, valid = evaluate._sheet_marker_stats(
+            "g: ziel\nh1: (1 = 1)\nv h1: auto\nh1+\nCLAIM c1: (1 = 1)\nWITNESS c1: ref h1\n[HALT] c1"
+        )
+        self.assertEqual((total, valid), (7, 7))
+
+    def test_marker_stats_flags_prose(self):
+        total, valid = evaluate._sheet_marker_stats("h1: ok\nnur ein satz ohne kopf")
+        self.assertEqual((total, valid), (2, 1))
+
     def _record(self, arm, tier, solved, **over):
         record = {
             "arm": arm,
@@ -149,6 +160,13 @@ class PromptBuilderTest(unittest.TestCase):
         self.assertIn("sim(0..t)", system)
         self.assertIn("st=collatz_steps", system)
 
+    def test_trace_convention_is_in_every_arm(self):
+        # Review finding I3: the cp-tuple convention must not live in K alone.
+        for arm in ("K", "B", "C", "D"):
+            system, _user = prompts.build_messages(arm, self.TASK_TRACE)
+            self.assertIn("Kopfposition = ganze Zahl ab", system, arm)
+            self.assertIn("Zellen sind 0", system, arm)
+
     def test_trace_convention_names_the_steps(self):
         _system, user = prompts.build_messages("C", self.TASK_TRACE)
         self.assertIn("1, 2", user)
@@ -176,6 +194,23 @@ class CycScoringTest(unittest.TestCase):
         record = harness.evaluate_run("C", self.TASK, {"content": wrong}, 1.0, None, None)
         self.assertFalse(record["machine_bound"])
         self.assertFalse(record["solved"])
+
+    def test_extra_unrelated_binding_does_not_count(self):
+        extra = (
+            "a: M = 0LA0LA\na: N = 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC\n"
+            "h1: M zyklisch\nv h1: cyc(0,1,-1)\nh1+\n"
+            "CLAIM c1: M zyklisch\nWITNESS c1: ref h1\n[HALT] c1"
+        )
+        record = harness.evaluate_run("C", self.TASK, {"content": extra}, 1.0, None, None)
+        self.assertFalse(record["machine_bound"])
+        self.assertFalse(record["solved"])
+
+    def test_witness_kind_and_text_are_persisted(self):
+        good = "a: M = 0LA0LA\nh1: M zyklisch\nv h1: cyc(0,1,-1)\nh1+\nCLAIM c1: M zyklisch\nWITNESS c1: ref h1\n[HALT] c1"
+        record = harness.evaluate_run("C", self.TASK, {"content": good}, 1.0, None, None)
+        self.assertEqual(record["v"][0]["kind"], "cyc")
+        self.assertEqual(record["v"][0]["witness"], "cyc(0,1,-1)")
+        self.assertEqual(record["claims"][0]["witness"], "ref h1")
 
 
 if __name__ == "__main__":
