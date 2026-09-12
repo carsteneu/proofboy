@@ -1,0 +1,323 @@
+---
+topic: deepseek-math-notation
+cluster: 99-sources
+title: "Bibliografie — alle zitierten Quellen"
+language: de
+status: Verifiziert
+last_updated: 2026-09-12
+sources_count: 259
+citations_count: 1018
+---
+
+# Bibliografie
+
+259 eindeutige URLs aus 1018 Zitat-Vorkommen (Stand 2026-09-12).
+Lokale Quellen (opencode-Konfiguration, Repo-Artefakte, YesMem-Proxy) sind in den jeweiligen Dateien
+separat als „lokale Quelle“ gekennzeichnet und hier nicht als Weblinks geführt.
+
+## 01 — Modellprofil (Was ist über das Modell bekannt?)
+
+- [AI助手-Blog](https://blog.aihubplus.com/post/deepseek-v41-flash/) — accessed 2026-09-12
+- [AI工具宝箱](https://www.aitoollab.cn/articles/deepseek-v4-1-flash-release-2026/) — accessed 2026-09-12
+- [AI工具集](https://ai-bot.cn/deepseek-v4-1-flash/) — accessed 2026-09-12
+- [config.json](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/raw/main/config.json) — accessed 2026-09-12
+- [deepseek-recipe](https://github.com/deepseek-ai/deepseek-recipe) — accessed 2026-09-12
+- [encoding/README](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/main/encoding/README.md) — accessed 2026-09-12
+- [GitHub](https://github.com/deepseek-ai/deepseek-harness) — accessed 2026-09-12
+- [HN-Diskussion](https://news.ycombinator.com/item?id=49639090) — accessed 2026-09-12
+- [HN-Kommentar](https://news.ycombinator.com/item?id=49639317) — accessed 2026-09-12
+- [HN-Kommentar](https://news.ycombinator.com/item?id=49639396) — accessed 2026-09-12
+- [HN-Kommentar](https://news.ycombinator.com/item?id=49640554) — accessed 2026-09-12
+- [HN-Kommentar](https://news.ycombinator.com/item?id=49640944) — accessed 2026-09-12
+- [HN-Kommentar](https://news.ycombinator.com/item?id=49649203) — accessed 2026-09-12
+- [HN-Kommentar](https://news.ycombinator.com/item?id=49639919) — accessed 2026-09-12
+- [IT之家](https://www.ithome.com/1/000/719.htm) — accessed 2026-09-12
+- [Model Card](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) — accessed 2026-09-12
+- [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing) — accessed 2026-09-12
+- [Offizieller Tokenizer](https://cdn.deepseek.com/api-docs/deepseek_v4_tokenizer.zip) — accessed 2026-09-12
+- [Release News](https://api-docs.deepseek.com/news/news260910) — accessed 2026-09-12
+- [Tech Report](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/main/DeepSeek_V41_Tech_Report.pdf) — accessed 2026-09-12
+- [Tencent-News](https://news.qq.com/rain/a/20260908A0BSUW00) — accessed 2026-09-12
+- [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode) — accessed 2026-09-12
+- [Token & Token Usage](https://api-docs.deepseek.com/quick_start/token_usage) — accessed 2026-09-12
+- [tokenizer.json](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/main/tokenizer.json) — accessed 2026-09-12
+- [V4 Preview Release](https://api-docs.deepseek.com/news/news260424) — accessed 2026-09-12
+- [V4-Pro GA Release](https://api-docs.deepseek.com/news/news260813) — accessed 2026-09-12
+- [Your First API Call](https://api-docs.deepseek.com/) — accessed 2026-09-12
+- [Z.AI Developer Docs](https://docs.z.ai/llms.txt) — accessed 2026-09-12
+
+## 02 — Wirksame Formate (Repräsentations-Forschung)
+
+- [Chen et al. 2023, PoT](https://arxiv.org/abs/2211.12588) — accessed 2026-09-12
+- [Chen et al. 2024, Overthinking](https://arxiv.org/abs/2412.21187) — accessed 2026-09-12
+- [Chen et al. 2024, Premise Order](https://arxiv.org/abs/2402.08939) — accessed 2026-09-12
+- [Deng et al. 2023](https://arxiv.org/abs/2311.01460) — accessed 2026-09-12
+- [Dziri et al. 2023](https://arxiv.org/abs/2305.18654) — accessed 2026-09-12
+- [First et al. 2023, Baldur](https://arxiv.org/abs/2303.04910) — accessed 2026-09-12
+- [Gao et al. 2023, PAL](https://arxiv.org/abs/2211.10435) — accessed 2026-09-12
+- [Geiping et al. 2025](https://arxiv.org/abs/2502.05171) — accessed 2026-09-12
+- [Goat](https://arxiv.org/abs/2305.14201) — accessed 2026-09-12
+- [Golkar 2024](https://arxiv.org/abs/2310.02989) — accessed 2026-09-12
+- [Gou et al. 2024, ToRA](https://arxiv.org/abs/2309.17452) — accessed 2026-09-12
+- [Hao et al. 2024](https://arxiv.org/abs/2412.06769) — accessed 2026-09-12
+- [Hsieh et al. 2024](https://arxiv.org/abs/2404.06654) — accessed 2026-09-12
+- [Jiang et al. 2023, DSP](https://arxiv.org/abs/2210.12283) — accessed 2026-09-12
+- [Jin et al. 2024](https://arxiv.org/abs/2401.04925) — accessed 2026-09-12
+- [Lample et al. 2022, HTPS](https://arxiv.org/abs/2205.11491) — accessed 2026-09-12
+- [Levy et al. 2024](https://arxiv.org/abs/2402.14848) — accessed 2026-09-12
+- [Li et al. 2024](https://arxiv.org/abs/2402.12875) — accessed 2026-09-12
+- [Li et al. 2024, Chain of Code](https://arxiv.org/abs/2312.04474) — accessed 2026-09-12
+- [Liu et al. 2023](https://arxiv.org/abs/2307.03172) — accessed 2026-09-12
+- [Lu et al. 2022](https://arxiv.org/abs/2104.08786) — accessed 2026-09-12
+- [McLeish 2024](https://arxiv.org/abs/2405.17399) — accessed 2026-09-12
+- [Nye et al. 2021](https://arxiv.org/abs/2112.00114) — accessed 2026-09-12
+- [Ruoss 2023](https://arxiv.org/abs/2305.16843) — accessed 2026-09-12
+- [Sclar et al. 2024](https://arxiv.org/abs/2310.11324) — accessed 2026-09-12
+- [Shen 2023](https://arxiv.org/abs/2311.14737) — accessed 2026-09-12
+- [Teaching Arithmetic](https://arxiv.org/abs/2307.03381) — accessed 2026-09-12
+- [Tokenization Constraints](https://arxiv.org/abs/2505.14178) — accessed 2026-09-12
+- [Tokenization counts](https://arxiv.org/abs/2402.14903) — accessed 2026-09-12
+- [Triadic Suffix](https://arxiv.org/abs/2604.11582) — accessed 2026-09-12
+- [Turpin et al. 2023](https://arxiv.org/abs/2305.04388) — accessed 2026-09-12
+- [Xiao et al. 2024](https://arxiv.org/abs/2309.17453) — accessed 2026-09-12
+- [Xin et al. 2024, DeepSeek-Prover](https://arxiv.org/abs/2405.14333) — accessed 2026-09-12
+- [Xin et al. 2024, V1.5](https://arxiv.org/abs/2408.08152) — accessed 2026-09-12
+- [Yang et al. 2023, LeanDojo](https://arxiv.org/abs/2306.15626) — accessed 2026-09-12
+- [Zhao et al. 2026](https://arxiv.org/abs/2509.00930) — accessed 2026-09-12
+- [Zhu et al. 2025](https://arxiv.org/abs/2507.06203) — accessed 2026-09-12
+
+## 03 — Formale Brücke (Rücküberführbarkeit)
+
+- [A Minimalist Proof Language for Neural Theorem Proving over Isabelle/HOL](https://arxiv.org/abs/2507.18885) — accessed 2026-09-12
+- [About The Rocq Prover](https://rocq-prover.org/about) — accessed 2026-09-12
+- [About — Lean Lang](https://lean-lang.org/fro/about) — accessed 2026-09-12
+- [arXiv 2504.21801](https://arxiv.org/abs/2504.21801) — accessed 2026-09-12
+- [arXiv HTML 2504.21801v2](https://arxiv.org/html/2504.21801v2) — accessed 2026-09-12
+- [Azerbayev et al., ProofNet, arXiv:2302.12433](https://arxiv.org/abs/2302.12433) — accessed 2026-09-12
+- [bbchallenge Collaboration et al., Determination of the fifth Busy Beaver value, arXiv:2509.12337](https://arxiv.org/abs/2509.12337) — accessed 2026-09-12
+- [bbchallenge.org](https://bbchallenge.org/) — accessed 2026-09-12
+- [Business Insider: „OpenAI just won gold…"](https://www.businessinsider.com/openai-gold-iom-math-competition-2025-7) — accessed 2026-09-12
+- [CakeML](https://cakeml.org/) — accessed 2026-09-12
+- [Claessen, Hughes, QuickCheck](https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf) — accessed 2026-09-12
+- [CompCert](https://compcert.org/) — accessed 2026-09-12
+- [Conservative extension — Wikipedia](https://en.wikipedia.org/wiki/Conservative_extension) — accessed 2026-09-12
+- [Cornish et al., FaithformBench, arXiv:2608.10916](https://arxiv.org/abs/2608.10916) — accessed 2026-09-12
+- [Cruz-Filipe, Heule, Hunt, Kaufmann, Schneider-Kamp, Efficient Certified RAT Verification, arXiv:1612.02353](https://arxiv.org/abs/1612.02353) — accessed 2026-09-12
+- [Dai et al., The Signal-Coverage Matrix, arXiv:2606.28013](https://arxiv.org/abs/2606.28013) — accessed 2026-09-12
+- [DeepMind: Advanced version of Gemini with Deep Think](https://deepmind.google/discover/blog/advanced-version-of-gemini-with-deep-think-officially-achieves-gold-medal-standard-at-the-international-mathematical-olympiad/) — accessed 2026-09-12
+- [DeepMind: AI achieves silver-medal standard](https://deepmind.google/discover/blog/ai-solves-imo-problems-at-silver-medal-level/) — accessed 2026-09-12
+- [DeepSeek-R1, arXiv 2501.12948](https://arxiv.org/abs/2501.12948) — accessed 2026-09-12
+- [Definitions — SEP](https://plato.stanford.edu/entries/definitions/) — accessed 2026-09-12
+- [DOI](https://doi.org/10.1007/978-3-030-79876-5_37) — accessed 2026-09-12
+- [DOI 10.1038/s41586-025-09422-z](https://doi.org/10.1038/s41586-025-09422-z) — accessed 2026-09-12
+- [First et al. 2023, Baldur](https://arxiv.org/abs/2303.04910) — accessed 2026-09-12
+- [Generative Language Modeling for Automated Theorem Proving](https://arxiv.org/abs/2009.03393) — accessed 2026-09-12
+- [Geuvers, Proof assistants: History, ideas and future](https://www.cs.ru.nl/~herman/PUBS/proofassistants.pdf) — accessed 2026-09-12
+- [GitHub](https://github.com/deepseek-ai/DeepSeek-Prover-V2) — accessed 2026-09-12
+- [Goedel-Prover, arXiv 2502.07640](https://arxiv.org/abs/2502.07640) — accessed 2026-09-12
+- [Han et al., SHADOWBENCH, arXiv:2608.29270](https://arxiv.org/abs/2608.29270) — accessed 2026-09-12
+- [Hilbert, arXiv 2509.22819](https://arxiv.org/abs/2509.22819) — accessed 2026-09-12
+- [HTML-Fassung v2](https://arxiv.org/html/2509.22819v2) — accessed 2026-09-12
+- [Hubert et al., Nature 651, 607–613 (2026)](https://www.nature.com/articles/s41586-025-09833-y) — accessed 2026-09-12
+- [IMO 2025: Final day statement](https://imo2025.au/wp-content/uploads/2025/07/IMO-2025_ClosingDayStatement-19072025.pdf) — accessed 2026-09-12
+- [InternLM2.5-StepProver, arXiv 2410.15700](https://arxiv.org/abs/2410.15700) — accessed 2026-09-12
+- [Isabelle](https://isabelle.in.tum.de/) — accessed 2026-09-12
+- [Jiang et al. 2023, DSP](https://arxiv.org/abs/2210.12283) — accessed 2026-09-12
+- [Kimina-Prover Preview, arXiv 2504.11354](https://arxiv.org/abs/2504.11354) — accessed 2026-09-12
+- [Lean Programming Language](https://lean-lang.org/) — accessed 2026-09-12
+- [Lean Reference](https://lean-lang.org/doc/reference/latest/) — accessed 2026-09-12
+- [Lean Reference: Axioms](https://lean-lang.org/doc/reference/latest/Axioms/) — accessed 2026-09-12
+- [Lean Reference: Validating a Lean Proof](https://lean-lang.org/doc/reference/latest/ValidatingProofs/) — accessed 2026-09-12
+- [Lean-STaR, arXiv 2407.10040](https://arxiv.org/abs/2407.10040) — accessed 2026-09-12
+- [leanprover/lean4checker](https://github.com/leanprover/lean4checker) — accessed 2026-09-12
+- [Learning to Prove Theorems via Interacting with Proof Assistants](https://arxiv.org/abs/1905.09381) — accessed 2026-09-12
+- [Leroy, Formal verification of a realistic compiler](http://gallium.inria.fr/~xleroy/publi/compcert-CACM.pdf) — accessed 2026-09-12
+- [Lin et al., Goedel-Prover-V2, arXiv:2508.03613](https://arxiv.org/abs/2508.03613) — accessed 2026-09-12
+- [Magnushammer: A Transformer-Based Approach to Premise Selection](https://arxiv.org/abs/2303.04488) — accessed 2026-09-12
+- [Mathlib statistics](https://leanprover-community.github.io/mathlib_stats.html) — accessed 2026-09-12
+- [Metamath Home Page](https://us.metamath.org/) — accessed 2026-09-12
+- [Metamath Proof Explorer Home Page](https://us.metamath.org/mpeuni/mmset.html) — accessed 2026-09-12
+- [Metamath: A Computer Language for Mathematical Proofs](https://us.metamath.org/downloads/metamath.pdf) — accessed 2026-09-12
+- [miniF2F-Repository](https://github.com/openai/miniF2F) — accessed 2026-09-12
+- [Mohammad & Sheikh, The Faithfulness Gap, arXiv:2606.16541](https://arxiv.org/abs/2606.16541) — accessed 2026-09-12
+- [Necula, Translation Validation for an Optimizing Compiler](https://people.eecs.berkeley.edu/~necula/Papers/tv_pldi00.pdf) — accessed 2026-09-12
+- [Notices of the AMS](https://www.ams.org/notices/200811/tx081101408p.pdf) — accessed 2026-09-12
+- [Overview](https://isabelle.in.tum.de/overview.html) — accessed 2026-09-12
+- [Pnueli et al., Translation Validation, TACAS 1998](https://doi.org/10.1007/BFb0054170) — accessed 2026-09-12
+- [ProofNet-Repository](https://github.com/zhangir-azerbayev/ProofNet) — accessed 2026-09-12
+- [Reward-Oracle MCTS, arXiv 2608.28639](https://arxiv.org/abs/2608.28639) — accessed 2026-09-12
+- [Singh et al., Beyond Solver Verdicts, arXiv:2609.11085](https://arxiv.org/abs/2609.11085) — accessed 2026-09-12
+- [SMT-COMP 2026](https://smt-comp.github.io/2026/) — accessed 2026-09-12
+- [SMT-LIB Software Solvers](https://smt-lib.org/solvers.shtml) — accessed 2026-09-12
+- [SMT-LIB The Satisfiability Modulo Theories Library](https://smt-lib.org/) — accessed 2026-09-12
+- [Stanford Encyclopedia of Philosophy, Turing Machines](https://plato.stanford.edu/entries/turing-machine/) — accessed 2026-09-12
+- [Statistics — Archive of Formal Proofs](https://www.isa-afp.org/statistics/) — accessed 2026-09-12
+- [tanyongkiam/cake_lpr](https://github.com/tanyongkiam/cake_lpr) — accessed 2026-09-12
+- [The International SAT Competition Web Page](https://satcompetition.github.io/) — accessed 2026-09-12
+- [The Lean 4 Theorem Prover and Programming Language](https://lean-lang.org/learn/) — accessed 2026-09-12
+- [The Lean mathematical library](https://arxiv.org/abs/1910.09336) — accessed 2026-09-12
+- [The SMT-LIB Standard: Version 2.7](https://smt-lib.org/language.shtml) — accessed 2026-09-12
+- [The SMT-LIB Standard: Version 2.7](https://smt-lib.org/papers/smt-lib-reference-v2.7-r2026-09-09.pdf) — accessed 2026-09-12
+- [Towards Robust Mathematical Reasoning (IMO-Bench), arXiv 2511.01846](https://arxiv.org/abs/2511.01846) — accessed 2026-09-12
+- [Tsoukalas et al., PutnamBench, arXiv:2407.11214](https://arxiv.org/abs/2407.11214) — accessed 2026-09-12
+- [Turing, On Computable Numbers, with an Application to the Entscheidungsproblem, Proc. London Math. Soc., 1936/37](https://doi.org/10.1112/plms/s2-42.1.230) — accessed 2026-09-12
+- [Wang et al., FormalRx, arXiv:2607.04655](https://arxiv.org/abs/2607.04655) — accessed 2026-09-12
+- [Wang et al., Learning to Repair Lean Proofs from Compiler Feedback, arXiv:2602.02990](https://arxiv.org/abs/2602.02990) — accessed 2026-09-12
+- [Welcome to a World of Rocq](https://rocq-prover.org/) — accessed 2026-09-12
+- [Weng et al., Autoformalization in the Era of Large Language Models: A Survey, arXiv:2505.23486](https://arxiv.org/abs/2505.23486) — accessed 2026-09-12
+- [Wetzler, Heule, Hunt, DRAT-trim: Efficient Checking and Trimming Using Expressive Clausal Proofs](https://www.cs.utexas.edu/~marijn/publications/drat-trim.pdf) — accessed 2026-09-12
+- [Wiedijk, Formal Proof — Getting Started](https://www.cs.ru.nl/~freek/pubs/notices.pdf) — accessed 2026-09-12
+- [Wikipedia: International Mathematical Olympiad](https://en.wikipedia.org/wiki/International_Mathematical_Olympiad) — accessed 2026-09-12
+- [Wu et al., Autoformalization with Large Language Models, arXiv:2205.12615](https://arxiv.org/abs/2205.12615) — accessed 2026-09-12
+- [Xin et al. 2024, DeepSeek-Prover](https://arxiv.org/abs/2405.14333) — accessed 2026-09-12
+- [Xin et al. 2024, V1.5](https://arxiv.org/abs/2408.08152) — accessed 2026-09-12
+- [Yang et al. 2023, LeanDojo](https://arxiv.org/abs/2306.15626) — accessed 2026-09-12
+- [Yu et al., FormalMATH, arXiv:2505.02735](https://arxiv.org/abs/2505.02735) — accessed 2026-09-12
+- [Zhang et al., Beyond Compilation, arXiv:2606.31002](https://arxiv.org/abs/2606.31002) — accessed 2026-09-12
+- [Zheng et al., miniF2F, arXiv:2109.00110](https://arxiv.org/abs/2109.00110) — accessed 2026-09-12
+
+## 04 — Offene Probleme (Testfeld-Auswahl)
+
+- [1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE) — accessed 2026-09-12
+- [2¹³⁶²⁷⁹⁸⁴¹−1 is the New Largest Known Prime Number – GIMPS](https://www.mersenne.org/) — accessed 2026-09-12
+- [A Moser-spindle-free 5-chromatic unit distance graph on 2131 vertices in the plane](https://arxiv.org/abs/2608.04542) — accessed 2026-09-12
+- [A New Class of Geometrically Defined Hypergraphs Arising from the Hadwiger Nelson Problem](https://arxiv.org/abs/2411.05931) — accessed 2026-09-12
+- [A006577](https://oeis.org/A006577) — accessed 2026-09-12
+- [A028444 – OEIS](https://oeis.org/A028444) — accessed 2026-09-12
+- [A045917](https://oeis.org/A045917) — accessed 2026-09-12
+- [A060843 – OEIS](https://oeis.org/A060843) — accessed 2026-09-12
+- [A070165](https://oeis.org/A070165) — accessed 2026-09-12
+- [A385902](https://oeis.org/A385902) — accessed 2026-09-12
+- [Almost all orbits of the Collatz map attain almost bounded values](https://arxiv.org/abs/1909.03562) — accessed 2026-09-12
+- [An improved algorithm for checking the Collatz conjecture for all n < 2^N](https://arxiv.org/abs/2602.10466) — accessed 2026-09-12
+- [Antihydra – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/Antihydra) — accessed 2026-09-12
+- [arXiv:2605.13171](https://arxiv.org/abs/2605.13171) — accessed 2026-09-12
+- [BB(6)](https://wiki.bbchallenge.org/wiki/BB%286%29) — accessed 2026-09-12
+- [BB(6) is Hard (Antihydra)](https://www.sligocki.com/2024/07/06/bb-6-2-is-hard.html) — accessed 2026-09-12
+- [BB(6, 2) > 10↑↑15 – S. Ligocki](https://www.sligocki.com/2022/06/21/bb-6-2-t15.html) — accessed 2026-09-12
+- [bbchallenge Collaboration et al., Determination of the fifth Busy Beaver value, arXiv:2509.12337](https://arxiv.org/abs/2509.12337) — accessed 2026-09-12
+- [bbchallenge.org](https://bbchallenge.org/) — accessed 2026-09-12
+- [BOINC project list](https://boinc.berkeley.edu/projects.php) — accessed 2026-09-12
+- [BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/Main_Page) — accessed 2026-09-12
+- [busycoq](https://github.com/meithecatte/busycoq) — accessed 2026-09-12
+- [CaDiCaL](https://github.com/arminbiere/cadical) — accessed 2026-09-12
+- [Certified Minimal-Prime Branch Closures for Odd Perfect Numbers](https://arxiv.org/abs/2607.04365) — accessed 2026-09-12
+- [Convergence verification of the Collatz problem](https://doi.org/10.1007/s11227-020-03368-x) — accessed 2026-09-12
+- [Convergence verification of the Collatz problem – David Barina](https://pcbarina.fit.vutbr.cz/) — accessed 2026-09-12
+- [Coq-BB5](https://github.com/ccz181078/Coq-BB5) — accessed 2026-09-12
+- [Counting the number of solutions to the Erdos-Straus equation on unit fractions](https://arxiv.org/abs/1107.1010) — accessed 2026-09-12
+- [Cracking the problem with 33](https://arxiv.org/abs/1903.04284) — accessed 2026-09-12
+- [Cryptids – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/Cryptids) — accessed 2026-09-12
+- [drat-trim](https://github.com/marijnheule/drat-trim) — accessed 2026-09-12
+- [Empirical verification of the even Goldbach conjecture and computation of prime gaps up to 4·10¹⁸](https://doi.org/10.1090/S0025-5718-2013-02787-1) — accessed 2026-09-12
+- [Erdős Problem #728](https://erdosproblems.com/728) — accessed 2026-09-12
+- [Erdős Problem #871](https://erdosproblems.com/871) — accessed 2026-09-12
+- [Erdős Problems](https://www.erdosproblems.com/) — accessed 2026-09-12
+- [Erdős Problems](https://erdosproblems.com/) — accessed 2026-09-12
+- [formal-conjectures](https://github.com/google-deepmind/formal-conjectures) — accessed 2026-09-12
+- [FormalConjectures/ErdosProblems/728.lean](https://github.com/google-deepmind/formal-conjectures/blob/main/FormalConjectures/ErdosProblems/728.lean) — accessed 2026-09-12
+- [Forum – Erdős Problems](https://erdosproblems.com/forum) — accessed 2026-09-12
+- [FrontierMath](https://epoch.ai/frontiermath) — accessed 2026-09-12
+- [Further verification and empirical evidence for the Erdős-Straus conjecture](https://arxiv.org/abs/2509.00128) — accessed 2026-09-12
+- [Glucose](https://www.labri.fr/perso/lsimon/research/glucose) — accessed 2026-09-12
+- [Goldbach conjecture verification – Oliveira e Silva](http://sweet.ua.pt/tos/goldbach.html) — accessed 2026-09-12
+- [Hydra function values (A386792), OEIS](https://oeis.org/A386792) — accessed 2026-09-12
+- [Improved verification limit for the convergence of the Collatz conjecture](https://doi.org/10.1007/s11227-025-07337-0) — accessed 2026-09-12
+- [JSON Format – OEIS](https://oeis.org/wiki/JSON_Format) — accessed 2026-09-12
+- [July 2nd 2024: We have proved BB(5) = 47,176,870](https://discuss.bbchallenge.org/t/july-2nd-2024-we-have-proved-bb-5-47-176-870/237) — accessed 2026-09-12
+- [kissat](https://github.com/arminbiere/kissat) — accessed 2026-09-12
+- [Lean Zulip](https://leanprover.zulipchat.com/) — accessed 2026-09-12
+- [LeanDojo](https://leandojo.org/) — accessed 2026-09-12
+- [List of Known Mersenne Prime Numbers – PrimeNet](https://www.mersenne.org/primes/) — accessed 2026-09-12
+- [Mathlib statistics](https://leanprover-community.github.io/mathlib_stats.html) — accessed 2026-09-12
+- [Metamath Proof Explorer Home Page](https://us.metamath.org/mpeuni/mmset.html) — accessed 2026-09-12
+- [Method – bbchallenge](https://bbchallenge.org/method) — accessed 2026-09-12
+- [miniF2F-Repository](https://github.com/openai/miniF2F) — accessed 2026-09-12
+- [Neural Discovery in Mathematics: Do Machines Dream of Colored Planes?](https://arxiv.org/abs/2501.18527) — accessed 2026-09-12
+- [New lower bounds for Schur and weak Schur numbers](https://arxiv.org/abs/2112.03175) — accessed 2026-09-12
+- [Odd perfect numbers – Pascal Ochem](https://www.lirmm.fr/~ochem/opn/) — accessed 2026-09-12
+- [OEIS-Suche](https://oeis.org/search?q=Hadwiger-Nelson) — accessed 2026-09-12
+- [On a question of Mordell](https://arxiv.org/abs/2007.01209) — accessed 2026-09-12
+- [On odd perfect numbers with exactly one even exponent greater than 2](https://arxiv.org/abs/2607.19746) — accessed 2026-09-12
+- [On the Ramsey Number R(4,6)](https://www.combinatorics.org/ojs/index.php/eljc/article/view/v19i1p66) — accessed 2026-09-12
+- [Polymath16](https://dustingmixon.wordpress.com/2018/04/14/polymath16-first-thread-simplifying-de-greys-graph/) — accessed 2026-09-12
+- [PrimeGrid](https://www.primegrid.com/) — accessed 2026-09-12
+- [Problem 728 and the use of AI on Erdős problems](https://erdosproblems.com/forum/thread/blog:2) — accessed 2026-09-12
+- [PutnamBench](https://github.com/trishullab/PutnamBench) — accessed 2026-09-12
+- [R(5,5) ≤ 46](https://arxiv.org/abs/2409.15709) — accessed 2026-09-12
+- [Schur Number Five](https://arxiv.org/abs/1711.08076) — accessed 2026-09-12
+- [Sequencelib](https://arxiv.org/abs/2601.11757) — accessed 2026-09-12
+- [Shifted S-templates and improved lower bounds for Schur numbers](https://arxiv.org/abs/2607.15034) — accessed 2026-09-12
+- [Small Ramsey Numbers (dynamic survey DS1.18)](https://www.combinatorics.org/ojs/index.php/eljc/article/view/DS1) — accessed 2026-09-12
+- [Solving and Verifying the boolean Pythagorean Triples problem](https://arxiv.org/abs/1605.00723) — accessed 2026-09-12
+- [Standard TM Text format](https://discuss.bbchallenge.org/t/standard-tm-text-format/60) — accessed 2026-09-12
+- [Story](https://bbchallenge.org/story) — accessed 2026-09-12
+- [Study of Exoo's Lower Bound for Ramsey number R(5,5)](https://arxiv.org/abs/2212.12630) — accessed 2026-09-12
+- [Sums of three cubes – Wikipedia](https://en.wikipedia.org/wiki/Sums_of_three_cubes) — accessed 2026-09-12
+- [SumsOfThreeCubes (GitHub)](https://github.com/AndrewVSutherland/SumsOfThreeCubes) — accessed 2026-09-12
+- [Tactic list](https://leanprover-community.github.io/mathlib4_docs/tactics.html) — accessed 2026-09-12
+- [tanyongkiam/cake_lpr](https://github.com/tanyongkiam/cake_lpr) — accessed 2026-09-12
+- [teorth/erdosproblems](https://github.com/teorth/erdosproblems) — accessed 2026-09-12
+- [The chromatic number of the Minkowski plane – the regular polygon case](https://arxiv.org/abs/2108.12861) — accessed 2026-09-12
+- [The chromatic number of the plane is at least 5](https://arxiv.org/abs/1804.02385) — accessed 2026-09-12
+- [The Church-Turing Thesis – SEP](https://plato.stanford.edu/entries/church-turing/) — accessed 2026-09-12
+- [The Erdős–Straus conjecture: new modular equations and checking up to N = 10¹⁷](https://arxiv.org/abs/1406.6307) — accessed 2026-09-12
+- [The Resolution of Keller's Conjecture](https://arxiv.org/abs/1910.03740) — accessed 2026-09-12
+- [The ternary Goldbach problem](https://arxiv.org/abs/1501.05438) — accessed 2026-09-12
+- [Wayback-Capture](https://web.archive.org/web/20250120061311/http://boinc.thesonntags.com/collatz/) — accessed 2026-09-12
+- [yoyo@home Applications](https://www.rechenkraft.net/yoyo/apps.php) — accessed 2026-09-12
+
+## 05 — Entwurf & Testplan (Notation + Protokoll)
+
+- [Agents](https://opencode.ai/docs/agents/) — accessed 2026-09-12
+- [Binomial proportion confidence interval](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval) — accessed 2026-09-12
+- [Chat Completions API](https://api-docs.deepseek.com/api/create-chat-completion) — accessed 2026-09-12
+- [CLI](https://opencode.ai/docs/cli/) — accessed 2026-09-12
+- [Date Fragments](https://arxiv.org/abs/2505.16088) — accessed 2026-09-12
+- [DeepSeek-R1, arXiv 2501.12948](https://arxiv.org/abs/2501.12948) — accessed 2026-09-12
+- [DeepSeek-V3](https://arxiv.org/abs/2412.19437) — accessed 2026-09-12
+- [Does Prompt Formatting](https://arxiv.org/abs/2411.10541) — accessed 2026-09-12
+- [drat-trim](https://github.com/marijnheule/drat-trim) — accessed 2026-09-12
+- [Error Bars](https://arxiv.org/abs/2411.00640) — accessed 2026-09-12
+- [Fagerland et al. 2013](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3716987) — accessed 2026-09-12
+- [FARS](https://arxiv.org/abs/2605.09496) — accessed 2026-09-12
+- [Golkar 2024](https://arxiv.org/abs/2310.02989) — accessed 2026-09-12
+- [Hao et al. 2024](https://arxiv.org/abs/2412.06769) — accessed 2026-09-12
+- [Jiang et al. 2023, DSP](https://arxiv.org/abs/2210.12283) — accessed 2026-09-12
+- [Lessons from the Trenches](https://arxiv.org/abs/2405.14782) — accessed 2026-09-12
+- [Let Me Speak Freely](https://arxiv.org/abs/2408.02442) — accessed 2026-09-12
+- [Li et al. 2024](https://arxiv.org/abs/2402.12875) — accessed 2026-09-12
+- [Liu et al. 2023](https://arxiv.org/abs/2307.03172) — accessed 2026-09-12
+- [Lu et al. 2022](https://arxiv.org/abs/2104.08786) — accessed 2026-09-12
+- [McNemar's test](https://en.wikipedia.org/wiki/McNemar%27s_test) — accessed 2026-09-12
+- [Metamath Proof Explorer Home Page](https://us.metamath.org/mpeuni/mmset.html) — accessed 2026-09-12
+- [Metamath: A Computer Language for Mathematical Proofs](https://us.metamath.org/downloads/metamath.pdf) — accessed 2026-09-12
+- [mmverify.py](https://github.com/david-a-wheeler/mmverify.py) — accessed 2026-09-12
+- [Models](https://opencode.ai/docs/models/) — accessed 2026-09-12
+- [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing) — accessed 2026-09-12
+- [Modular Arithmetic](https://arxiv.org/abs/2508.02513) — accessed 2026-09-12
+- [Nye et al. 2021](https://arxiv.org/abs/2112.00114) — accessed 2026-09-12
+- [OpenAI Cookbook](https://cookbook.openai.com/examples/reproducible_outputs_with_the_seed_parameter) — accessed 2026-09-12
+- [OpenWebMath](https://arxiv.org/abs/2310.06786) — accessed 2026-09-12
+- [pwr.2p.test](https://rdrr.io/cran/pwr/man/pwr.2p.test.html) — accessed 2026-09-12
+- [Reverse That Number](https://arxiv.org/abs/2403.05845) — accessed 2026-09-12
+- [Sclar et al. 2024](https://arxiv.org/abs/2310.11324) — accessed 2026-09-12
+- [SEP Type Theory](https://plato.stanford.edu/entries/type-theory-intuitionistic/) — accessed 2026-09-12
+- [set.mm](https://github.com/metamath/set.mm) — accessed 2026-09-12
+- [Spoken-MQA](https://arxiv.org/abs/2505.15000) — accessed 2026-09-12
+- [statsmodels](https://www.statsmodels.org/stable/generated/statsmodels.stats.contingency_tables.mcnemar.html) — accessed 2026-09-12
+- [Think Dot by Dot](https://arxiv.org/abs/2404.15758) — accessed 2026-09-12
+- [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode) — accessed 2026-09-12
+- [Tokenization counts](https://arxiv.org/abs/2402.14903) — accessed 2026-09-12
+- [TPIL](https://lean-lang.org/theorem_proving_in_lean4/Propositions-and-Proofs/) — accessed 2026-09-12
+- [TPIL, Axioms and Computation](https://lean-lang.org/theorem_proving_in_lean4/Axioms-and-Computation/) — accessed 2026-09-12
+- [TPIL, Interacting with Lean](https://lean-lang.org/theorem_proving_in_lean4/Interacting-with-Lean/) — accessed 2026-09-12
+- [Turpin et al. 2023](https://arxiv.org/abs/2305.04388) — accessed 2026-09-12
+- [us.metamath.org/mpeuni/2p2e4.html](https://us.metamath.org/mpeuni/2p2e4.html) — accessed 2026-09-12
+- [Wu et al., Autoformalization with Large Language Models, arXiv:2205.12615](https://arxiv.org/abs/2205.12615) — accessed 2026-09-12
+- [Xiao et al. 2024](https://arxiv.org/abs/2309.17453) — accessed 2026-09-12
+- [Yang et al. 2023, LeanDojo](https://arxiv.org/abs/2306.15626) — accessed 2026-09-12
+- [Zero-Shot Reasoners](https://arxiv.org/abs/2205.11916) — accessed 2026-09-12
+- [Zhao et al. 2026](https://arxiv.org/abs/2509.00930) — accessed 2026-09-12
+- [Zheng et al., miniF2F, arXiv:2109.00110](https://arxiv.org/abs/2109.00110) — accessed 2026-09-12
+
