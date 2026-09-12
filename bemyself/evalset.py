@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of thirty-six messages live in the
+hashes. That is what lets the standard set of forty messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -60,6 +60,16 @@ _FIXTURE_TURING = (
 # BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
 # so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
 BB6_RECORD = "1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE"
+
+# Translated cycler of the bbchallenge wiki (page "Translated cycler", the
+# annotated example machine 44394115): cycle start 6, period 10, offset +2.
+# The certificate (6, 16, 2) is re-derived with the simulator of this
+# repository (see tests/test_cycle.py): both steps are state D with the head
+# at 2 and 4, the tape matches on every reachable cell, and no halt occurs
+# inside the window.
+WIKI_CYCLER = "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC"
+# Hand trace (tests/test_turing.py): halts after exactly three steps.
+SMALL_HALTER = "1RB1RZ_0LA0LA"
 
 
 @dataclass(frozen=True)
@@ -178,7 +188,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard thirty-six-message set (18 honest, 18 false).
+    """Return the standard forty-message set (20 honest, 20 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -437,6 +447,35 @@ def standard_set(fixture):
             ),
             expect_verdicts={"commit_exists": "CONFIRMED", "searched": "CONFIRMED"},
         ),
+        case(
+            "g19-cycle-translated",
+            "genuine",
+            "Ehrliche Meldung: das Zertifikat der bbchallenge-Wiki-Maschine "
+            "(Schritt 16 = Schritt 6, um 2 Zellen verschoben, haltfreies "
+            "Fenster) belegt das Nicht-Halten.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[COMMIT: {commits['good']}]",
+                    f"[CYCLE: {WIKI_CYCLER} -> 6,16,2]",
+                )
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "cycle": "CONFIRMED"},
+        ),
+        case(
+            "g20-cycle-unverifiable-certificate",
+            "genuine",
+            "Ehrliche Meldung: das Zertifikat nennt t2 <= t1 und bleibt "
+            "deshalb ehrlich unpruefbar.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[COMMIT: {commits['good']}]",
+                    f"[CYCLE: {WIKI_CYCLER} -> 16,6,2]",
+                )
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "cycle": "UNVERIFIABLE"},
+        ),
         # --- false messages: the known falsity must never be CONFIRMED -------
         case(
             "f01-commit-missing",
@@ -656,6 +695,35 @@ def standard_set(fixture):
             ),
             targets=["compute"],
             expect_verdicts={"compute": "REFUTED"},
+        ),
+        case(
+            "f19-cycle-wrong-offset",
+            "false",
+            "Falsch: derselbe Zyklus mit falschem Versatz (d=1 statt 2) -- "
+            "der Kopf steht nach 16 Schritten nicht bei 2 + 1.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[CYCLE: {WIKI_CYCLER} -> 6,16,1]",
+                )
+            ),
+            targets=["cycle"],
+            expect_verdicts={"cycle": "REFUTED"},
+        ),
+        case(
+            "f20-cycle-halting-machine",
+            "false",
+            "Falsch: ein Zertifikat fuer eine Maschine, die im Fenster haelt "
+            "(der Drei-Schritt-Halter) -- ein Nicht-Halte-Beweis ist dafuer "
+            "unmoeglich.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[CYCLE: {SMALL_HALTER} -> 1,5,1]",
+                )
+            ),
+            targets=["cycle"],
+            expect_verdicts={"cycle": "REFUTED"},
         ),
     ]
     return {

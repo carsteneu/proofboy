@@ -419,6 +419,54 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--search-limit", proc.stderr)
 
+    # --- [CYCLE] -----------------------------------------------------------
+    def cycle_report(self, t2=16):
+        # The translated cycler of the bbchallenge wiki (the certificate is
+        # re-derived in tests/test_cycle.py): step 16 is step 6 shifted by 2.
+        machine = "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC"
+        return self.write_report(
+            "### Phase 6: FINISH\n"
+            "**Status:** COMPLETE\n"
+            "**send_to payload:** `[DONE] "
+            f"[CYCLE: {machine} -> 6,{t2},2]`\n",
+            name="cycle-report.txt",
+        )
+
+    def test_cycle_claim_confirms_end_to_end(self):
+        proc = self.invoke("--report", self.cycle_report(), "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["cycle"]["verdict"], "CONFIRMED")
+        self.assertIn("never halts", claims["cycle"]["reason"])
+        self.assertIn("translated by 2", claims["cycle"]["reason"])
+
+    def test_cycle_limit_leaves_larger_claims_unverifiable(self):
+        proc = self.invoke(
+            "--report", self.cycle_report(), "--json", "--cycle-limit", "15"
+        )
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["cycle"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("executable limit of 15", claims["cycle"]["reason"])
+
+    def test_cycle_limit_at_the_claim_still_runs(self):
+        proc = self.invoke(
+            "--report", self.cycle_report(), "--json", "--cycle-limit", "16"
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["cycle"]["verdict"], "CONFIRMED")
+
+    def test_negative_cycle_limit_is_a_usage_error(self):
+        proc = self.invoke("--report", self.cycle_report(), "--cycle-limit=-1")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--cycle-limit", proc.stderr)
+
+    def test_non_integer_cycle_limit_is_a_usage_error(self):
+        proc = self.invoke("--report", self.cycle_report(), "--cycle-limit=banana")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--cycle-limit", proc.stderr)
+
     # --- [COMPUTE] ---------------------------------------------------------
     def compute_report(self, digest_text, command='python3 -c "print(42)"'):
         return self.write_report(

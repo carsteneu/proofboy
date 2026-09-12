@@ -28,12 +28,17 @@ cells, so memory stays proportional to the executed steps rather than to the
 Run as a command, it prints one result line::
 
     python3 -m bemyself.turing <machine> <steps>   ->  halts=<b> steps=<n> score=<n>
+
+:func:`run` returns the outcome of a bounded run; :func:`run_checkpoints`
+additionally captures the configuration (:class:`Snapshot`) at requested
+steps, the basis of the ``[CYCLE]`` claim type.
 """
 
 from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -56,6 +61,27 @@ class RunResult(NamedTuple):
     halts: bool
     steps: int
     score: int
+
+
+class Snapshot(NamedTuple):
+    """The configuration at one checkpoint of a run.
+
+    ``right`` holds the cells at the absolute positions ``0`` to
+    ``len(right) - 1`` and ``left`` the cells at ``-1`` to ``-len(left)``,
+    both trimmed to the furthest cell ever written: every cell beyond them is
+    zero by construction. ``state`` is the state index and ``head`` the
+    absolute head position. ``min_head`` and ``max_head`` are the lowest and
+    highest head position of the interval ending at this checkpoint (the
+    start of the run for the first one): the excursion the head made while
+    reaching it.
+    """
+
+    state: int
+    head: int
+    right: bytes
+    left: bytes
+    min_head: int
+    max_head: int
 
 
 @dataclass(frozen=True)
@@ -111,6 +137,40 @@ def run(machine: Machine, max_steps: int) -> RunResult:
     pair halts without counting a step), False when the limit was reached
     first.
     """
+    return _execute(machine, max_steps, (), None)[0]
+
+
+def run_checkpoints(
+    machine: Machine,
+    max_steps: int,
+    checkpoints: Iterable[int] = (),
+    max_cells: int | None = None,
+) -> tuple[RunResult, dict[int, Snapshot | None]]:
+    """Run for at most ``max_steps`` and capture the configurations at the
+    given steps.
+
+    Returns ``(result, snapshots)``: ``result`` is what :func:`run` returns,
+    ``snapshots`` maps every requested step to its :class:`Snapshot` -- or to
+    None when that step was not reached (a halt at or before it, a step
+    beyond the limit) or its tape does not materialize within ``max_cells``
+    cells (both halves together; None means no bound). Checkpoint 0 is the
+    start configuration; the configuration of a halted run is never captured,
+    because the transition into the halt state ends the run.
+    """
+    steps = tuple(sorted(set(checkpoints)))
+    for step in steps:
+        if step < 0:
+            raise ValueError("checkpoints must be non-negative")
+    return _execute(machine, max_steps, steps, max_cells)
+
+
+def _execute(
+    machine: Machine,
+    max_steps: int,
+    checkpoints: tuple[int, ...],
+    max_cells: int | None,
+) -> tuple[RunResult, dict[int, Snapshot | None]]:
+    """The shared stepping core of :func:`run` and :func:`run_checkpoints`."""
     if max_steps < 0:
         raise ValueError("max_steps must be non-negative")
     table = machine.table
@@ -118,10 +178,24 @@ def run(machine: Machine, max_steps: int) -> RunResult:
     left = bytearray()
     right_len = 0
     left_len = 0
+    # The furthest cell ever written per half: the materialized window a
+    # snapshot carries. Cells beyond it are zero and need no capture.
+    right_written = 0
+    left_written = 0
     position = 0
     state = 0
     ones = 0
     step = 0
+    total = len(checkpoints)
+    snapshots: dict[int, Snapshot | None] = {checkpoint: None for checkpoint in checkpoints}
+    pending = 0
+    # The head excursion of the interval that ends at the next checkpoint:
+    # seeded with the current position, reset after every capture.
+    low = 0
+    high = 0
+    if checkpoints and checkpoints[0] == 0:
+        snapshots[0] = Snapshot(0, 0, b"", b"", 0, 0)
+        pending = 1
     # The budget is checked after the transition lookup: a pair without a
     # transition halts the machine before executing, even when the budget is
     # already exhausted (max_steps=0).
@@ -135,9 +209,13 @@ def run(machine: Machine, max_steps: int) -> RunResult:
         if target == _UNDEFINED:
             # No transition for this pair: the machine halts before executing,
             # so the attempt is not a step.
-            return RunResult(True, step, ones)
+            return RunResult(True, step, ones), snapshots
         if step >= max_steps:
-            return RunResult(False, step, ones)
+            return RunResult(False, step, ones), snapshots
+        # Once every checkpoint is captured, no snapshot needs the written
+        # extents or the excursion any more: skip that bookkeeping (run() in
+        # particular pays nothing for the checkpoint machinery).
+        capturing = pending < total
         step += 1
         if write != symbol:
             if position >= 0:
@@ -145,6 +223,8 @@ def run(machine: Machine, max_steps: int) -> RunResult:
                     grow = max(_TAPE_CHUNK, right_len * 2, position + 1)
                     right.extend(bytes(grow - right_len))
                     right_len = grow
+                if capturing and position >= right_written:
+                    right_written = position + 1
                 right[position] = write
             else:
                 index = -position - 1
@@ -152,13 +232,51 @@ def run(machine: Machine, max_steps: int) -> RunResult:
                     grow = max(_TAPE_CHUNK, left_len * 2, index + 1)
                     left.extend(bytes(grow - left_len))
                     left_len = grow
+                if capturing and index >= left_written:
+                    left_written = index + 1
                 left[index] = write
             ones += 1 if write else -1
         if target < 0:
-            return RunResult(True, step, ones)
+            return RunResult(True, step, ones), snapshots
         position += move
         state = target
-    return RunResult(False, step, ones)
+        if capturing:
+            if position < low:
+                low = position
+            if position > high:
+                high = position
+            if step == checkpoints[pending]:
+                snapshots[step] = _materialize(
+                    state, position, right, right_written, left, left_written, max_cells, low, high
+                )
+                pending += 1
+                low = position
+                high = position
+    return RunResult(False, step, ones), snapshots
+
+
+def _materialize(
+    state: int,
+    head: int,
+    right: bytearray,
+    right_written: int,
+    left: bytearray,
+    left_written: int,
+    max_cells: int | None,
+    low: int,
+    high: int,
+) -> Snapshot | None:
+    """The snapshot for one checkpoint, None when the tape exceeds the bound.
+
+    The bound keeps one claim from forcing an arbitrarily wide comparison:
+    the cells of both tape halves together must stay within ``max_cells``, or
+    the configuration is not materialized and the caller stays conservative.
+    """
+    if max_cells is not None and right_written + left_written > max_cells:
+        return None
+    return Snapshot(
+        state, head, bytes(right[:right_written]), bytes(left[:left_written]), low, high
+    )
 
 
 def _main(argv):

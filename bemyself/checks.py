@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - non-POSIX platforms
 from bemyself.model import Claim, Result, Verdict
 from bemyself import claimtypes
 from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
+from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 
@@ -138,6 +139,8 @@ class Ctx:
     halt_limit: int = DEFAULT_HALT_LIMIT
     # The largest step count a [SEARCHED] claim may ask for.
     search_limit: int = DEFAULT_SEARCH_LIMIT
+    # The largest step count a [CYCLE] claim may ask for.
+    cycle_limit: int = DEFAULT_CYCLE_LIMIT
     # Command prefixes a [COMPUTE] claim may run; --allow extends it.
     compute_allowlist: tuple[str, ...] = DEFAULT_COMPUTE_ALLOWLIST
 

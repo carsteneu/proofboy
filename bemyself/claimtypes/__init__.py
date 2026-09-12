@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from typing import Callable
 
-from bemyself.claimtypes import compute, halt, search
+from bemyself.claimtypes import compute, cycle, halt, search
 from bemyself.model import ClaimType
 
-CLAIM_TYPES: tuple[ClaimType, ...] = (halt.HALT, search.SEARCHED, compute.COMPUTE)
+CLAIM_TYPES: tuple[ClaimType, ...] = (halt.HALT, search.SEARCHED, compute.COMPUTE, cycle.CYCLE)
 
 
 def _find(kind: str) -> ClaimType | None:
