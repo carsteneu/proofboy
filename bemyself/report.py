@@ -8,6 +8,8 @@ The report is a yesloop Phase-6 DONE report. Recognised claim sources:
   ``tests_green``; a non-zero exit is ``tests_exit`` (an honest failure
   report, verified against its own exit code -- not labelled "green").
 - a ``Files in scope: a, b`` line, which becomes a diff-scope claim
+- the markers of every registered optional claim type
+  (:data:`bemyself.claimtypes.CLAIM_TYPES`), for example ``[HALT: ...]``
 
 Parsing is deliberately permissive: unknown lines are ignored, and a claim is
 only emitted when its source is present. Absurdly long lines are skipped so a
@@ -18,6 +20,7 @@ from __future__ import annotations
 
 import re
 
+from bemyself import claimtypes
 from bemyself.model import Claim
 
 _MAX_LINE = 8192
@@ -75,6 +78,12 @@ def parse_report(text: str) -> list[Claim]:
         files_match = _FILES_RE.match(raw)
         if files_match:
             files_line = (lineno, raw, _split_list(files_match.group("files")))
+
+        for claim_type in claimtypes.CLAIM_TYPES:
+            for match in claim_type.pattern.finditer(raw):
+                fields = claim_type.parse(match, raw)
+                if fields is not None:
+                    claims.append(Claim(claim_type.kind, lineno, raw, fields))
 
     # Dependent claims bind to the report's commit only when the report names
     # exactly one; several distinct commits make the binding a guess, and a

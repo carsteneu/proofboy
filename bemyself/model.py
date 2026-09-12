@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from bemyself.checks import Ctx
 
 
 class Verdict(str, Enum):
@@ -34,3 +39,21 @@ class Result:
     # runs, None when no command was executed. Machine-readable counterpart of
     # the note in ``reason``, which is display text and echo of report input.
     sandboxed: bool | None = None
+
+
+@dataclass(frozen=True)
+class ClaimType:
+    """One optional claim kind: where to find it in a report line, and how to
+    check it.
+
+    ``pattern`` matches the claim's markers inside one line, ``parse`` turns
+    one match into the claim's fields (or None to skip it), and ``check``
+    re-derives the claim against the world. Adding a kind is a new module
+    under :mod:`bemyself.claimtypes` plus one entry in its ``CLAIM_TYPES``;
+    the report parser and the CLI stay untouched.
+    """
+
+    kind: str
+    pattern: re.Pattern[str]
+    parse: Callable[[re.Match[str], str], dict | None]
+    check: Callable[[Claim, "Ctx"], Result]

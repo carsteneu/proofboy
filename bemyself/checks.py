@@ -24,6 +24,8 @@ except ImportError:  # pragma: no cover - non-POSIX platforms
     resource = None
 
 from bemyself.model import Claim, Result, Verdict
+from bemyself import claimtypes
+from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 
 GIT_TIMEOUT = 60
 FETCH_TIMEOUT = 30
@@ -128,6 +130,8 @@ class Ctx:
     base: str | None = None
     allowlist: tuple[str, ...] = DEFAULT_COMMAND_ALLOWLIST
     sandbox: str = "auto"
+    # The largest step count a [HALT] claim may ask the simulator to execute.
+    halt_limit: int = DEFAULT_HALT_LIMIT
 
 
 def _repo_command(ctx, *args):
@@ -1026,9 +1030,11 @@ REGISTRY = {
 def run_claim(claim: Claim, ctx: Ctx, registry: dict | None = None) -> Result:
     """Run one claim through the checker registry.
 
-    A hostile report must never crash the verifier: embedded NUL bytes are
-    rejected up front, and an unexpected checker error becomes UNVERIFIABLE
-    instead of a traceback.
+    Built-in kinds resolve through :data:`REGISTRY`; a kind that is not a
+    built-in is looked up among the optional claim types
+    (:mod:`bemyself.claimtypes`). A hostile report must never crash the
+    verifier: embedded NUL bytes are rejected up front, and an unexpected
+    checker error becomes UNVERIFIABLE instead of a traceback.
     """
     registry = REGISTRY if registry is None else registry
     for value in claim.fields.values():
@@ -1037,6 +1043,8 @@ def run_claim(claim: Claim, ctx: Ctx, registry: dict | None = None) -> Result:
                 Verdict.UNVERIFIABLE, reason="claim field contains an embedded NUL byte"
             )
     checker = registry.get(claim.kind)
+    if checker is None:
+        checker = claimtypes.checker_for(claim.kind)
     if checker is None:
         return Result(
             Verdict.UNVERIFIABLE,
