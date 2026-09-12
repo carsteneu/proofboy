@@ -206,11 +206,13 @@ Priorisierung im Verhältnis zu S1–S5 ([05-05](05-05-ablation-protokoll.md)): 
 
 ## 12. Offene Punkte (bewusst vertagt)
 
-- `ref`-Validierung + UNVERIFIABLE-Grund `ref_unconfirmed` (Implementierung/[04-05](../04-offene-probleme/04-05-bruecke-pruefer.md)).
-- `^^`/`^^^`, `ex`, `#(...)`: ungemessen — Sonde vor Aufnahme in die Lexik.
+**Umsetzungsstand (Nachtrag 2026-09-12):** Umgesetzt und gemessen im Bau-/Pilotzyklus V1.1 — `ref`-Validierung mit `ref_unconfirmed` (Zeugen-Registry), Lexem-Sonde aller Kandidaten (Ergebnis [01-03b](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md); `^^`=1, `^^^`=2 Tokens, `ex`=1), Tag-IDs/Statuszeilen/Kürzel im Blatt-Parser, Legenden-Injektion und Aufgaben-Sets im Harness. Pilotlauf, Abweichungen und Ergebnisse: [05-08](05-08-pilotbericht-v1.1.md). Weiterhin offen: Trace-Frontloading-Experiment, RC-Enforcement (S10).
+
+- `ref`-Validierung + UNVERIFIABLE-Grund `ref_unconfirmed` (Implementierung/[04-05](../04-offene-probleme/04-05-bruecke-pruefer.md)). **→ erledigt (05-08 §4).**
+- `^^`/`^^^`, `ex`, `#(...)`: ungemessen — Sonde vor Aufnahme in die Lexik. **→ gemessen ([01-03b](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md)).**
 - Ordnung/Wiederholung im Trace („Frontloading": Zustand zuletzt vs. zuerst) — eigenes Experiment, nicht Teil von V1.1.
 - RC-Enforcement (S10) — Zukunft, setzt internes Format-Signal voraus.
-- Parser-Anpassungen: Tag-IDs statt `S<n>` in V1.1-Armen; Legenden-Injektion ist Harness-Aufgabe ([05-04](05-04-test-harness.md)).
+- Parser-Anpassungen: Tag-IDs statt `S<n>` in V1.1-Armen; Legenden-Injektion ist Harness-Aufgabe ([05-04](05-04-test-harness.md)). **→ umgesetzt (bemyself/msheet, tooling/prompts.py).**
 
 ## Quellen
 

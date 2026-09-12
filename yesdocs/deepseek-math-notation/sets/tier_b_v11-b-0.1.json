@@ -1,0 +1,390 @@
+{
+  "set_version": "v11-b-0.1",
+  "created": "2026-09-12",
+  "seed": 20260912,
+  "tasks": [
+    {
+      "id": "B-0001",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB1RZ_0LA0LA",
+      "horizon": 2,
+      "checkpoints_t": [
+        1,
+        2
+      ],
+      "checkpoints_gold": [
+        [
+          1,
+          "B",
+          1,
+          "1"
+        ],
+        [
+          2,
+          "A",
+          0,
+          "1"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB1RZ_0LA0LA. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 1, 2.",
+      "notation": "v11",
+      "source": "Testfixture tests/test_turing.py (halt nach genau 3 Schritten)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0002",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA",
+      "horizon": 20,
+      "checkpoints_t": [
+        5,
+        10,
+        20
+      ],
+      "checkpoints_gold": [
+        [
+          5,
+          "C",
+          1,
+          "1111"
+        ],
+        [
+          10,
+          "D",
+          2,
+          "11111"
+        ],
+        [
+          20,
+          "B",
+          2,
+          "1111111"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 5, 10, 20.",
+      "notation": "v11",
+      "source": "bbchallenge BB(5)-Champion (P7-Learning #97269; 47.176.870 Schritte, Score 4098)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0003",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB0LD_1LC1RD_1LA1LC_1RZ1RE_1RA0RB",
+      "horizon": 20,
+      "checkpoints_t": [
+        5,
+        10,
+        20
+      ],
+      "checkpoints_gold": [
+        [
+          5,
+          "B",
+          -1,
+          "1111"
+        ],
+        [
+          10,
+          "A",
+          0,
+          "11111"
+        ],
+        [
+          20,
+          "B",
+          4,
+          "111111"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB0LD_1LC1RD_1LA1LC_1RZ1RE_1RA0RB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 5, 10, 20.",
+      "notation": "v11",
+      "source": "Marxen & Buntrock 1989 (bbchallenge; 23.554.764 Schritte, Score 4097)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0004",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB1LC_0LA0LD_1LA1RZ_1LB1RE_0RD0RB",
+      "horizon": 20,
+      "checkpoints_t": [
+        5,
+        10,
+        20
+      ],
+      "checkpoints_gold": [
+        [
+          5,
+          "B",
+          -1,
+          "111"
+        ],
+        [
+          10,
+          "D",
+          2,
+          "101"
+        ],
+        [
+          20,
+          "D",
+          -2,
+          "1011101"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB1LC_0LA0LD_1LA1RZ_1LB1RE_0RD0RB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 5, 10, 20.",
+      "notation": "v11",
+      "source": "Uhing 1984 (bbchallenge; 2.133.492 Schritte, Score 1915)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0005",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE",
+      "horizon": 20,
+      "checkpoints_t": [
+        5,
+        10,
+        20
+      ],
+      "checkpoints_gold": [
+        [
+          5,
+          "C",
+          1,
+          "101"
+        ],
+        [
+          10,
+          "B",
+          0,
+          "11011"
+        ],
+        [
+          20,
+          "C",
+          4,
+          "11101101"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 5, 10, 20.",
+      "notation": "v11",
+      "source": "bbchallenge BB(6)-Champion (mxdys 2025; S(6) > 2^^^5, kein Halt im Horizont)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0006",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC",
+      "horizon": 20,
+      "checkpoints_t": [
+        5,
+        10,
+        20
+      ],
+      "checkpoints_gold": [
+        [
+          5,
+          "C",
+          1,
+          "11"
+        ],
+        [
+          10,
+          "A",
+          0,
+          "1111"
+        ],
+        [
+          20,
+          "A",
+          2,
+          "100111"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 5, 10, 20.",
+      "notation": "v11",
+      "source": "bbchallenge-Wiki \"Translated cycler\" (Figur 44394115; laeuft zyklisch, kein Halt)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0007",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RC0RZ_0LC0LA_1RB1LB",
+      "horizon": 8,
+      "checkpoints_t": [
+        2,
+        4,
+        8
+      ],
+      "checkpoints_gold": [
+        [
+          2,
+          "B",
+          2,
+          "11"
+        ],
+        [
+          4,
+          "B",
+          0,
+          "11"
+        ],
+        [
+          8,
+          "A",
+          0,
+          "110"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RC0RZ_0LC0LA_1RB1LB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 2, 4, 8.",
+      "notation": "v11",
+      "source": "generiert (random.Random(20260912); lokal simuliert: halt nach 9 Schritten)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0008",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB1LB_1LA1LZ",
+      "horizon": 5,
+      "checkpoints_t": [
+        2,
+        4,
+        5
+      ],
+      "checkpoints_gold": [
+        [
+          2,
+          "A",
+          0,
+          "11"
+        ],
+        [
+          4,
+          "A",
+          -2,
+          "111"
+        ],
+        [
+          5,
+          "B",
+          -1,
+          "1111"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB1LB_1LA1LZ. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 2, 4, 5.",
+      "notation": "v11",
+      "source": "generiert (random.Random(20260912); lokal simuliert: halt nach 6 Schritten)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0009",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1LC1RC_0RZ1LB_1RA1LB",
+      "horizon": 8,
+      "checkpoints_t": [
+        2,
+        4,
+        8
+      ],
+      "checkpoints_gold": [
+        [
+          2,
+          "A",
+          0,
+          "11"
+        ],
+        [
+          4,
+          "A",
+          2,
+          "111"
+        ],
+        [
+          8,
+          "B",
+          -2,
+          "1111"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1LC1RC_0RZ1LB_1RA1LB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 2, 4, 8.",
+      "notation": "v11",
+      "source": "generiert (random.Random(20260912); lokal simuliert: halt nach 9 Schritten)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0010",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "0LC1RC_1LC0LZ_1RA1RB",
+      "horizon": 6,
+      "checkpoints_t": [
+        2,
+        4,
+        6
+      ],
+      "checkpoints_gold": [
+        [
+          2,
+          "A",
+          0,
+          "1"
+        ],
+        [
+          4,
+          "B",
+          0,
+          "1"
+        ],
+        [
+          6,
+          "B",
+          0,
+          "11"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 0LC1RC_1LC0LZ_1RA1RB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 2, 4, 6.",
+      "notation": "v11",
+      "source": "generiert (random.Random(20260912); lokal simuliert: halt nach 7 Schritten)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0011",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC",
+      "certificate": [
+        6,
+        16,
+        2
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC. Start: Zustand A, Kopf auf Position 0, leeres Band. Belege, dass sie nicht haelt, mit dem Translationszyklus-Zeugen (t1=6, t2=16, d=2).",
+      "notation": "v11",
+      "source": "bbchallenge-Wiki \"Translated cycler\", Figurmaschine 44394115; Zertifikat lokal re-deriviert (tests/test_cycle.py)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B-0012",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "0LA0LA",
+      "certificate": [
+        0,
+        1,
+        -1
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 0LA0LA. Start: Zustand A, Kopf auf Position 0, leeres Band. Belege, dass sie nicht haelt, mit dem Translationszyklus-Zeugen (t1=0, t2=1, d=-1).",
+      "notation": "v11",
+      "source": "Testfixture tests/test_cycle.py (Schreiber 0, laeuft nach links; jedes Schritt-Intervall ist eine Translation)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    }
+  ]
+}
