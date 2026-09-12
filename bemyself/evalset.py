@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of forty-three messages live in the
+hashes. That is what lets the standard set of forty-five messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -208,7 +208,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard forty-three-message set (22 honest, 21 false).
+    """Return the standard forty-five-message set (23 honest, 22 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -786,6 +786,33 @@ def standard_set(fixture):
             ),
             targets=["ident"],
             expect_verdicts={"ident": "REFUTED"},
+        ),
+        # --- Schur colorings ([COLORING], repo-free) -------------------------
+        case(
+            "g23-coloring-schur-certificate",
+            "genuine",
+            "Ehrliche Meldung: Schur-Faerbungs-Zertifikat der Zahlen 1..44 mit "
+            "vier Farben (Golomb-Baumert-Zerlegung aus OEIS A045652) -- repo-frei: "
+            "alle Tripel x+y=z werden nachgezaehlt, ohne --repo lauffaehig. Das "
+            "Urteil traegt die Grenze: nur die untere Schranke S(4) >= 44.",
+            done(
+                payload("[DONE]"),
+                "[COLORING: k=4 ; 12131322444434141213233231214343444422313121]",
+            ),
+            expect_verdicts={"coloring": "CONFIRMED"},
+        ),
+        case(
+            "f22-coloring-monochromatic-witness",
+            "false",
+            "Falsch: dieselbe Art Behauptung mit einer manipulierten Farbfolge "
+            "-- 1+1=2 liegt komplett in Farbe 1, die Meldung wird REFUTED und "
+            "nennt den ersten Verstoss in kanonischer Reihenfolge.",
+            done(
+                payload("[DONE]"),
+                "[COLORING: k=2 ; 1111]",
+            ),
+            targets=["coloring"],
+            expect_verdicts={"coloring": "REFUTED"},
         ),
     ]
     return {
