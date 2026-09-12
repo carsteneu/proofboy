@@ -25,7 +25,7 @@ Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-0
 Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D) sind erfolgt; die nächsten Runden
 sind in 05-09 §7 skizziert.
 
-**Umfang:** 33 Dateien in 5 Clustern · 74069 Wörter ·
+**Umfang:** 33 Dateien in 5 Clustern · 74130 Wörter ·
 709 Quellenangaben (Datei-Summen) · 1078 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte

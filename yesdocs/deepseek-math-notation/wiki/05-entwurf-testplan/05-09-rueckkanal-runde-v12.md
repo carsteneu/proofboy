@@ -150,6 +150,7 @@ Nicht belegt:
 3. **Rückkanal-Varianten:** (a) nur `#xx/#?`-Zeilen ohne Befunde, (b) Befunde mit, (c) Rückkanal ohne eigene Vorrunden-Antwort („frischer Versuch mit Appendix“) — welche Komponente trägt?
 4. **K-Fairness weiter messen:** K fiel in Tier B auf 11/12 (R0) und reparierte selbst; bei größerem n prüfen, ob gleiche Rundenzahl für K über die Zelle hinweg fair trägt.
 5. **B-0011-Instrumentierung:** Der Fall zeigte die Token-Ökonomie; Zyklus-Aufgaben ohne vorgegebenes Zertifikat wären der härtere Test.
+6. **Sanitizer als Allowlist statt Denylist:** Der Gold-Leak-Schutz deckt heute die bekannten werthaltigen Refutationsgründe ab (`sim`, `cyc`); eine neue Zeugenart mit Referenzwerten würde per Default durchgelassen. Vor der nächsten Reparaturrunde auf „standardmäßig saniert, Allowlist für Inhalt“ umstellen; der in der Review gefundene Kollisionsfall (Claim-id = v-Line-id) ist bereits behoben und getestet.
 
 ## Quellen
 
