@@ -17,9 +17,9 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off]
-python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off]
+python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
+python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
 ```
 
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
@@ -152,6 +152,86 @@ Umgebung des Aufrufers; wer diesen `PATH` kontrolliert, kontrolliert den
 Pruefer. `eval` nimmt dieselbe Option und reicht sie an jeden Testlauf des
 Sets weiter.
 
+## Halten von Turingmaschinen (`[HALT]` / `[SCORE]`)
+
+Eine Meldung kann behaupten, dass eine Turingmaschine der
+bbchallenge-Standardnotation haelt:
+
+```
+[HALT: 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA -> 47176870] [SCORE: 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA -> 4098]
+```
+
+Der Pruefer fuehrt die Maschine mit einem eigenen Simulator neu aus
+(`bemyself/turing.py`, unabhaengig importierbar: `parse(machine)` und
+`run(machine, max_steps) -> (halts, steps, score)`), im eigenen Prozess:
+kein Repo, kein Subprozess, kein Netz, kein Sandkasten beteiligt. Gezaehlt
+wird jede Transition, auch die in den Halt-Zustand `Z`; der Score ist die
+Zahl der 1en auf dem Band beim Halt, inklusive des Schreibzugriffs der
+letzten Transition. Start ist Zustand A auf leerem Band.
+
+Urteile: `bestaetigt` nur, wenn die Maschine exakt nach der behaupteten
+Schrittzahl haelt (mit exakt dem behaupteten Score, wenn ein `[SCORE]`
+daneben steht); `widerlegt`, wenn sie frueher haelt, innerhalb der
+behaupteten Schritte gar nicht haelt oder mit anderem Score endet;
+`unpruefbar`, wenn die Maschine nicht parst, die Schrittzahl keine schlichte
+nichtnegative Ganzzahl ist oder das ausfuehrbare Limit uebersteigt.
+
+Was das heisst: **Halten ist per Zeuge pruefbar** -- die exakte Schrittzahl
+ist eine endliche, nachvollziehbare Beobachtung. **Nicht-Halten ist per
+endlicher Suche nicht beweisbar**: "nach n Schritten kein Halt" widerlegt
+die Behauptung "haelt exakt bei n" und wird nie als "haelt nie" ausgegeben;
+eine Behauptung jenseits des Limits (etwa die Groessenordnung des
+BB(6)-Rekordhalters, `2↑↑↑5`) bleibt ehrlich `unpruefbar`. Ein `[SCORE]`
+ohne `[HALT]` derselben Maschine auf derselben Zeile ist keine Behauptung;
+widersprechende `[SCORE]`-Marker (zwei verschiedene Werte fuer dieselbe
+Maschine) machen die Behauptung `unpruefbar`.
+
+Das ausfuehrbare Limit ist die groesste Schrittzahl, die der Simulator fuer
+eine Behauptung ausfuehren darf: Default 47.176.870, konfigurierbar mit
+`--halt-limit N` (auch fuer `eval`); eine Behauptung darueber wird gar nicht
+erst ausgefuehrt und bleibt `unpruefbar`. Der Speicher waechst linear mit
+den ausgefuehrten Schritten (zwei Bytearrays, worst case wenige zehn
+Megabyte), nicht mit der Bandposition. Die Testdaten stammen aus der
+bbchallenge-Wiki und werden nachgerechnet: BB(5)-Champion (47.176.870
+Schritte, 4098 Einsen; Coq-BB5, arXiv:2509.12337), der Halter von Marxen &
+Buntrock 1989 (23.554.764/4097), Uhing 1984 (2.133.492/1915) und der
+BB(6)-Rekord von mxdys 2025.
+
+## Neuen Behauptungstyp hinzufuegen
+
+Ein optionaler Behauptungstyp ist ein Modul in `bemyself/claimtypes/` plus
+ein Eintrag in `CLAIM_TYPES`; Parser (`bemyself/report.py`) und CLI
+(`bemyself/cli.py`) bleiben unveraendert. Durchgerechnetes Mini-Beispiel
+`[EVEN: <zahl>]`:
+
+```python
+# bemyself/claimtypes/even.py
+import re
+from bemyself.model import ClaimType, Result, Verdict
+
+def parse(match, raw):          # Felder aus dem Marker
+    return {"value": match.group(1)}
+
+def check(claim, ctx):          # Urteil gegen die Welt
+    even = int(claim.fields["value"]) % 2 == 0
+    return Result(Verdict.CONFIRMED if even else Verdict.REFUTED,
+                  reason="even" if even else "odd")
+
+EVEN = ClaimType(kind="even",
+                 pattern=re.compile(r"\[EVEN:[ \t]*(\d+)[ \t]*\]"),
+                 parse=parse, check=check)
+```
+
+```python
+# bemyself/claimtypes/__init__.py
+from bemyself.claimtypes import even, halt
+CLAIM_TYPES = (halt.HALT, even.EVEN)
+```
+
+Danach findet `parse_report` den Marker `[EVEN: 42]` und `run_claim` fuehrt
+`check` aus. `tests/test_claimtypes.py` fuehrt diesen Weg als Test durch
+(Eintrag zur Laufzeit registriert, beide Bestandsmodule unveraendert).
+
 ## Evaluation
 
 `python3 -m bemyself eval --set tests/data/pruefset.json` fuehrt den Pruefer
@@ -171,12 +251,15 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt dreissig Meldungen im Report-Format: fuenfzehn ehrliche und
-fuenfzehn auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt vierunddreissig Meldungen im Report-Format: siebzehn ehrliche
+und siebzehn auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
-Behauptung, boesartige Riesen-Reports). Es liegt als `tests/data/pruefset.json`
+Behauptung, boesartige Riesen-Reports, falsche Turingmaschinen-Schrittzahlen
+und -Scores). Dazu kommen zwei ehrliche HALT-Meldungen: eine bestaetigt den
+Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
+`unpruefbar`. Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
 baut dasselbe Fixture zur Laufzeit und lehnt Sets ab, die zu einem anderen
@@ -215,7 +298,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus dreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus vierunddreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 
