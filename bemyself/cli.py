@@ -87,7 +87,8 @@ def build_parser():
         epilog=(
             "exit codes: 0 = at least one claim CONFIRMED and none REFUTED; "
             "1 = at least one REFUTED; 2 = error; 3 = nothing CONFIRMED; "
-            "4 = --strict and at least one UNVERIFIABLE. "
+            "4 = --strict, nothing REFUTED, at least one CONFIRMED and at "
+            "least one UNVERIFIABLE. "
             "Exit 0 does not mean every claim was proven - read the summary "
             "or --json to see the UNVERIFIABLE claims, or pass --strict to "
             "make an unchecked claim fail the run."
@@ -118,8 +119,9 @@ def build_parser():
         "--strict",
         action="store_true",
         help=(
-            "fail unless every claim was proven: a single UNVERIFIABLE claim "
-            "turns into exit 4 (without the flag exit codes are unchanged)"
+            "fail unless every claim was proven: with something CONFIRMED "
+            "and nothing REFUTED, a single UNVERIFIABLE claim becomes exit 4 "
+            "(without the flag exit codes are unchanged)"
         ),
     )
     check.add_argument("--json", action="store_true", help="emit machine-readable JSON")
@@ -134,7 +136,7 @@ def build_parser():
     evaluate.add_argument(
         "--strict",
         action="store_true",
-        help="fail with exit 4 when any claim in the set stays UNVERIFIABLE",
+        help="fail with exit 4 when a claim in the set stays UNVERIFIABLE and the thresholds hold",
     )
     return parser
 

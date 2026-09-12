@@ -44,7 +44,7 @@ Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
 | 1 | Mindestens eine Behauptung `widerlegt` |
 | 2 | Fehler (Report fehlt oder zu gross, Repo-Pfad fehlt, Section unbekannt oder nicht lesbar) |
 | 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
-| 4 | Nur mit `--strict`: mindestens eine Behauptung `unpruefbar`, aber nichts `widerlegt` |
+| 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar`, nichts `widerlegt` |
 
 Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
 Fehler, aber auch kein Beweis. Die Zusammenfassung (oder `--json`) zeigt jede
@@ -118,7 +118,9 @@ in Eingabe oder Fixture. Wegwerf-Daten landen unter
 `<arbeitsverzeichnis>/.yesmem/tmp/eval`, mit `--tmp` verlegbar.
 
 `eval --strict` ist ein Opt-in: der Lauf schlaegt mit Exit 4 fehl, sobald eine
-Behauptung des Sets unpruefbar bleibt (ohne Flag unveraendert 0/1/2). Das
+Behauptung des Sets unpruefbar bleibt und die Schwellen erfuellt sind; ein
+Lauf, der die Schwellen verfehlt, bleibt Exit 1, und ohne Flag ist alles
+unveraendert 0/1/2. Das
 ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.

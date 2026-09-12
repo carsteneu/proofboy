@@ -19,7 +19,8 @@ detected when it does not exit 0. Cases may pin exact per-claim verdicts
 claim count; a missed expectation fails the run even when the rates hold, as
 does a marked target kind the report does not even yield. Exit codes: 0 =
 thresholds and expectations met, 1 = missed, 2 = usage, input or fixture
-error, 4 = --strict and at least one claim in the set stayed UNVERIFIABLE.
+error, 4 = --strict and at least one claim in the set stayed UNVERIFIABLE
+while the thresholds held (a run that already missed them exits 1).
 """
 
 from __future__ import annotations

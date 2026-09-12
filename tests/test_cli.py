@@ -146,6 +146,11 @@ class CliTest(unittest.TestCase):
         proc = self.invoke("--report", report, "--strict")
         self.assertEqual(proc.returncode, 1)
 
+    def test_strict_all_unverifiable_report_stays_exit_three(self):
+        report = self.write_report("**send_to payload:** `[MERGE: no]`\n")
+        proc = self.invoke("--report", report, "--strict")
+        self.assertEqual(proc.returncode, 3)
+
     def test_diff_scope_without_base_is_unverifiable(self):
         report = self.write_report(
             "**send_to payload:** `[COMMIT: %s]`\n"

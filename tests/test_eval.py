@@ -348,6 +348,33 @@ class EvalCliTest(unittest.TestCase):
         strict = self.invoke("--strict", set_path=path, tmp="run-verifiable-strict")
         self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
 
+    def test_strict_keeps_threshold_misses_at_exit_one(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"] = [
+            {
+                "name": "x-false-will-confirm",
+                "group": "false",
+                "note": "a target claim the fixture confirms on purpose",
+                "base": document["fixture"]["base"],
+                "targets": ["commit_exists"],
+                "report": f"**send_to payload:** `[COMMIT: {document['fixture']['base']}]`\n",
+            },
+            {
+                "name": "x-genuine-with-unverifiable",
+                "group": "genuine",
+                "note": "keeps an unverifiable claim next to a confirmable one",
+                "base": document["fixture"]["base"],
+                "targets": [],
+                "report": (
+                    f"**send_to payload:** `[COMMIT: {document['fixture']['base']}] "
+                    "[MERGE: no]`\n"
+                ),
+            },
+        ]
+        path = self.write(document, "failing-strict.json")
+        proc = self.invoke("--strict", set_path=path, tmp="run-failing-strict")
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+
     def test_errors_are_json_on_stdout_when_requested(self):
         proc = self.invoke(
             "--json", set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None
