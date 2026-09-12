@@ -280,8 +280,8 @@ Die COMPUTE-Allowlist ist bewusst minimal: standardmaessig nur
 `python3 -m bemyself.turing` (der Simulator dieses Repos). Weitere Rechnungen
 werden explizit geoeffnet: `--allow "praefix"` (wiederholbar) erweitert die
 Allowlist fuer Testlaeufe und COMPUTE gemeinsam; ein nicht erlaubtes Kommando
-wird nie ausgefuehrt. Der Abgleich laeuft auf den argv-Tokens, die wirklich
-ausgefuehrt werden -- nicht auf normalisiertem Text, damit ein
+wird nie ausgefuehrt. Fuer COMPUTE laeuft der Abgleich auf den argv-Tokens, die
+wirklich ausgefuehrt werden -- nicht auf normalisiertem Text, damit ein
 allowlist-aehnlich aussehender String nie als etwas anderes laeuft. Das
 Netzwerk ist im Sandkasten aus (bestehende `--unshare-net`-Semantik): ein
 Netzversuch scheitert. Der Default-Eintrag passt zum bemyself-Repo: in einem

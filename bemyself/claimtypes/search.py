@@ -11,8 +11,9 @@ halts. A finite search can never prove non-halting; the verdict text names
 that boundary explicitly, and the type must never be readable as a
 non-halting proof. A machine that halts within the claimed steps makes the
 claim REFUTED, with the halt as its witness; a machine that does not parse, a
-step count that is not a plain non-negative integer, or a claim beyond the
-executable limit stays UNVERIFIABLE.
+step count that is not a plain non-negative integer, a step count of 0 (a
+zero-step run observes nothing), or a claim beyond the executable limit stays
+UNVERIFIABLE.
 
 Cost: the default limit means roughly one second of simulation for one claim
 at the limit; the limit bounds each claim, not the report.

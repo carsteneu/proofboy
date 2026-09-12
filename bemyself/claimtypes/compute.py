@@ -376,11 +376,16 @@ def check(claim, ctx):
         if returncode != 0:
             # Completion gate: a run that did not complete is never turned
             # into a verdict, whatever its bytes look like.
+            status = (
+                f"was killed by signal {-returncode}"
+                if returncode < 0
+                else f"exited with status {returncode}"
+            )
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command exited with status {returncode}; "
+                f"command {status}; "
                 "no certificate from a run that did not complete" + note_suffix,
                 sandboxed=sandboxed,
             )
