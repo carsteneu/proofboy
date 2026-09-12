@@ -88,8 +88,9 @@ Die Simulation laeuft in-process im selben Simulator wie HALT (kein
 Subprozess, kein Netz, kein Repo-, kein Sandkastenbezug). Urteile:
 `CONFIRMED` nur fuer genau diesen begrenzten Lauf ohne Halt; `REFUTED`, wenn
 die Maschine frueher haelt (der Halt ist der Beleg); `UNVERIFIABLE` bei
-unparsebarer Maschine, ungueltiger Schrittzahl oder einem Wert ueber dem
-ausfuehrbaren Limit.
+unparsebarer Maschine, ungueltiger Schrittzahl, einem Wert von 0 (ein
+Nullschritt-Lauf beobachtet nichts) oder einem Wert ueber dem ausfuehrbaren
+Limit.
 
 Die Grenze ist Doktrin-Kern: Eine endliche Suche kann Nicht-Halten nicht
 beweisen. Der Urteilstext sagt das ausdruecklich ("a bounded search of N
@@ -115,19 +116,24 @@ Wurzel, beschreibbarer Checkout, eigener Netz-/PID-/UTS-Namensraum,
 `--die-with-parent`). stdout wird beim Lesen gehasht (Streaming), der
 SHA-256 mit dem behaupteten verglichen.
 
-Urteile: `CONFIRMED` nur bei exakt gleichem Hash (der Exit-Code ist Beleg,
-nicht Kriterium); `REFUTED` bei abweichendem Hash; `UNVERIFIABLE` bei
-Kommando ausserhalb der COMPUTE-Allowlist, fehlendem/nicht aufloesbarem
-Commit, nicht gefundenem Programm (Vorabpruefung), abgelehnten Argumenten
-(dieselben Escape-Regeln), nicht nutzbarem Sandkasten bei
-`--sandbox=require`, Timeout (300 s) oder stdout ueber 64 MiB (mehr wird
-abgelehnt, nie gekuerzt). Kein Kommando laeuft je ohne Allowlist, ohne
-Shell-Interpretation und ohne Sandkastenpfad.
+Urteile: `CONFIRMED` nur, wenn der Lauf mit Exit 0 abgeschlossen wurde UND der
+Hash exakt stimmt -- ein fehlgeschlagenes Kommando wird nie zertifiziert
+(Exit-Code als Abschluss-Gate, nicht als Hash-Kriterium); `REFUTED` bei
+abweichendem Hash nach sauberem Abschluss; `UNVERIFIABLE` bei Kommando
+ausserhalb der COMPUTE-Allowlist (Abgleich auf den ausgefuehrten
+argv-Tokens), fehlendem/nicht aufloesbarem Commit, nicht gefundenem Programm
+(Vorabpruefung), abgelehnten Argumenten (dieselben Escape-Regeln), nicht
+nutzbarem Sandkasten bei `--sandbox=require`, Timeout (300 s), stdout ueber
+64 MiB (mehr wird abgelehnt, nie gekuerzt) oder Exit-Status ungleich 0. Kein
+Kommando laeuft je ohne Allowlist, ohne Shell-Interpretation und ohne
+Sandkastenpfad. Die Limits begrenzen einen Lauf, nicht die Meldung.
 
 Die COMPUTE-Allowlist ist getrennt und minimal: Default
-`python3 -m bemyself.turing` (der Simulator dieses Repos); `--allow <prefix>`
-(wiederholbar) erweitert sie zusammen mit der Test-Allowlist. Das Netzwerk
-ist im Sandkasten aus (bestehende `--unshare-net`-Semantik).
+`python3 -m bemyself.turing` (der Simulator dieses Repos; in einem anderen
+Repo laeuft er nur, wenn der gepinnte Commit das Paket mitbringt);
+`--allow <prefix>` (wiederholbar) erweitert sie zusammen mit der
+Test-Allowlist. Das Netzwerk ist im Sandkasten aus (bestehende
+`--unshare-net`-Semantik).
 
 Grenze: Der Hash belegt die Ausgabe des Kommandos auf dem gepinnten Commit,
 nicht die Bedeutung der Rechnung; der Checkout bringt seinen eigenen Code

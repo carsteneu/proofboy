@@ -469,7 +469,7 @@
     {
       "name": "f18-compute-wrong-hash",
       "group": "false",
-      "note": "Falsch: COMPUTE behauptet einen stdout-Hash, den das Kommando im Fixture-Checkout nicht erzeugt (das Modul gibt es dort nicht).",
+      "note": "Falsch: COMPUTE behauptet einen stdout-Hash, den das Kommando im Fixture-Checkout nicht erzeugt (das Stub-Modul laeuft sauber durch, gibt aber 'fixture' aus).",
       "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
       "targets": [
         "compute"
@@ -478,7 +478,7 @@
       "expect_verdicts": {
         "compute": "REFUTED"
       },
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: b8b6c314a491c00e09b66d60bf2b0fd68a1013d4]`\n[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 2d4eec116f5601f8170fca8b3510927c9009fb3a]`\n[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
     }
   ]
 }

@@ -3,11 +3,12 @@
 A claim type is one module in this package plus one entry in
 :data:`CLAIM_TYPES`: ``pattern`` finds its markers in a report line, ``parse``
 turns one match into the claim's fields, ``check`` re-derives the claim
-against the world, and ``needs_repo`` declares whether that check reads a git
-repository. The report parser (:mod:`bemyself.report`) and the checker
-dispatcher (:func:`bemyself.checks.run_claim`) both consult this registry, so
-a new type needs no change to either -- see README, "Neuen Behauptungstyp
-hinzufuegen".
+against the world, ``needs_repo`` declares whether that check reads a git
+repository, and ``binds_commit`` declares whether the parser binds the claim
+to the report's single hash-shaped commit. The report parser
+(:mod:`bemyself.report`) and the checker dispatcher
+(:func:`bemyself.checks.run_claim`) both consult this registry, so a new type
+needs no change to either -- see README, "Neuen Behauptungstyp hinzufuegen".
 """
 
 from __future__ import annotations

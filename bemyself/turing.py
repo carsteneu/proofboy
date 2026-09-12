@@ -107,8 +107,9 @@ def run(machine: Machine, max_steps: int) -> RunResult:
     """Run the machine for at most ``max_steps`` transitions.
 
     Returns a :class:`RunResult`: ``halts`` is True when the run ended in the
-    halt state (with ``steps`` counting that final transition), False when the
-    limit was reached first.
+    halt state (with ``steps`` counting that final transition; an undefined
+    pair halts without counting a step), False when the limit was reached
+    first.
     """
     if max_steps < 0:
         raise ValueError("max_steps must be non-negative")
@@ -121,7 +122,10 @@ def run(machine: Machine, max_steps: int) -> RunResult:
     state = 0
     ones = 0
     step = 0
-    while step < max_steps:
+    # The budget is checked after the transition lookup: a pair without a
+    # transition halts the machine before executing, even when the budget is
+    # already exhausted (max_steps=0).
+    while True:
         if position >= 0:
             symbol = right[position] if position < right_len else 0
         else:
@@ -132,6 +136,8 @@ def run(machine: Machine, max_steps: int) -> RunResult:
             # No transition for this pair: the machine halts before executing,
             # so the attempt is not a step.
             return RunResult(True, step, ones)
+        if step >= max_steps:
+            return RunResult(False, step, ones)
         step += 1
         if write != symbol:
             if position >= 0:

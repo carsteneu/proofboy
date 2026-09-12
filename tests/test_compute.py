@@ -258,6 +258,49 @@ class ComputeCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("limit", result.reason)
 
+    def test_failed_command_is_never_certified(self):
+        # A run that did not complete certifies nothing, even when the claimed
+        # digest is sha256 of the empty stdout it happened to produce.
+        repo, commit = self.probe_repo("failed", "import sys\nsys.exit(3)\n")
+        result = self.check_report("python3 emit.py", digest(""), commit, self.ctx(repo.path))
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("exited with status 3", result.reason)
+        self.assertIn("bytes=0", result.output)
+
+    def test_write_limit_abort_is_not_a_refutation(self):
+        # The verifier's own RLIMIT_FSIZE kills a stderr flood before the
+        # command prints; such a run must stay unverifiable, not refute a
+        # possibly true claim.
+        repo, commit = self.probe_repo(
+            "stderr-flood", "import sys\nsys.stderr.write('x' * 20_000_000)\nprint('hello')\n"
+        )
+        result = self.check_report(
+            "python3 emit.py", digest("hello\n"), commit, self.ctx(repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("did not complete", result.reason)
+
+    def test_a_relative_path_hit_cannot_vouch_for_the_program(self):
+        # A relative PATH entry resolves against the child's cwd (the
+        # checkout), not the verifier's, so it must not clear the pre-flight.
+        repo, commit = self.probe_repo("relative-which", _EMIT)
+        ctx = self.ctx(repo.path, compute_allowlist=("mytool",))
+        with mock.patch("bemyself.claimtypes.compute.shutil.which", return_value="bin/mytool"):
+            result = self.check_report("mytool --version", digest("x"), commit, ctx)
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("not found", result.reason)
+
+    def test_unicode_space_cannot_slip_through_the_allowlist(self):
+        # The allowlist is matched on the argv tokens that actually execute:
+        # a non-breaking space is not shell whitespace, so this command is a
+        # different argv and must not inherit the allowlisted prefix.
+        repo, commit = self.probe_repo("nbsp", _EMIT)
+        result = self.check_report(
+            "python3\u00a0emit.py", digest("compute: 42\n"), commit, self.ctx(repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("compute allowlist", result.reason)
+
     def test_require_without_bwrap_never_runs_the_command(self):
         repo, commit = self.probe_repo("require-missing", _EMIT)
         ctx = self.ctx(repo.path, sandbox="require")
@@ -303,7 +346,11 @@ class ComputeCheckTest(unittest.TestCase):
         sandboxed = self.check_report(
             command, digest("connected\n"), commit, self.ctx(repo.path, sandbox="require")
         )
-        self.assertIs(sandboxed.verdict, Verdict.REFUTED, sandboxed.output)
+        # The sandboxed attempt fails (no network) -> no completed run, hence
+        # unverifiable; the contrast to the confirmed unsandboxed run above is
+        # the isolation proof.
+        self.assertIs(sandboxed.verdict, Verdict.UNVERIFIABLE, sandboxed.output)
+        self.assertIn("did not complete", sandboxed.reason)
         self.assertIn("bytes=0", sandboxed.output)
         self.assertIs(sandboxed.sandboxed, True)
 

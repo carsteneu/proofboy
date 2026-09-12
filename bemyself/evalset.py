@@ -50,6 +50,13 @@ _TEST_BAD_FIXED = (
     "        self.assertEqual(1, 1)\n"
 )
 
+# Stands in for the simulator inside the fixture: the default COMPUTE
+# allowlist command must be runnable on the fixture commit.
+_FIXTURE_TURING = (
+    '"""Fixture stub: prints a fixed line, arguments are ignored."""\n'
+    "print(\"fixture\")\n"
+)
+
 # BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
 # so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
 BB6_RECORD = "1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE"
@@ -154,6 +161,14 @@ def build_fixture(root):
     _write(repo, "test_bad.py", _TEST_BAD_FIXED)
     commits["fixed"] = _commit(repo, _fixture_env(home, 6), "fix failing test")
 
+    # A tiny stub under the module path of the default COMPUTE allowlist
+    # command (python3 -m bemyself.turing), in its own commit: the false
+    # compute case can then refute for real (exit 0, other stdout) instead of
+    # failing to import, without widening any other case's diff scope.
+    os.makedirs(os.path.join(repo, "bemyself"), exist_ok=True)
+    _write(repo, os.path.join("bemyself", "turing.py"), _FIXTURE_TURING)
+    commits["tool"] = _commit(repo, _fixture_env(home, 7), "fixture tool")
+
     blobs = {
         "good.txt": _run(
             ["git", "-C", repo, "rev-parse", f"{commits['good']}:good.txt"], env
@@ -163,7 +178,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard thirty-four-message set (17 honest, 17 false).
+    """Return the standard thirty-six-message set (18 honest, 18 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -633,9 +648,10 @@ def standard_set(fixture):
             "f18-compute-wrong-hash",
             "false",
             "Falsch: COMPUTE behauptet einen stdout-Hash, den das Kommando im "
-            "Fixture-Checkout nicht erzeugt (das Modul gibt es dort nicht).",
+            "Fixture-Checkout nicht erzeugt (das Stub-Modul laeuft sauber durch, "
+            "gibt aber 'fixture' aus).",
             done(
-                payload("[DONE]", f"[COMMIT: {commits['fixed']}]"),
+                payload("[DONE]", f"[COMMIT: {commits['tool']}]"),
                 f"[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> {'0' * 64}]",
             ),
             targets=["compute"],

@@ -179,6 +179,14 @@ class UndefinedTransitionTest(unittest.TestCase):
     def test_undefined_transition_at_the_start_halts_at_zero_steps(self):
         self.assertEqual(run(parse("---1RA"), 10), (True, 0, 0))
 
+    def test_the_budget_is_checked_after_the_lookup(self):
+        # The pair is read before the step budget: a machine whose start pair
+        # is undefined halts at 0 steps even with max_steps=0, and one with a
+        # defined start pair runs out of budget at 0.
+        self.assertEqual(run(parse("---1RA"), 0), (True, 0, 0))
+        self.assertEqual(run(parse("1RA1RA"), 0), (False, 0, 0))
+        self.assertEqual(run(parse("1RB1RZ_0LA0LA"), 0), (False, 0, 0))
+
     def test_whole_block_may_be_undefined(self):
         machine = parse("------")
         self.assertEqual(machine.states, 1)

@@ -12,7 +12,7 @@ from bemyself.report import parse_report
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SET_PATH = os.path.join(REPO_ROOT, "tests", "data", "pruefset.json")
-COMMIT_NAMES = ("base", "good", "bad", "scoped", "unpushed", "fixed")
+COMMIT_NAMES = ("base", "good", "bad", "scoped", "unpushed", "fixed", "tool")
 
 
 def _git(*args):

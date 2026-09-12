@@ -14,16 +14,23 @@ commands may run at all.
 The sandbox helpers come from :mod:`bemyself.checks`; the orchestration lives
 here so that the P6 test-run path stays untouched.
 
-Verdicts: CONFIRMED when the digest of stdout matches the claim (the exit code
-is recorded as evidence, not as the criterion -- the claim is about stdout);
-REFUTED when the digest differs; UNVERIFIABLE when the command is not in the
-COMPUTE allowlist, names no bindable commit, does not exist, cannot run in the
-sandbox, times out, or printed more than the documented output limit (a larger
-stream is refused, never truncated into a verdict).
+Verdicts: CONFIRMED only for a run that completed (exit code 0) whose stdout
+digest matches the claim; a failed command is never certified, however its
+bytes look. REFUTED when a completed run's digest differs. UNVERIFIABLE when
+the command is not in the COMPUTE allowlist, names no bindable commit, does
+not exist, cannot run in the sandbox, times out, printed more than the
+documented output limit (a larger stream is refused, never truncated into a
+verdict), or left a non-zero exit status. The exit code is not the digest
+criterion, but it is a completion gate: no certificate without a completed
+run. Note that the default allowlist entry is the simulator of this
+repository: in another repository it runs only when the pinned commit carries
+that package.
 
 Limits: ``COMPUTE_TIMEOUT`` bounds one run; ``MAX_COMPUTE_BYTES`` bounds the
 stdout that is hashed (streamed, so memory stays constant and no disk is
-used). The sandbox has no network: a command that tries to reach it fails.
+used). The limits bound one claim, not the report: a report may carry many
+COMPUTE claims, each with its own run. The sandbox has no network: a command
+that tries to reach it fails.
 """
 
 from __future__ import annotations
@@ -37,13 +44,9 @@ import shutil
 import subprocess
 import tempfile
 import time
-from typing import TYPE_CHECKING
 
 from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
 from bemyself.model import ClaimType, Result, Verdict
-
-if TYPE_CHECKING:
-    from bemyself.checks import Ctx
 
 # Command prefixes a [COMPUTE] claim may run. Deliberately minimal: by default
 # only the simulator entry that ships with this repository; any other
@@ -88,18 +91,39 @@ def parse(match, raw):
     return {"command": command, "sha256": digest_text, "commit": None}
 
 
+def _allowed_by_tokens(argv, allowlist):
+    """Allowlist match on the argv tokens that actually execute.
+
+    Token equality, not string prefix: an allowlisted prefix must be exactly
+    the leading tokens of the argv, so the string that is compared is the
+    string that will run -- no whitespace normalization may let an
+    allowlisted-looking command execute as something else.
+    """
+    for prefix in allowlist:
+        try:
+            tokens = shlex.split(prefix)
+        except ValueError:
+            continue
+        if tokens and argv[: len(tokens)] == tokens:
+            return True
+    return False
+
+
 def _missing_program(program, checkout):
     """The program cannot exist in the sandbox: return it, else None.
 
     The sandbox binds the host root read-only and passes PATH through, so the
     host lookup answers the same question the sandboxed exec would: a bare
-    name needs a PATH entry, a path-form name must exist in the checkout.
+    name needs an absolute PATH entry, a path-form name must exist in the
+    checkout. A relative PATH entry would resolve against the child's cwd,
+    not this process's, so it cannot vouch for the program.
     """
     if "/" in program:
         if os.path.isfile(os.path.join(checkout, program)):
             return None
         return program
-    if shutil.which(program) is None:
+    found = shutil.which(program)
+    if found is None or not os.path.isabs(found):
         return program
     return None
 
@@ -161,12 +185,6 @@ def check(claim, ctx):
             command=command_text,
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
         )
-    if not checks._is_allowed(command_text, ctx.compute_allowlist):
-        return Result(
-            Verdict.UNVERIFIABLE,
-            command=command_text,
-            reason=f"command is not in the compute allowlist: {command_text!r}",
-        )
     try:
         argv = shlex.split(command_text)
     except ValueError as exc:
@@ -175,6 +193,12 @@ def check(claim, ctx):
         )
     if not argv:
         return Result(Verdict.UNVERIFIABLE, command=command_text, reason="empty command")
+    if not _allowed_by_tokens(argv, ctx.compute_allowlist):
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_text,
+            reason=f"command is not in the compute allowlist: {command_text!r}",
+        )
     strict = checks._is_wrapper_command(argv)
     escaping = [arg for arg in argv if checks._arg_escapes_checkout(arg, strict=strict)]
     if escaping:
@@ -349,6 +373,17 @@ def check(claim, ctx):
         raw_err, _ = checks._tail_open(err)
         if raw_err.strip():
             output += "\nstderr:\n" + checks._last_lines(raw_err)
+        if returncode != 0:
+            # Completion gate: a run that did not complete is never turned
+            # into a verdict, whatever its bytes look like.
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                output,
+                f"command exited with status {returncode}; "
+                "no certificate from a run that did not complete" + note_suffix,
+                sandboxed=sandboxed,
+            )
         if actual == claimed.lower():
             return Result(
                 Verdict.CONFIRMED,

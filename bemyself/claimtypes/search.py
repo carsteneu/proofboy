@@ -21,14 +21,10 @@ at the limit; the limit bounds each claim, not the report.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
 from bemyself import turing
 from bemyself.claimtypes.halt import _count, _split_body
 from bemyself.model import ClaimType, Result, Verdict
-
-if TYPE_CHECKING:
-    from bemyself.checks import Ctx
 
 # The largest step count a [SEARCHED] claim may ask the simulator to execute.
 # Deliberately bounded and separate from the [HALT] limit: a search claim is
@@ -69,6 +65,12 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             reason="the claimed step count is not a non-negative integer: "
             f"{claim.fields.get('steps')!r}",
+        )
+    if claimed == 0:
+        # A zero-step run observes nothing, so it certifies nothing.
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="a search of 0 steps observes nothing; the claim needs at least one step",
         )
     if claimed > ctx.search_limit:
         return Result(

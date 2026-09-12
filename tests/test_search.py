@@ -140,6 +140,12 @@ class SearchCheckTest(unittest.TestCase):
                 self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
                 self.assertEqual(result.command, "")
 
+    def test_a_zero_step_search_is_unverifiable(self):
+        # A zero-step run observes nothing, so it certifies nothing.
+        result = self.check_report(f"[SEARCHED: {WALKER} -> 0]")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("observes nothing", result.reason)
+
     def test_huge_integer_is_unverifiable(self):
         result = self.check_report(f"[SEARCHED: {WALKER} -> {'9' * 5000}]")
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)

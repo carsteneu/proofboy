@@ -228,7 +228,8 @@ aus (in-process, ohne Repo, Subprozess und Sandkasten). Urteile: `bestaetigt`,
 wenn der Lauf nach genau den behaupteten Schritten ohne Halt endet;
 `widerlegt`, wenn die Maschine frueher haelt (der Halt ist der Beleg);
 `unpruefbar`, wenn die Maschine nicht parst, die Schrittzahl keine schlichte
-nichtnegative Ganzzahl ist oder das ausfuehrbare Limit uebersteigt.
+nichtnegative Ganzzahl ist, bei 0 liegt (ein Nullschritt-Lauf beobachtet
+nichts) oder das ausfuehrbare Limit uebersteigt.
 
 Was ein `bestaetigt` hier ausdruecklich **nicht** bedeutet: Es ist kein
 Beweis, dass die Maschine nie haelt. Eine endliche Suche kann Nicht-Halten
@@ -263,22 +264,29 @@ Netz-, PID- und UTS-Namensraum, `--die-with-parent`). stdout wird waehrend
 des Laufs gehasht (Streaming: die Ausgabegroesse kostet weder Gedaechtnis
 noch Platte); verglichen wird der SHA-256.
 
-Urteile: `bestaetigt`, wenn der Hash des stdout exakt dem behaupteten
-entspricht -- der Exit-Code steht als Beleg in der Ausgabe, ist aber nicht das
-Kriterium, denn die Behauptung gilt dem stdout; `widerlegt`, wenn der Hash
-abweicht. `unpruefbar` bleibt: ein Kommando ausserhalb der COMPUTE-Allowlist,
-ein fehlender oder nicht aufloesbarer Commit, ein nicht gefundenes Programm
-(Vorabpruefung vor dem Lauf), abgelehnte Argumente (dieselben Escape-Regeln
-wie bei Tests), ein nicht nutzbarer Sandkasten bei `--sandbox=require`, ein
-Timeout nach 300 s, oder mehr als 64 MiB stdout (mehr wird abgelehnt, nie
-gekuerzt in ein Urteil).
+Urteile: `bestaetigt` nur, wenn der Lauf sauber endete (Exit-Code 0) und der
+Hash des stdout exakt dem behaupteten entspricht -- ein fehlgeschlagenes
+Kommando wird nie zertifiziert, egal wie seine Bytes aussehen (der Exit-Code
+ist nicht das Hash-Kriterium, aber das Abschluss-Gate: kein Zertifikat ohne
+abgeschlossenen Lauf); `widerlegt`, wenn ein sauber abgeschlossener Lauf einen
+anderen Hash hat. `unpruefbar` bleibt: ein Kommando ausserhalb der
+COMPUTE-Allowlist, ein fehlender oder nicht aufloesbarer Commit, ein nicht
+gefundenes Programm (Vorabpruefung vor dem Lauf), abgelehnte Argumente
+(dieselben Escape-Regeln wie bei Tests), ein nicht nutzbarer Sandkasten bei
+`--sandbox=require`, ein Timeout nach 300 s, mehr als 64 MiB stdout (mehr wird
+abgelehnt, nie gekuerzt in ein Urteil) oder ein Exit-Status ungleich 0.
 
 Die COMPUTE-Allowlist ist bewusst minimal: standardmaessig nur
 `python3 -m bemyself.turing` (der Simulator dieses Repos). Weitere Rechnungen
 werden explizit geoeffnet: `--allow "praefix"` (wiederholbar) erweitert die
 Allowlist fuer Testlaeufe und COMPUTE gemeinsam; ein nicht erlaubtes Kommando
-wird nie ausgefuehrt. Das Netzwerk ist im Sandkasten aus (bestehende
-`--unshare-net`-Semantik): ein Netzversuch scheitert.
+wird nie ausgefuehrt. Der Abgleich laeuft auf den argv-Tokens, die wirklich
+ausgefuehrt werden -- nicht auf normalisiertem Text, damit ein
+allowlist-aehnlich aussehender String nie als etwas anderes laeuft. Das
+Netzwerk ist im Sandkasten aus (bestehende `--unshare-net`-Semantik): ein
+Netzversuch scheitert. Der Default-Eintrag passt zum bemyself-Repo: in einem
+anderen Repo laeuft er nur, wenn der gepinnte Commit das Paket mitbringt
+(sonst `unpruefbar`, nicht `bestaetigt`).
 
 Ein COMPUTE braucht das Repo (den gepinnten Commit): ohne `--repo` bricht
 `check --report` mit Exit 2 und einer Meldung ab, die den Typ nennt. Der
@@ -295,12 +303,14 @@ compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0
 ```
 
 **Grenzen:** Der Hash belegt, dass genau dieses Kommando auf genau diesem
-Commit diese Bytes auf stdout ausgibt. Er belegt nicht, dass die Rechnung
-"stimmt" -- die Bedeutung der Bytes bleibt die Aussage der Meldung. Der
-Checkout bringt seinen eigenen Code mit (das ist der Zweck: der Code des
-gepinnten Commits rechnet); wer den Commit kontrolliert, kontrolliert die
-Ausgabe. Der Sandkasten begrenzt wie bei Testlaeufen Schreiben, IP-Netz und
-Prozesssicht, nicht Lesezugriffe.
+Commit diese Bytes auf stdout ausgibt -- und nur, wenn der Lauf mit Exit 0
+endete. Er belegt nicht, dass die Rechnung "stimmt" -- die Bedeutung der Bytes
+bleibt die Aussage der Meldung. Der Checkout bringt seinen eigenen Code mit
+(das ist der Zweck: der Code des gepinnten Commits rechnet); wer den Commit
+kontrolliert, kontrolliert die Ausgabe. Der Sandkasten begrenzt wie bei
+Testlaeufen Schreiben, IP-Netz und Prozesssicht, nicht Lesezugriffe. Die
+Limits (Zeit, Ausgabe) begrenzen einen Lauf, nicht die Meldung: eine Meldung
+kann viele COMPUTE-Behauptungen tragen, jede mit eigenem Lauf.
 
 ## Neuen Behauptungstyp hinzufuegen
 
