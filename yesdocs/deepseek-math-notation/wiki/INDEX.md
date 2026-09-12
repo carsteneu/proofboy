@@ -23,8 +23,8 @@ Instanz unter Test: `deepseek/deepseek-flash` (Provider `deepseek`; Kontext 1.00
 interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Dies ist die
 **Lern- und Entwurfsphase**; Werkzeugbau und A/B-Tests folgen als separate Phase (Testplan: 05-04/05-05).
 
-**Umfang:** 30 Dateien in 5 Clustern · 69073 Wörter ·
-692 Quellenangaben (Datei-Summen) · 1061 Inline-Zitate · Visuals in `assets/` je Cluster.
+**Umfang:** 31 Dateien in 5 Clustern · 70329 Wörter ·
+696 Quellenangaben (Datei-Summen) · 1065 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 
@@ -34,6 +34,7 @@ graph LR
     F0101[01-offizielle-quellen]
     F0102[02-architektur-attention]
     F0103[03-tokenizer-zahlen]
+    F0103B[03b-tokenizer-v11-lexeme]
     F0104[04-training-faehigkeiten]
     F0105[05-benchmarks-grenzen]
     F0106[06-betrieb-umgebung]
@@ -108,12 +109,14 @@ graph LR
   F0506 --> F0401
   F0507 --> F0103
   F0507 --> F0405
+  F0103B --> F0103
+  F0103B --> F0507
   classDef C01 fill:#1f77b422,stroke:#1f77b4,stroke-width:1px
   classDef C02 fill:#2ca02c22,stroke:#2ca02c,stroke-width:1px
   classDef C03 fill:#d6272822,stroke:#d62728,stroke-width:1px
   classDef C04 fill:#ff7f0e22,stroke:#ff7f0e,stroke-width:1px
   classDef C05 fill:#9467bd22,stroke:#9467bd,stroke-width:1px
-  class F0101,F0102,F0103,F0104,F0105,F0106 C01
+  class F0101,F0102,F0103,F0103B,F0104,F0105,F0106 C01
   class F0201,F0202,F0203,F0204,F0205,F0206 C02
   class F0301,F0302,F0303,F0304,F0305 C03
   class F0401,F0402,F0403,F0404,F0405 C04
@@ -130,6 +133,7 @@ graph LR
 | [01-01-offizielle-quellen.md](01-modellprofil/01-01-offizielle-quellen.md) | DeepSeek-V4.1-Flash: Offizielle Quellen, kanonischer Name und API-Eckdaten | Verifiziert | 10 | 34 | 2 Img / 1 Diagr |
 | [01-02-architektur-attention.md](01-modellprofil/01-02-architektur-attention.md) | DeepSeek-V4.1-Flash: Architektur und Attention-Mechanik | Verifiziert | 5 | 52 | 3 Img / 0 Diagr |
 | [01-03-tokenizer-zahlen.md](01-modellprofil/01-03-tokenizer-zahlen.md) | DeepSeek-V4.1-Flash: Tokenizer, Zahlen-Tokenisierung und Mathe-Symbole | Verifiziert | 5 | 12 | 1 Img / 0 Diagr |
+| [01-03b-tokenizer-v11-lexeme.md](01-modellprofil/01-03b-tokenizer-v11-lexeme.md) | Tokenizer-Sonde V1.1: Messung der Denk-Sprache-Lexeme | Verifiziert | 4 | 4 | 0 Img / 0 Diagr |
 | [01-04-training-faehigkeiten.md](01-modellprofil/01-04-training-faehigkeiten.md) | DeepSeek-V4.1-Flash: Training, Reasoning-Modi und Fähigkeiten | Verifiziert | 4 | 47 | 1 Img / 0 Diagr |
 | [01-05-benchmarks-grenzen.md](01-modellprofil/01-05-benchmarks-grenzen.md) | DeepSeek-V4.1-Flash: Benchmarks, Stärken und Grenzen | Verifiziert | 11 | 51 | 2 Img / 0 Diagr |
 | [01-06-betrieb-umgebung.md](01-modellprofil/01-06-betrieb-umgebung.md) | Betriebsgrenzen dieser Instanz: lokale Konfiguration vs. offizielle API | Verifiziert | 4 | 11 | 1 Img / 0 Diagr |
