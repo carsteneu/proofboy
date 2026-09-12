@@ -1232,17 +1232,18 @@ class CheckerTest(unittest.TestCase):
             ctx,
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("timed out", result.reason)
         import time
 
         # The kill is asynchronous and load-dependent: poll for a bounded
         # window instead of assuming a fixed grace period is enough.
         deadline = time.monotonic() + 5
-        probe = subprocess.run(["pgrep", "-f", marker], capture_output=True, text=True)
+        probe = subprocess.run(["pgrep", "-xf", marker], capture_output=True, text=True)
         while probe.returncode == 0 and time.monotonic() < deadline:
             time.sleep(0.05)
-            probe = subprocess.run(["pgrep", "-f", marker], capture_output=True, text=True)
+            probe = subprocess.run(["pgrep", "-xf", marker], capture_output=True, text=True)
         if probe.returncode == 0:
-            subprocess.run(["pkill", "-f", marker], capture_output=True)
+            subprocess.run(["pkill", "-xf", marker], capture_output=True)
         self.assertNotEqual(probe.returncode, 0, "the grandchild survived the timeout")
 
     def test_tests_green_unverifiable_for_abbreviated_dangerous_option(self):
