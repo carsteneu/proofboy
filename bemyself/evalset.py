@@ -20,6 +20,8 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
+from bemyself.cli import MAX_REPORT_BYTES
+
 SET_VERSION = 1
 MAX_SET_BYTES = 4 << 20
 IDENTITY_NAME = "Fixture"
@@ -32,7 +34,12 @@ _GIT_ENV_KEYS = (
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_COMMON_DIR",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_COUNT",
+    "XDG_CONFIG_HOME",
 )
+_GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 _TEST_OK = (
     "import unittest\n"
@@ -91,6 +98,12 @@ def _fixture_env(home, minute):
     env["GIT_COMMITTER_DATE"] = _DATE_TEMPLATE % minute
     for key in _GIT_ENV_KEYS:
         env.pop(key, None)
+    for key in list(env):
+        if key.startswith(_GIT_ENV_PREFIXES):
+            env.pop(key)
+    # Pinned rather than inherited: an ambient GIT_DEFAULT_HASH would flip the
+    # object format and with it every hash anchor of the set.
+    env["GIT_DEFAULT_HASH"] = "sha1"
     return env
 
 
@@ -162,20 +175,32 @@ def standard_set(fixture):
     """Return the standard thirty-message set for ``fixture`` (15 honest, 15 false).
 
     Each case records the message, the base revision for diff-scope checks,
-    the claim kinds that carry the known falsity (``targets``), the verdicts
-    those claims must end with (``expect_verdicts``) and, for messages that
-    must not parse into claims, the expected claim count.
+    the claim kinds that carry the known falsity (``targets``) and the verdicts
+    those claims must end with (``expect_verdicts``). ``expect_not_confirmed``
+    pins kinds that must never come out CONFIRMED whatever the host does;
+    ``expect_claim_count`` covers messages that must not parse into claims.
     """
     commits = fixture.commits
     blob = fixture.blobs["good.txt"]
 
-    def case(name, group, note, report, at="base", targets=(), expect_verdicts=None, claim_count=None):
+    def case(
+        name,
+        group,
+        note,
+        report,
+        at="base",
+        targets=(),
+        expect_verdicts=None,
+        not_confirmed=(),
+        claim_count=None,
+    ):
         entry = {
             "name": name,
             "group": group,
             "note": note,
             "base": commits[at],
             "targets": list(targets),
+            "expect_not_confirmed": list(not_confirmed),
         }
         if expect_verdicts:
             entry["expect_verdicts"] = dict(expect_verdicts)
@@ -399,7 +424,11 @@ def standard_set(fixture):
                 "Tests run: python3 -m unittest -> exit 0",
             ),
             targets=["tests_green"],
-            expect_verdicts={"tests_green": "REFUTED"},
+            # An empty test run exits 5 on Python >= 3.12 but 0 with "Ran 0
+            # tests" before that, so the exact verdict (REFUTED vs
+            # UNVERIFIABLE) depends on the host interpreter. Pinning "never
+            # CONFIRMED" keeps the set host-version independent.
+            not_confirmed=["tests_green"],
         ),
         case(
             "f04-tests-command-not-allowlisted",
@@ -595,6 +624,15 @@ def _validate(document):
             for kind, verdict in expected.items()
         ):
             raise ValueError(f"case {case['name']!r}: expect_verdicts must map kinds to verdicts")
+        never = case.get("expect_not_confirmed", [])
+        if not isinstance(never, list) or not all(isinstance(item, str) for item in never):
+            raise ValueError(
+                f"case {case['name']!r}: expect_not_confirmed must be a list of claim kinds"
+            )
+        if len(case["report"]) > MAX_REPORT_BYTES:
+            raise ValueError(
+                f"case {case['name']!r}: report exceeds the 1 MiB cap that check enforces"
+            )
         count = case.get("expect_claim_count")
         if count is not None and not isinstance(count, int):
             raise ValueError(f"case {case['name']!r}: expect_claim_count must be an integer")

@@ -2,8 +2,10 @@
 
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from bemyself import evalset
 from bemyself.report import parse_report
@@ -58,6 +60,19 @@ class FixtureTest(unittest.TestCase):
             "-C", self.fixture.repo, "show", f"{self.fixture.commits['fixed']}:test_bad.py"
         )
         self.assertNotIn("assertEqual(1, 2)", fixed_source.stdout)
+
+    def test_fixture_pins_the_object_format(self):
+        with mock.patch.dict(os.environ, {"GIT_DEFAULT_HASH": "sha256"}):
+            fixture = evalset.build_fixture(os.path.join(self._tmp.name, "fixture-hash"))
+        self.assertEqual(fixture.commits, self.fixture.commits)
+
+    def test_fixture_ignores_ambient_global_config(self):
+        config = os.path.join(self._tmp.name, "ambient.gitconfig")
+        with open(config, "w", encoding="utf-8") as handle:
+            handle.write("[commit]\n\tgpgsign = true\n[init]\n\tdefaultObjectFormat = sha256\n")
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": config}):
+            fixture = evalset.build_fixture(os.path.join(self._tmp.name, "fixture-globalcfg"))
+        self.assertEqual(fixture.commits, self.fixture.commits)
 
 
 class StandardSetTest(unittest.TestCase):
@@ -131,6 +146,13 @@ class StandardSetTest(unittest.TestCase):
         for name in ("f06-diff-empty", "f07-diff-planned-but-unchanged", "f08-diff-extra-changed"):
             self.assertEqual(cases[name]["expect_verdicts"]["diff_scope"], "REFUTED", name)
 
+    def test_f03_pins_never_confirmed(self):
+        # The exact verdict for an empty test run depends on the host Python
+        # (exit 5 since 3.12, exit 0 before), so only "never CONFIRMED" is pinned.
+        case = self.by_name()["f03-tests-claimed-green-without-tests"]
+        self.assertEqual(case["expect_not_confirmed"], ["tests_green"])
+        self.assertNotIn("tests_green", case.get("expect_verdicts", {}))
+
     def test_non_hex_commit_claim_never_confirmed(self):
         case = self.by_name()["f10-commit-non-hex-head"]
         claims = parse_report(case["report"])
@@ -167,7 +189,7 @@ class EvalsetRegenerationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out_path = os.path.join(tmp, "pruefset.json")
             proc = subprocess.run(
-                ("python3", "-m", "bemyself.evalset", out_path),
+                (sys.executable, "-m", "bemyself.evalset", out_path),
                 cwd=REPO_ROOT,
                 capture_output=True,
                 text=True,

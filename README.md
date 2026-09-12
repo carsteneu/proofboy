@@ -101,7 +101,10 @@ Der Exit-Code der Meldung wird zusaetzlich ausgewiesen, ist aber nicht das
 Mass: eine ehrliche Teil-Behauptung darf bestaetigt werden, waehrend die
 falsche unpruefbar bleibt. Markierte Urteile und erwartete Behauptungszahlen
 stehen im Set; `eval` prueft sie maschinell und zaehlt jeden Verstoss als
-verfehlte Erwartung.
+verfehlte Erwartung — ebenso `expect_not_confirmed`-Verstoesse und markierte
+Arten, die der Report gar nicht hergibt. Case-Reports unterliegen derselben
+1-MiB-Grenze wie beim `check`. Je nebenlaeufigem Lauf ein eigenes `--tmp`
+waehlen; der Fixture-Bau ist nicht gelockt.
 
 ## Messlatte
 

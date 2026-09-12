@@ -69,8 +69,10 @@ class EvalEngineTest(unittest.TestCase):
         self.assertEqual(
             self.verdicts("f02-tests-claimed-green-but-failing")["tests_green"], "REFUTED"
         )
-        self.assertEqual(
-            self.verdicts("f03-tests-claimed-green-without-tests")["tests_green"], "REFUTED"
+        # Host dependent (exit 5 on Python >= 3.12, exit 0 before); only "never
+        # CONFIRMED" is guaranteed, and that is what the set pins.
+        self.assertNotEqual(
+            self.verdicts("f03-tests-claimed-green-without-tests")["tests_green"], "CONFIRMED"
         )
         self.assertEqual(self.verdicts("f06-diff-empty")["diff_scope"], "REFUTED")
         self.assertEqual(self.verdicts("f07-diff-planned-but-unchanged")["diff_scope"], "REFUTED")
@@ -192,6 +194,20 @@ class SetLoadingTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             evalset.load_set(path)
 
+    def test_load_set_rejects_case_reports_over_the_check_cap(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"][0]["report"] = "x" * ((1 << 20) + 1)
+        path = self.write("big-report.json", evalset.set_bytes(document))
+        with self.assertRaises(ValueError):
+            evalset.load_set(path)
+
+    def test_load_set_rejects_bad_not_confirmed_pins(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"][0]["expect_not_confirmed"] = "tests_green"
+        path = self.write("bad-not-confirmed.json", evalset.set_bytes(document))
+        with self.assertRaises(ValueError):
+            evalset.load_set(path)
+
     def test_load_set_rejects_cases_without_reports(self):
         document = evalset.load_set(SET_PATH)
         del document["cases"][0]["report"]
@@ -278,6 +294,36 @@ class EvalCliTest(unittest.TestCase):
         proc = self.invoke(set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None)
         self.assertEqual(proc.returncode, 2)
         self.assertIn("set", proc.stderr.lower())
+
+    def test_errors_are_json_on_stdout_when_requested(self):
+        proc = self.invoke(
+            "--json", set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None
+        )
+        self.assertEqual(proc.returncode, 2)
+        payload = json.loads(proc.stdout)
+        self.assertFalse(payload["ok"])
+        self.assertIn("error", payload)
+
+    def test_symlinked_fixture_dir_is_refused(self):
+        target = os.path.join(self._tmp.name, "symlink-target")
+        os.makedirs(target, exist_ok=True)
+        root = os.path.join(self._tmp.name, "symlinked")
+        os.makedirs(root, exist_ok=True)
+        os.symlink(target, os.path.join(root, "fixture"))
+        proc = self.invoke(set_path=SET_PATH, tmp="symlinked")
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("symlink", proc.stderr)
+        self.assertEqual(os.listdir(target), [])
+
+    def test_symlinked_tmp_root_is_refused(self):
+        target = os.path.join(self._tmp.name, "root-target")
+        os.makedirs(target, exist_ok=True)
+        link = os.path.join(self._tmp.name, "root-link")
+        os.symlink(target, link)
+        proc = self.invoke(set_path=SET_PATH, tmp="root-link")
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("symlink", proc.stderr)
+        self.assertEqual(os.listdir(target), [])
 
     def test_failed_evaluation_exits_one(self):
         document = evalset.load_set(SET_PATH)

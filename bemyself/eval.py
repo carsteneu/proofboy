@@ -15,9 +15,10 @@ It reports four numbers:
 
 A false message without marked claims (an empty or hostile report) counts as
 detected when it does not exit 0. Cases may pin exact per-claim verdicts
-(``expect_verdicts``) and a claim count; a missed expectation fails the run
-even when the rates hold. Exit codes: 0 = thresholds and expectations met,
-1 = missed, 2 = usage, input or fixture error.
+(``expect_verdicts``), never-confirmed kinds (``expect_not_confirmed``) and a
+claim count; a missed expectation fails the run even when the rates hold, as
+does a marked target kind the report does not even yield. Exit codes: 0 =
+thresholds and expectations met, 1 = missed, 2 = usage, input or fixture error.
 """
 
 from __future__ import annotations
@@ -71,6 +72,17 @@ def _expectation_misses(case, claims, results):
         wrong = sorted({value for value in verdicts if value != expected})
         if wrong:
             misses.append(f"{kind}: {', '.join(wrong)} != {expected}")
+    for kind in case.get("expect_not_confirmed", []):
+        kind_results = [result for claim, result in results if claim.kind == kind]
+        if not kind_results:
+            misses.append(f"{kind}: no claim found, must never be CONFIRMED")
+        elif any(result.verdict is Verdict.CONFIRMED for result in kind_results):
+            misses.append(f"{kind}: CONFIRMED but must never be")
+    for kind in case.get("targets", []):
+        # A marked kind the parser no longer yields would make the case
+        # unmeasurable; that must fail the run instead of counting as detected.
+        if not any(claim.kind == kind for claim, _ in results):
+            misses.append(f"target {kind}: no claim found; the case cannot be measured")
     return misses
 
 
@@ -82,7 +94,13 @@ def _case_record(index, case, fixture, tmp_root):
         "group": case["group"],
         "exit": code,
         "claims": [
-            {"kind": claim.kind, "verdict": result.verdict.value, "reason": result.reason}
+            {
+                "kind": claim.kind,
+                "verdict": result.verdict.value,
+                "reason": result.reason,
+                "command": result.command,
+                "output": result.output,
+            }
             for claim, result in results
         ],
         "expectation_misses": _expectation_misses(case, claims, results),
@@ -197,34 +215,50 @@ def render_text(report):
     return sanitize("\n".join(lines))
 
 
+def _fail(args, message):
+    """A run-level error; ``--json`` gets the error object on stdout, like check."""
+    print(f"bemyself: {message}", file=sys.stderr)
+    if args.json:
+        print(
+            json.dumps(
+                {"set": os.path.abspath(args.set), "ok": False, "error": message},
+                indent=2,
+                ensure_ascii=True,
+            )
+        )
+    return EXIT_ERROR
+
+
 def run_eval(args):
     """CLI entry point for ``bemyself eval``."""
     set_path = os.path.abspath(args.set)
     try:
         document = evalset.load_set(set_path)
     except ValueError as exc:
-        print(f"bemyself: {exc}", file=sys.stderr)
-        return EXIT_ERROR
+        return _fail(args, str(exc))
     tmp_root = (
         os.path.abspath(args.tmp)
         if args.tmp
         else os.path.join(os.getcwd(), ".yesmem", "tmp", "eval")
     )
     fixture_root = os.path.join(tmp_root, "fixture")
+    for path in (tmp_root, fixture_root):
+        if os.path.islink(path):
+            # A symlinked tmp path would quietly redirect the fixture build
+            # outside the throwaway root; the check path refuses these too.
+            return _fail(args, f"refusing to use a symlinked tmp path: {path}")
     shutil.rmtree(fixture_root, ignore_errors=True)
     try:
         fixture = evalset.build_fixture(fixture_root)
     except (OSError, RuntimeError) as exc:
-        print(f"bemyself: cannot build the eval fixture: {exc}", file=sys.stderr)
-        return EXIT_ERROR
+        return _fail(args, f"cannot build the eval fixture: {exc}")
     anchors = document["fixture"]
     if anchors["base"] != fixture.commits["base"] or anchors["head"] != fixture.commits["fixed"]:
-        print(
-            "bemyself: the set was generated for a different fixture; "
+        return _fail(
+            args,
+            "the set was generated for a different fixture; "
             "regenerate it with: python3 -m bemyself.evalset <out.json>",
-            file=sys.stderr,
         )
-        return EXIT_ERROR
     report = evaluate(document, fixture, tmp_root, set_path)
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=True))
