@@ -135,7 +135,17 @@ class CliTest(unittest.TestCase):
         self.assertTrue(outputs[0].endswith(b"ok 500 499\n"))
 
     def test_usage_errors_exit_2(self):
-        for argv in ((), ("1",), ("x",), ("-1",), ("1.5",), ("2", "3"), ("1_0",), ("9" * 5000,)):
+        for argv in (
+            (),
+            ("1",),
+            ("x",),
+            ("-1",),
+            ("1.5",),
+            ("2", "3"),
+            ("1_0",),
+            ("9" * 5000,),  # above CPython's int() digit cap
+            ("9" * 4300,),  # int() passes, the factor table cannot be sized
+        ):
             with self.subTest(argv=argv[:1]):
                 err = io.StringIO()
                 with contextlib.redirect_stderr(err):

@@ -14,7 +14,7 @@ Aussage: Fuer jedes `n` von 2 bis 1.000.000 steht ein expliziter Zeuge
 verifiziert bis 1.000.000, kein Beweis der Vermutung: does not prove the
 conjecture (ueber `n > 1.000.000` sagt der Lauf nichts).
 
-Nachrechnung: das Paar `[COMMIT: <Branch-HEAD>]` +
+Nachrechnung: das Paar `[COMMIT: <finaler Branch-HEAD>]` +
 `[COMPUTE: <Kommando> -> <sha256>]` steht im Artefakt-Report des Zweigs
 (ungetrackt unter `.yesmem/tmp/`, wie bei den bisherigen Artefakten) und wird
 geprueft mit

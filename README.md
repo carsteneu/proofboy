@@ -432,19 +432,24 @@ Luecken-Semantik: findet die Suche fuer ein `n` keinen Zeugen, erscheint statt
 der Zeugenzeile `gap <n>` an genau der Stelle dieses `n` (kein stilles
 Ueberspringen), die Schlusszeile ist `gaps <N> <found> <missing>`, der
 Exit-Code ist 1. Exit 0 gibt es nur bei vollstaendigem Lauf, Exit 2 bei
-Nutzungsfehlern (fehlendes, nicht-schlichtes oder `< 2` Limit).
+Nutzungsfehlern (fehlendes, nicht-schlichtes, `< 2` oder auf dieser Maschine
+nicht rechenbares Limit).
 
 Laufzeit (diese Maschine, CPython, ein Prozess, stdlib): `N = 100.000`
 schreibt 3,9 MB in etwa 1 s, `N = 1.000.000` schreibt 46,9 MB in etwa 14 s;
 der CHECKER-Gegenlauf (frischer Checkout + bwrap + Lauf) braucht dafuer
-insgesamt etwa 15 s. Die Laufzeit ist empirisch, keine Schranke.
+insgesamt etwa 15 s. Die Laufzeit ist empirisch, keine Schranke. Der
+Speicherbedarf waechst linear mit `N`: die Merktabelle der kleinsten
+Primfaktoren hat `2N` Eintraege (gemessen: `N = 1.000.000` etwa 90 MB
+Peak-RSS); ein weit groesseres `N` kann am Speicher scheitern und endet dann
+mit Exit 2 statt eine Aussage zu erfinden.
 
 Artefakt dieses Branches: `python3 -m bemyself.experiments.erdos_straus
 1000000` -> sha256
 `e5b68dd1818d89f2c66d0e7b5a68bf906dbe7adc77c64dba015bf27058a4f89d`.
-Das Paar `[COMMIT: <Branch-HEAD>]` + `[COMPUTE: ... -> <sha256>]` steht im
-Artefakt-Report des Zweigs (ungetrackt unter `.yesmem/tmp/`, wie bei den
-bisherigen Artefakten); nachrechenbar mit
+Das Paar `[COMMIT: <finaler Branch-HEAD>]` + `[COMPUTE: ... -> <sha256>]`
+steht im Artefakt-Report des Zweigs (ungetrackt unter `.yesmem/tmp/`, wie bei
+den bisherigen Artefakten); nachrechenbar mit
 `python3 -m bemyself check --report <artefakt> --repo . --sandbox require
 --strict`.
 

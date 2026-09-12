@@ -33,7 +33,8 @@ line ``n a b c`` per ``n`` from 2 to N in ascending order, then either
 ``gaps <N> <found> <missing>``.
 
 Exit codes: ``0`` complete run (every ``n`` has a witness), ``1`` at least
-one gap, ``2`` usage error.
+one gap, ``2`` usage error -- including a limit that is syntactically valid
+but too large to compute on this machine.
 
 Runtime is empirical, not bounded: ``N = 100_000`` prints in about a second
 and ``N = 1_000_000`` in about fifteen seconds on the development machine
@@ -175,7 +176,15 @@ def main(argv=None):
     if limit < 2:
         print(f"{usage}: limit must be >= 2, got {limit}", file=sys.stderr)
         return 2
-    return run(limit, sys.stdout)
+    try:
+        return run(limit, sys.stdout)
+    except (OverflowError, MemoryError):
+        # The limit passed parsing but cannot be worked on here: the factor
+        # table alone takes 2 * N entries. Exit 2, never a fabricated result;
+        # partial lines on stdout are harmless because the exit code is
+        # non-zero.
+        print(f"{usage}: limit too large to compute on this machine ({len(args[0])} digits)", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
