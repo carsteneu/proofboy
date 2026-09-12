@@ -302,7 +302,8 @@ abweicht (die erste abweichende relative Position steht im Urteil);
 `unpruefbar`, wenn die Maschine nicht parst, `t1`/`t2` keine schlichten
 nichtnegativen Ganzzahlen sind, `t2 <= t1` gilt, `d` nicht schlicht
 ganzzahlig oder `0` ist, das ausfuehrbare Limit ueberstiegen wird oder ein
-Band die Materialisierungsschranke reisst.
+Band beziehungsweise das Vergleichsfenster selbst die
+Materialisierungsschranke `TAPE_LIMIT` reisst.
 
 Was das heisst -- und was nicht: Ein `bestaetigt` ist ein vollstaendiger
 Nicht-Halte-Beweis **fuer diese Maschine mit diesem Zertifikat**. Der Typ

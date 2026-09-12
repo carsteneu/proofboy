@@ -129,10 +129,10 @@ Zelle (die erste abweichende relative Position im erreichbaren Fenster steht
 im Urteil). `UNVERIFIABLE` bei unparsebarer Maschine, ungueltigen Werten
 (`t1`/`t2` schlicht nichtnegativ, `d` schlicht ganzzahlig und nicht `0`),
 `t2 <= t1`, Wert ueber dem ausfuehrbaren Limit (Default 10.000.000,
-`--cycle-limit N` bei `check` und `eval`) oder einem Band jenseits der
-Materialisierungsschranke `TAPE_LIMIT` (`2**24` Zellen, beide Bandhaelften
-zusammen) -- der Vergleich muss wirklich durchgefuehrt worden sein, es gibt
-keine Bestaetigung durch Auslassung.
+`--cycle-limit N` bei `check` und `eval`) oder einem Band beziehungsweise
+einem Vergleichsfenster jenseits der Materialisierungsschranke `TAPE_LIMIT`
+(`2**24` Zellen, beide Bandhaelften zusammen) -- der Vergleich muss wirklich
+durchgefuehrt worden sein, es gibt keine Bestaetigung durch Auslassung.
 
 Abgrenzung: `CONFIRMED` ist ein vollstaendiger Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat;
 der Typ ist kein allgemeiner Nicht-Halte-Pruefer (er sucht keine Zertifikate, er
