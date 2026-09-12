@@ -1,5 +1,6 @@
 """Tests for the deterministic fixture builder and the standard eval set."""
 
+import hashlib
 import os
 import subprocess
 import sys
@@ -12,7 +13,18 @@ from bemyself.report import parse_report
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SET_PATH = os.path.join(REPO_ROOT, "tests", "data", "pruefset.json")
-COMMIT_NAMES = ("base", "good", "bad", "scoped", "unpushed", "fixed", "tool", "experiment")
+COMMIT_NAMES = (
+    "base",
+    "good",
+    "bad",
+    "scoped",
+    "unpushed",
+    "fixed",
+    "tool",
+    "experiment",
+    "topic",
+    "merge",
+)
 
 
 def _git(*args):
@@ -123,12 +135,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 45)
+        self.assertEqual(len(cases), 50)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 23)
-        self.assertEqual(groups.count("false"), 22)
+        self.assertEqual(groups.count("genuine"), 25)
+        self.assertEqual(groups.count("false"), 25)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 45)
+        self.assertEqual(len(set(names)), 50)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -168,8 +180,33 @@ class StandardSetTest(unittest.TestCase):
             "g19-cycle-translated",
             "g20-cycle-unverifiable-certificate",
             "g21-compute-erdos-straus-stub",
+            "g24-artifact-digest",
+            "g25-merge-commit",
+            "f23-artifact-wrong-digest",
+            "f24-artifact-path-escapes-root",
+            "f25-merge-wrong-branch",
         ):
             self.assertIn(name, present, name)
+
+    def test_merge_and_artifact_cases_pin_their_evidence(self):
+        cases = self.by_name()
+        merge = cases["g25-merge-commit"]
+        self.assertEqual(merge["expect_verdicts"]["merge"], "CONFIRMED")
+        self.assertIn(self.fixture.commits["merge"], merge["report"])
+        self.assertEqual(merge["expect_verdicts"]["commit_exists"], "CONFIRMED")
+        wrong = cases["f25-merge-wrong-branch"]
+        self.assertEqual(wrong["targets"], ["merge"])
+        self.assertEqual(wrong["expect_verdicts"]["merge"], "REFUTED")
+        artifact = cases["g24-artifact-digest"]
+        self.assertEqual(artifact["expect_verdicts"]["artifact"], "CONFIRMED")
+        self.assertIn("good.txt", artifact["report"])
+        self.assertIn(hashlib.sha256(b"good\n").hexdigest(), artifact["report"])
+        for name, verdict in (
+            ("f23-artifact-wrong-digest", "REFUTED"),
+            ("f24-artifact-path-escapes-root", "UNVERIFIABLE"),
+        ):
+            self.assertEqual(cases[name]["targets"], ["artifact"], name)
+            self.assertEqual(cases[name]["expect_verdicts"]["artifact"], verdict, name)
 
     def test_experiment_case_pins_its_certificate(self):
         case = self.by_name()["g21-compute-erdos-straus-stub"]

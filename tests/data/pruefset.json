@@ -14,7 +14,9 @@
       "expect_not_confirmed": [],
       "expect_verdicts": {
         "commit_exists": "CONFIRMED",
-        "branch_pushed": "CONFIRMED"
+        "branch_pushed": "CONFIRMED",
+        "merge": "UNVERIFIABLE",
+        "deploy": "UNVERIFIABLE"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: no] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [BRANCH: main] [MERGE: no] config wiring`\n"
     },
@@ -597,6 +599,73 @@
         "coloring": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[COLORING: k=2 ; 1111]\n"
+    },
+    {
+      "name": "g24-artifact-digest",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: der SHA-256 von good.txt unter der Wurzel (Default: das Repo) stimmt -- der Pfad kommt aus der Meldung und wird auf die Wurzel konfiniert.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "artifact": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[ARTIFACT: good.txt -> 106675dc1490d5cdd6d1f0410731316ce93fc964c6cf6726e2b0d53e19688feb]\n"
+    },
+    {
+      "name": "f23-artifact-wrong-digest",
+      "group": "false",
+      "note": "Falsch: [ARTIFACT] behauptet einen falschen SHA-256 fuer eine Datei, die existiert; das Urteil nennt beide Werte.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "artifact"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "artifact": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[ARTIFACT: good.txt -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
+    },
+    {
+      "name": "f24-artifact-path-escapes-root",
+      "group": "false",
+      "note": "Boesartig: der [ARTIFACT]-Pfad zeigt mit '..' aus der Wurzel heraus; kein Lesevorgang ausserhalb, die Behauptung bleibt unpruefbar.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "artifact"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "artifact": "UNVERIFIABLE"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[ARTIFACT: ../outside.txt -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]\n"
+    },
+    {
+      "name": "g25-merge-commit",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: der gemeldete Commit ist der Merge des Branches topic; ein Parent ist dessen Tip, der andere liegt auf main.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "merge": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 89401913df0433dc6897ef6bffe31ff5b6ad8759] [MERGE: topic]`\n"
+    },
+    {
+      "name": "f25-merge-wrong-branch",
+      "group": "false",
+      "note": "Falsch: [MERGE: main] nennt den Zielbranch statt des gemergten Branches; main zeigt auf den Merge-Commit selbst, keiner seiner Parents ist sein Tip -- REFUTED mit den echten Parents.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "merge"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "merge": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 89401913df0433dc6897ef6bffe31ff5b6ad8759] [MERGE: main]`\n"
     }
   ]
 }
