@@ -149,6 +149,13 @@ def build_parser():
     check.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     check.add_argument("--tmp", help="directory for throwaway checkouts")
     check.add_argument(
+        "--artifact-root",
+        help=(
+            "directory that [ARTIFACT] paths resolve against; default is the "
+            "repository, and without either the claim stays UNVERIFIABLE"
+        ),
+    )
+    check.add_argument(
         "--allow",
         action="append",
         default=[],
@@ -505,6 +512,7 @@ def run_check(args, parser):
         cycle_limit=args.cycle_limit,
         coloring_limit=args.coloring_limit,
         compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST + tuple(args.allow),
+        artifact_root=os.path.abspath(args.artifact_root) if args.artifact_root else None,
     )
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 

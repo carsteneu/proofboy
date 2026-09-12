@@ -567,6 +567,44 @@ class CliTest(unittest.TestCase):
         claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
         self.assertEqual(claims["merge"]["verdict"], "UNVERIFIABLE")
 
+    def test_artifact_only_report_without_repo_uses_the_configured_root(self):
+        root = os.path.join(self._tmp.name, "artifact-root")
+        os.makedirs(root, exist_ok=True)
+        payload = b"artifact\n"
+        with open(os.path.join(root, "app.bin"), "wb") as handle:
+            handle.write(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        report = self.write_report(f"[ARTIFACT: app.bin -> {digest}]\n", name="artifact-only.txt")
+        proc = self.invoke_without_repo("--report", report, "--artifact-root", root, "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["artifact"]["verdict"], "CONFIRMED")
+
+    def test_artifact_without_any_root_stays_unverifiable(self):
+        report = self.write_report(
+            f"[ARTIFACT: app.bin -> {'a' * 64}]\n", name="artifact-noroot.txt"
+        )
+        proc = self.invoke_without_repo("--report", report, "--json")
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        self.assertNotIn("--repo is required", proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["artifact"]["verdict"], "UNVERIFIABLE")
+
+    def test_artifact_root_overrides_the_repo(self):
+        root = os.path.join(self._tmp.name, "override-root")
+        os.makedirs(root, exist_ok=True)
+        payload = b"override\n"
+        with open(os.path.join(root, "app.bin"), "wb") as handle:
+            handle.write(payload)
+        digest = hashlib.sha256(payload).hexdigest()
+        report = self.write_report(
+            f"[ARTIFACT: app.bin -> {digest}]\n", name="artifact-override.txt"
+        )
+        proc = self.invoke("--report", report, "--artifact-root", root, "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["artifact"]["verdict"], "CONFIRMED")
+
     def test_files_override_needs_the_repo_of_its_diff_scope_claim(self):
         proc = self.invoke_without_repo("--report", self.halt_report(), "--files", "a.txt")
         self.assertEqual(proc.returncode, 2)

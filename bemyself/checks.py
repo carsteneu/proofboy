@@ -146,6 +146,9 @@ class Ctx:
     coloring_limit: int = DEFAULT_COLORING_LIMIT
     # Command prefixes a [COMPUTE] claim may run; --allow extends it.
     compute_allowlist: tuple[str, ...] = DEFAULT_COMPUTE_ALLOWLIST
+    # The directory [ARTIFACT] paths resolve against; None falls back to the
+    # repository (--artifact-root overrides it).
+    artifact_root: str | None = None
 
 
 def _repo_command(ctx, *args):

@@ -35,7 +35,7 @@ class RegistryTest(unittest.TestCase):
         for kind in ("commit_exists", "branch_pushed", "diff_scope", "tests_green", "tests_exit"):
             with self.subTest(kind=kind):
                 self.assertTrue(kind_needs_repo(kind))
-        for kind in ("halt", "ident", "merge", "deploy", "nothing-registered"):
+        for kind in ("halt", "ident", "merge", "deploy", "artifact", "nothing-registered"):
             with self.subTest(kind=kind):
                 self.assertFalse(kind_needs_repo(kind))
 
