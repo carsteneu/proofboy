@@ -3,16 +3,21 @@ topic: deepseek-math-notation
 cluster: 04-offene-probleme
 title: Wahlkriterien für das Testfeld
 language: de
-status: Entwurf
+status: Verifiziert
 last_updated: 2026-09-12
 created_at: 2026-09-12
-sources_count: 19
-citations_count: 31
+sources_count: 16
+citations_count: 48
 images_count: 0
 diagrams_count: 1
 related: ["04-02-kandidaten-katalog", "04-04-empfehlung", "05-entwurf-testplan"]
 tags: [wahlkriterien, testfeld, verifikation, notation, ab-test]
-persona_review: {}
+persona_review:
+  personas_tested: [Engineer, Executive]
+  gaps_found: 9
+  gaps_fixed: 9
+  gaps_deferred: ["Harness-Spezifikation → 05-04 (geplant)", "Shortlist-Ergebnis → 04-04", "CLI-Aufrufdetails → 05-04 (geplant)", "Trainings-Cutoff-Abgleich → 01-04 (geplant)", "Kosten/Fristen/Abbruchkriterien → 05-04/05-06 (geplant)", "Executive-Entscheidungsvorlage → 04-04"]
+  note: "Reviewer meldeten 9 Punkte; 3 datei-intern behoben (K5-Zählverweis, §5-CLI-/Delegationshinweis, K7-Verweis auf 04-02); 6 Cross-Cluster-Punkte explizit an die genannten geplanten Dateien delegiert (gaps_deferred), nicht stumm gelassen."
 ---
 
 # Wahlkriterien für das Testfeld
@@ -89,7 +94,7 @@ Die Prüfanker selbst folgen der lokalen Prüfer-Doktrin: Verdicts sind `CONFIRM
 **Operationalisierung.**
 - Die Aufgabe erzeugt **Symbolstrukturen** (Traces, Regeln, Färbungen, Tripel), nicht nur Ein-Zahl-Antworten; sonst gibt es nichts, worauf Notation wirken könnte.
 - Es gibt mindestens **zwei vergleichbare Encodings** derselben Aufgabe — die Bedingung für ein A/B-Design mit Notation als einzigem Faktor.
-- Die Metrik ist **automatisch messbar** (Verifier-Verdikt, Token-Zählung, Schritt-Zähler).
+- Die Metrik ist **automatisch messbar** (Verifier-Verdikt; Token-Zählung über den Tokenizer des Zielmodells — Details im Cluster 01, geplante Datei `01-03-tokenizer-zahlen.md`; Schritt-Zähler im Harness, geplante Datei `05-04-test-harness.md`).
 
 **Bezug.** Die Wirkmechanismen (Tokenizer-Effekte auf Arithmetik, Format-Sensitivität, Kontext-Distanz) sind Gegenstand von Cluster 02; K5 verlangt nur, dass das Testfeld diese Mechanismen überhaupt ansprechen kann [Masterplan (lokale Quelle)](../../PLAN.md, accessed 2026-09-12). *Eigene Analyse:* Die stärksten Kandidaten dafür sind Aufgaben, in denen eine **lange deterministische Kette** kompakt notiert und schrittweise verfolgt werden muss — Turingmaschinen-Läufe, Collatz-artige Iterationen, Trajektorien — weil dort jede Notationseinsparung pro Schritt proportional zur Aufgabengröße wirkt.
 
@@ -103,7 +108,7 @@ Die Prüfanker selbst folgen der lokalen Prüfer-Doktrin: Verdicts sind `CONFIRM
 
 **Definition.** Ein Teil der Aufgabe stammt aus einem Bereich, dessen Antworten nicht im Trainingsmaterial des Modells stehen können — oder die Aufgabe ist lokal randomisiert und damit memorierungsresistent.
 
-**Operationalisierung.** Entstehungsdatum der Fakten (Holdout-Listen mit Stand August 2026, Champion-Maschinen von 2025) gegen den Trainings-Cutoff des Zielmodells (siehe Cluster 01, geplante Datei `01-04-training-faehigkeiten.md`); alternativ lokal generierte Instanzen (z. B. zufällige Maschinen aus der Seed-Datenbank) [BB(6) – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/BB(6), accessed 2026-09-12) [Method – bbchallenge](https://bbchallenge.org/method, accessed 2026-09-12). *Eigene Analyse:* Dieses Kriterium ist ein Bonus, kein Gate — es schützt die Aussagekraft, ersetzt aber keine Prüfbarkeit.
+**Operationalisierung.** Entstehungsdatum der Fakten (Holdout-Listen mit Stand August 2026 — Definition der Holdout-Zählung: [04-02](04-02-kandidaten-katalog.md); Champion-Maschinen von 2025) gegen den Trainings-Cutoff des Zielmodells (siehe Cluster 01, geplante Datei `01-04-training-faehigkeiten.md`); alternativ lokal generierte Instanzen (z. B. zufällige Maschinen aus der Seed-Datenbank) [BB(6) – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/BB(6), accessed 2026-09-12) [Method – bbchallenge](https://bbchallenge.org/method, accessed 2026-09-12). *Eigene Analyse:* Dieses Kriterium ist ein Bonus, kein Gate — es schützt die Aussagekraft, ersetzt aber keine Prüfbarkeit.
 
 ## 3. Bewertungsschema und Gates
 
@@ -147,7 +152,7 @@ Ein Kandidat oder Fragment wird ausgeschlossen, wenn eines der Folgenden zutriff
 
 ## 5. Anwendung und Übergabe
 
-04-04 wendet dieses Schema auf den Katalog aus 04-02 an, dokumentiert je Kandidat die Punktwerte mit Beleg und wählt 2–3 Kandidaten. Cluster 05 übernimmt diese Shortlist als Testfeld und entwirft auf dieser Basis 05-04 (Harness) und 05-05 (Ablationsprotokoll). Widersprüchliche Quellenstände werden dabei doppelt geführt, nicht geglättet — die Bewertung nennt dann beide Stände und wählt mit Begründung.
+04-04 wendet dieses Schema auf den Katalog aus 04-02 an, dokumentiert je Kandidat die Punktwerte mit Beleg und wählt 2–3 Kandidaten. Cluster 05 übernimmt diese Shortlist als Testfeld und entwirft auf dieser Basis 05-04 (Harness) und 05-05 (Ablationsprotokoll). Widersprüchliche Quellenstände werden dabei doppelt geführt, nicht geglättet — die Bewertung nennt dann beide Stände und wählt mit Begründung. Kosten, Laufzeiten und Abbruchkriterien des A/B-Tests sind bewusst dem Testplan überlassen (05-04/05-06, geplante Dateien); die bestehende Prüfkette wird über die bemyself-CLI aufgerufen (`check`/`eval`; vgl. `halt.py`/`checks.py`, lokale Quellen).
 
 ## Quellen
 
