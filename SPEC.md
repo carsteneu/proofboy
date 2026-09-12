@@ -13,6 +13,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 - `[SEARCHED: <machine> -> <n>]` (begrenzter Suchlauf ohne Halt, kein Nicht-Halte-Beweis)
 - `[CYCLE: <machine> -> t1,t2,d]` (uebersetzter Zyklus, Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat)
 - `[IDENT: n=<affine> ; a=<affine>, b=<affine>, c=<affine>]` (parameterisierte Identitaet, exakt als rationale Funktion in `t`; optional `; t >= <Schranke>`)
+- `[COLORING: k=<k> ; <farbziffern>]` (Schur-Faerbung: explizites k-Faerbungs-Zertifikat fuer `1..N`; belegt nur die untere Schranke `S(k) >= N`)
 - `[COMPUTE: <kommando> -> <sha256 des stdout>]` (Rechenzertifikat, gepinnter Commit)
 - "Tests run: <command> -> exit 0"
 - "Regression baseline: ..."
@@ -31,6 +32,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 | SEARCHED | Maschine n Schritte neu ausfuehren (in-process); CONFIRMED nur fuer den begrenzten Lauf ohne Halt, ausdruecklich kein Nicht-Halte-Beweis |
 | CYCLE | Maschine bis t2 neu ausfuehren (in-process): haltfreies Fenster, gleicher Zustand, Kopfdistanz d, Band gleich im erreichbaren Fenster; Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat |
 | IDENT | beide Seiten als rationale Funktionen in t expandieren, Differenz bilden, Zaehler identisch null pruefen; dazu Bereichsbedingungen (a,b,c positiv, n >= 2 fuer alle t >= Schranke) -- eine Progression fuer alle Parameter, kein Beweis der Vermutung |
+| COLORING | alle Tripel x <= y mit x + y <= N nachzaehlen (in-process); CONFIRMED nur ohne monochromatisches Tripel, REFUTED mit dem ersten Verstoss in kanonischer Reihenfolge -- ein Zertifikat der unteren Schranke S(k) >= N, keine Gleichheit, nichts ueber die obere Schranke |
 | COMPUTE | Kommando im Wegwerf-Checkout des gepinnten Commits im bwrap-Sandkasten ausfuehren, sha256(stdout) streamen und vergleichen |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
 | Deploy erfolgt | Artefakt-Metadaten (mtime, Version) gegen den behaupteten Stand |
@@ -187,6 +189,43 @@ Beispiel: `[IDENT: n=3t ; a=t, b=4t, c=12t]` -> `CONFIRMED`
 Erdos-Straus (welche Progressionsklassen parametrisch abgedeckt sind, aus
 Quellen belegt) steht unter `yesdocs/erdos-straus/`.
 
+## Schur-Faerbungen (`COLORING`)
+
+`[COLORING: k=<k> ; <farbziffern>]` behauptet, dass die explizite
+Faerbung der Zahlen `1..N` mit `k` Farben keine monochromatische Loesung
+von `x + y = z` enthaelt. `k` ist eine einzelne Ziffer `1..9`, die
+Farbfolge hat die Laenge `N` (eine Ziffer pro Zahl, Ziffer `i` ist die
+Farbe der Zahl `i`), jede Ziffer liegt in `1..k`. Die Pruefung ist
+in-process und ohne Repo-Bedarf: der Pruefer zaehlt alle Tripel `x <= y`
+mit `x + y <= N` nach und prueft jedes auf Monochromie.
+
+Urteile: `CONFIRMED`, wenn kein monochromatisches Tripel existiert; der
+Urteilstext nennt die Zahl der geprueften Tripel und die feste Abgrenzung
+("certificates the lower bound S(k) >= N only -- it does not prove
+equality and says nothing about the upper bound"). `REFUTED` beim ersten
+Verstoss in kanonischer Reihenfolge (x aufsteigend, dann y aufsteigend);
+der Verstoss steht als Zeuge im Urteil
+(`<x> + <y> = <z> with <x>, <y>, <z> all in color <c>`). `UNVERIFIABLE`
+bei falscher Rumpfform, einer Farbanzahl ausserhalb `1..9`, einer Ziffer
+ausserhalb `1..k`, einer leeren Folge oder einer Laenge ueber dem
+ausfuehrbaren Limit (Default 4096, `--coloring-limit`; Zeilen jenseits
+von 8192 Zeichen ignoriert der Report-Leser, sodass ein hoeheres Limit
+nicht greifen kann).
+
+Abgrenzung: Ein `CONFIRMED` belegt nur die untere Schranke `S(k) >= N`;
+es beweist keine Gleichheit und sagt nichts ueber die obere Schranke.
+Eine Faerbung ist ein kompaktes Zeugnis; die obere Seite (keine
+k-Faerbung von `1..N+1`) hat kein kompaktes Zertifikat. README und SPEC
+dokumentieren es, und ein Test fixiert die Formulierung.
+
+Beispiele: `[COLORING: k=2 ; 1221]` -> `CONFIRMED` (4 Tripel, kein
+Verstoss); `[COLORING: k=2 ; 1121]` -> `REFUTED` mit `1 + 1 = 2 with
+1, 1, 2 all in color 1`; `[COLORING: k=2 ; 123]` -> `UNVERIFIABLE`
+(Ziffer 3 ist keine Farbe der Behauptung). Die Landkarte der belegten
+Schranken -- untere Schranken `S(1..4) = 1, 4, 13, 44`, `S(5) = 160`
+exakt (SAT, Heule 2018), `S(6) >= 536` und `S(7) >= 1696` offen -- mit
+Zertifikaten, Quellen und Pruefbefehlen steht unter `yesdocs/schur/`.
+
 ## Rechenzertifikate (`COMPUTE`)
 
 `[COMPUTE: <kommando> -> <sha256>]` behauptet, dass das Kommando auf stdout
@@ -230,16 +269,16 @@ mit, wer den Commit kontrolliert, kontrolliert die Ausgabe.
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
-| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
 `--repo` verlangt `check --report` nur, wenn mindestens eine vorkommende
 Behauptung ein Repository deklariert (COMMIT, BRANCH, Tests, Diff-Scope; eine
 per `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit). Der
 Bedarf steht am Checker bzw. am `ClaimType.needs_repo` in der Registry, nicht
-als Liste im CLI; HALT/SCORE, SEARCHED, CYCLE und IDENT sowie unbekannte
+als Liste im CLI; HALT/SCORE, SEARCHED, CYCLE, IDENT und COLORING sowie unbekannte
 Typen ohne Checker laufen ohne `--repo` (und bleiben gegebenenfalls
 `UNVERIFIABLE`).
 

@@ -123,12 +123,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 43)
+        self.assertEqual(len(cases), 45)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 22)
-        self.assertEqual(groups.count("false"), 21)
+        self.assertEqual(groups.count("genuine"), 23)
+        self.assertEqual(groups.count("false"), 22)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 43)
+        self.assertEqual(len(set(names)), 45)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())

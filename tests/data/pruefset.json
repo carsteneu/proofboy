@@ -571,6 +571,32 @@
         "ident": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[IDENT: n=3t ; a=t, b=4t+1, c=12t]\n"
+    },
+    {
+      "name": "g23-coloring-schur-certificate",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: Schur-Faerbungs-Zertifikat der Zahlen 1..44 mit vier Farben (Golomb-Baumert-Zerlegung aus OEIS A045652) -- repo-frei: alle Tripel x+y=z werden nachgezaehlt, ohne --repo lauffaehig. Das Urteil traegt die Grenze: nur die untere Schranke S(4) >= 44.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "coloring": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[COLORING: k=4 ; 12131322444434141213233231214343444422313121]\n"
+    },
+    {
+      "name": "f22-coloring-monochromatic-witness",
+      "group": "false",
+      "note": "Falsch: dieselbe Art Behauptung mit einer manipulierten Farbfolge -- 1+1=2 liegt komplett in Farbe 1, die Meldung wird REFUTED und nennt den ersten Verstoss in kanonischer Reihenfolge.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "coloring"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "coloring": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[COLORING: k=2 ; 1111]\n"
     }
   ]
 }
