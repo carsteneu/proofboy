@@ -272,5 +272,41 @@ class IdentRobustnessTest(unittest.TestCase):
         self.assertIn("NUL", result.reason)
 
 
+class IdentBoundaryTest(unittest.TestCase):
+    """[IDENT] proves one progression for all its parameters -- it is not a
+    proof of the conjecture. The docs carry that boundary; this test keeps it
+    from being edited away."""
+
+    def docs(self):
+        for name in ("README.md", "SPEC.md"):
+            with open(os.path.join(REPO_ROOT, name), encoding="utf-8") as handle:
+                yield name, handle.read()
+
+    def test_the_docs_pin_the_conjecture_boundary(self):
+        for name, text in self.docs():
+            with self.subTest(doc=name):
+                self.assertIn("kein Beweis der Vermutung", text)
+
+    def test_the_docs_pin_the_all_parameters_boundary(self):
+        for name, text in self.docs():
+            with self.subTest(doc=name):
+                self.assertIn("fuer alle Parameter", text)
+
+    def test_the_erdos_straus_evaluation_verifies_its_own_claims(self):
+        # The evaluation under yesdocs/erdos-straus/ carries IDENT markers as
+        # its machine-checked evidence: every claim it makes must verify, and
+        # nothing but ident claims may sneak in.
+        path = os.path.join(REPO_ROOT, "yesdocs", "erdos-straus", "README.md")
+        with open(path, encoding="utf-8") as handle:
+            claims = parse_report(handle.read())
+        self.assertGreaterEqual(len(claims), 6)
+        for claim in claims:
+            with self.subTest(line=claim.line):
+                self.assertEqual(claim.kind, "ident")
+                result = run_claim(claim, Ctx(repo=None, tmp_dir=None))
+                self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+                self.assertIn("not a proof of the conjecture", result.reason)
+
+
 if __name__ == "__main__":
     unittest.main()

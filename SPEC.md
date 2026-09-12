@@ -12,6 +12,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 - `[HALT: <machine> -> <steps>]` und optional `[SCORE: <machine> -> <ones>]`
 - `[SEARCHED: <machine> -> <n>]` (begrenzter Suchlauf ohne Halt, kein Nicht-Halte-Beweis)
 - `[CYCLE: <machine> -> t1,t2,d]` (uebersetzter Zyklus, Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat)
+- `[IDENT: n=<affine> ; a=<affine>, b=<affine>, c=<affine>]` (parameterisierte Identitaet, exakt als rationale Funktion in `t`; optional `; t >= <Schranke>`)
 - `[COMPUTE: <kommando> -> <sha256 des stdout>]` (Rechenzertifikat, gepinnter Commit)
 - "Tests run: <command> -> exit 0"
 - "Regression baseline: ..."
@@ -29,6 +30,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 | HALT/SCORE | Turingmaschine der bbchallenge-Notation mit eigenem Simulator neu ausfuehren (in-process); CONFIRMED nur bei exakt der behaupteten Schrittzahl und, wenn behauptet, exakt dem Score |
 | SEARCHED | Maschine n Schritte neu ausfuehren (in-process); CONFIRMED nur fuer den begrenzten Lauf ohne Halt, ausdruecklich kein Nicht-Halte-Beweis |
 | CYCLE | Maschine bis t2 neu ausfuehren (in-process): haltfreies Fenster, gleicher Zustand, Kopfdistanz d, Band gleich im erreichbaren Fenster; Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat |
+| IDENT | beide Seiten als rationale Funktionen in t expandieren, Differenz bilden, Zaehler identisch null pruefen; dazu Bereichsbedingungen (a,b,c positiv, n >= 2 fuer alle t >= Schranke) -- eine Progression fuer alle Parameter, kein Beweis der Vermutung |
 | COMPUTE | Kommando im Wegwerf-Checkout des gepinnten Commits im bwrap-Sandkasten ausfuehren, sha256(stdout) streamen und vergleichen |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
 | Deploy erfolgt | Artefakt-Metadaten (mtime, Version) gegen den behaupteten Stand |
@@ -140,6 +142,51 @@ rechnet das vorgelegte nach) und kein Ersatz fuer SEARCHED: Ein SEARCHED-Lauf wi
 Der SEARCHED-Urteilstext bleibt unveraendert ("does not prove that the machine
 never halts").
 
+## Parameterisierte Identitaeten (`IDENT`)
+
+`[IDENT: n=<affine> ; a=<affine>, b=<affine>, c=<affine>]` (optional mit
+`; t >= <Schranke>`, Default `t >= 1`) behauptet, dass
+`4/n(t) = 1/a(t) + 1/b(t) + 1/c(t)` fuer jedes ganze `t >= <Schranke>` exakt
+gilt, wobei `n`, `a`, `b`, `c` affine Funktionen der ganzzahligen Variablen
+`t` mit ganzzahligen Koeffizienten sind. Die Pruefung ist exakt, ohne
+Gleitkomma und ohne Repo-Bedarf: beide Seiten werden als rationale Funktionen
+in `t` dargestellt, ihre Differenz gebildet und der Zaehler als Polynom in
+`t` geprueft (alle Koeffizienten null). Zusaetzlich wird der deklarierte
+Bereich geprueft: `a`, `b`, `c` positiv und `n >= 2` fuer alle
+`t >= <Schranke>`; ein Bereich, der das nicht beweisbar absichert, ergibt
+`UNVERIFIABLE` -- der Pruefer nimmt keine Bedingung an, die er nicht zeigen
+kann.
+
+Urteile: `CONFIRMED` nur, wenn der Zaehler identisch null ist und die
+Bereichsbedingungen fuer alle `t >= <Schranke>` nachweislich gelten; der
+Urteilstext nennt die Progression und traegt die feste Formulierung "holds as
+a rational identity in t for every t >= <Schranke>" samt ausdruecklicher
+Abgrenzung ("this is not a proof of the conjecture"). `REFUTED`, wenn sich
+die beiden Seiten als rationale Funktionen unterscheiden (der Zaehler der
+Differenz steht als Zeuge im Urteil; ein nicht verschwindendes Polynom hat
+nur endlich viele Nullstellen, die Identitaet scheitert also fuer unendlich
+viele `t` eines unbeschraenkten Bereichs). `UNVERIFIABLE` bei falscher
+Rumpfform, fehlenden, doppelten oder unbekannten Feldern, nicht-affinen
+Ausdruecken (quadratische oder gebrochene Terme, ein anderer Parameter als
+`t`, Leerzeichen im Ausdruck), Zahlen jenseits der Interpreter-Grenze fuer
+`int(text)` oder nicht sauber abgesichertem Bereich (Nullstelle im
+Parameterbereich, fallende Gerade, Schranke mit `n < 2`).
+
+Abgrenzung: Ein `CONFIRMED` ist eine Aussage ueber unendlich viele
+Parameterwerte -- die Progression `n(t)` ist fuer alle Parameter durch den
+expliziten Zeugen abgedeckt, anders als das endliche Fenster eines
+SEARCHED-Laufs. Eine verifizierte Identitaet deckt eine Progression fuer alle
+Parameter ab; sie ist kein Beweis der Vermutung, solange nicht alle
+Restklassen abgedeckt sind. README und SPEC dokumentieren es, und ein Test
+fixiert die Formulierung (analog SEARCHED/CYCLE).
+
+Beispiel: `[IDENT: n=3t ; a=t, b=4t, c=12t]` -> `CONFIRMED`
+(`numerator=0`); ein verfaelschter Koeffizient (`b=4t+1`) -> `REFUTED`
+(`numerator=-9t^2`); `[IDENT: n=3t ; a=t, b=4t, c=12t ; t >= 0]` ->
+`UNVERIFIABLE`, weil `a` bei `t = 0` nicht positiv ist. Die Bewertung fuer
+Erdos-Straus (welche Progressionsklassen parametrisch abgedeckt sind, aus
+Quellen belegt) steht unter `yesdocs/erdos-straus/`.
+
 ## Rechenzertifikate (`COMPUTE`)
 
 `[COMPUTE: <kommando> -> <sha256>]` behauptet, dass das Kommando auf stdout
@@ -192,8 +239,9 @@ mit, wer den Commit kontrolliert, kontrolliert die Ausgabe.
 Behauptung ein Repository deklariert (COMMIT, BRANCH, Tests, Diff-Scope; eine
 per `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit). Der
 Bedarf steht am Checker bzw. am `ClaimType.needs_repo` in der Registry, nicht
-als Liste im CLI; HALT/SCORE und unbekannte Typen ohne Checker laufen ohne
-`--repo` (und bleiben gegebenenfalls `UNVERIFIABLE`).
+als Liste im CLI; HALT/SCORE, SEARCHED, CYCLE und IDENT sowie unbekannte
+Typen ohne Checker laufen ohne `--repo` (und bleiben gegebenenfalls
+`UNVERIFIABLE`).
 
 ## Harte Regeln
 
