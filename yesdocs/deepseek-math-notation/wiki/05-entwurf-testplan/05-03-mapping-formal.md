@@ -129,6 +129,8 @@ Eigene Probe 2026-09-12 (`command -v`, Modul-Importe, `curl -I`, `git clone` + `
 | [mmverify.py](https://github.com/david-a-wheeler/mmverify.py, accessed 2026-09-12) | erreichbar (HTTP 200), nicht ausgeführt | Ausbau-Stufe: Metamath klein |
 | [set.mm](https://github.com/metamath/set.mm, accessed 2026-09-12) | erreichbar (HTTP 200), nicht geladen | Datenbank für mmverify |
 
+**Nachtrag (2026-09-12):** Lean 4.33.1 ist auf dieser Maschine inzwischen installiert; der Kernel-Beweis der Zyklus-Zelle (`0LA0LA`, Zertifikat `(0,1,-1)`) ist ausgeführt und in [03-05](../03-formale-bruecke/03-05-roundtrip-anforderungen.md) §6 dokumentiert. Die Tabelle beschreibt den Stand vor der Installation; Metamath bleibt unverändert.
+
 Stufenfolge: **Sofort** = Python-stdlib-Zeugen (gesamter V1-Kern, heute lauffähig); **Ausbau** = Metamath klein (`mmverify.py` + `set.mm`, nur Downloads); **Fern** = Lean/mathlib (schwerste Installation, ohne sie bleiben die Lean-Aussagen hier unverifiziert).
 
 Bestehende Infrastruktur: `yesdocs/pruefer/wiki/` trägt bereits Kapitel zu Falsifizierbarkeit/Beleg/Beweislast, Provenienz und Fact-Checking (lokale Quelle: `yesdocs/pruefer/wiki/INDEX.md`, gelesen 2026-09-12), samt Verdikt-Doktrin „CONFIRMED nur nach ausgeführtem Check". Der exakte Anschluss der P7-Schnittstelle (`[HALT]`/`[SCORE]`, claimtypes) ist offen → `../04-offene-probleme/04-05-bruecke-pruefer.md` (liegt vor, Stand 2026-09-12).
@@ -149,7 +151,7 @@ Zwei quantifizierte Einschränkungen des Transfers: (1) Engpass ist nicht die Gr
 
 - **Unbounded Claims** sind auf dieser Maschine nur `UNVERIFIABLE` (05-02 §4); Auswege: bezeugte Gegeninstanz oder Fern-Stufe.
 - **Zeugen zertifizieren Instanzen, keine universalen Sätze** (05-01 P4, [03-04](../03-formale-bruecke/03-04-zeugen-zertifikate.md)).
-- **Lean/Metamath nicht ausgeführt** — „das Mapping funktioniert" ist erst nach einem realen Lauf behauptbar.
+- **Lean/Metamath nicht ausgeführt** — „das Mapping funktioniert" ist erst nach einem realen Lauf behauptbar. (Nachtrag 2026-09-12: für die Zyklus-Zelle ausgeführt — [03-05](../03-formale-bruecke/03-05-roundtrip-anforderungen.md) §6; Metamath weiterhin nicht ausgeführt.)
 - **P7-Schnittstelle offen** (`[HALT]`/`[SCORE]`, claimtypes) → `../04-offene-probleme/04-05-bruecke-pruefer.md` (liegt vor); ebenso `../03-formale-bruecke/03-05-roundtrip-anforderungen.md` (liegt vor).
 - **Roundtrip in Lean/Metamath ist Design, kein Code**; ausführbar ist heute nur der Python-Roundtrip.
 - Was die Notation nicht ausdrückt, kann ihr Mapping nicht übersetzen (05-02 §7).

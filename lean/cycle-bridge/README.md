@@ -49,7 +49,7 @@ ausführen. Erwartet: nur die Standardaxiome `propext` und `Quot.sound`, kein
 
 - `lake build` → `Build completed successfully (7 jobs)`, keine Warnungen.
 - Kein `sorry`/`admit` im Quelltext.
-- `#print axioms` über alle sieben Theoreme: ausschließlich
+- `#print axioms` über alle Theoreme des Projekts: ausschließlich
   `[propext, Quot.sound]` — keine Zusatzaxiome, kein `sorryAx`.
 
 ## Schnittstelle: [CYCLE]-Check ↔ Theorem-Hypothesen (offene Punkte)
@@ -57,7 +57,7 @@ ausführen. Erwartet: nur die Standardaxiome `propext` und `Quot.sound`, kein
 - Der `[CYCLE]`-Check in `bemyself/claimtypes/cycle.py` vergleicht nur die
   **erreichbaren Zellen** (Lin-Fenster); der Satz hier nimmt die **volle**
   Translations-Gleichheit der Konfigurationen an. Für Läufe auf dem leeren Band
-  (beide Demo-Maschinen) fallen beide Bedingungen zusammen — dort ist die Kette
+  (die beiden formalisierten Maschinen) fallen beide Bedingungen zusammen — dort ist die Kette
   Blatt → Verdikt → formaler Beweis geschlossen.
 - Offen: eine Fenster-Variante des Satzes (Abweichungen hinter der maximalen
   Kopf-Auslenkung erlaubt); dafür bräuchte das TM-Modul einen Begriff des
