@@ -182,6 +182,59 @@ def build_messages(arm, task):
     return LEGENDS[arm].strip(), user
 
 
+def _k_selfcheck(task):
+    """The neutral self-check tail of the control arm (no verdicts: K has none)."""
+    tier = task.get("tier")
+    kind = task.get("tier_b_kind")
+    if tier == "A":
+        tail = (
+            "Antworte erneut genau im geforderten Format: die letzte Zeile ist "
+            '"Endantwort: <zahl>".'
+        )
+    elif kind == "trace":
+        tail = "Antworte erneut mit den geforderten cp-Zeilen (Konvention wie oben)."
+    elif kind == "cyc":
+        t1, t2, d = task.get("certificate", ["?", "?", "?"])
+        tail = (
+            "Beende erneut mit genau einer Zeile: "
+            f"Endantwort: NICHT-HALTEND (t1={t1},t2={t2},d={d})"
+        )
+    else:
+        tail = "Antworte erneut im geforderten Format."
+    return (
+        "Pruefe deine Loesung noch einmal sorgfaeltig Schritt fuer Schritt. "
+        "Wenn du einen Fehler findest, korrigiere ihn. " + tail
+    )
+
+
+def build_repair_message(arm, task, verdict_lines, note_lines, format_errors):
+    """The user turn of a repair round (round >= 1).
+
+    K gets the neutral self-check: prose has no machine verdicts, and none may
+    be invented. The formula arms get the machine verdicts of their previous
+    sheet (the runner's appendix), the runner's findings and the format errors
+    -- the notes arrive already sanitized from the harness: error texts stay,
+    computed reference values never do (no gold leak).
+    """
+    if arm == "K":
+        return _k_selfcheck(task)
+    parts = ["Der Zeugen-Runner hat dein Blatt geprueft."]
+    if verdict_lines:
+        parts.append("Verdikte:")
+        parts.extend(verdict_lines)
+    if note_lines:
+        parts.append("Befunde:")
+        parts.extend(note_lines)
+    if format_errors:
+        parts.append("Formfehler:")
+        parts.extend(format_errors)
+    parts.append(
+        "Ueberarbeite dein Blatt: korrigiere die betroffenen Zeilen und antworte "
+        "erneut mit dem vollstaendigen Blatt im geforderten Format."
+    )
+    return "\n".join(parts)
+
+
 def build_prompt(arm, task):
     """The full prompt as one text (dry-run view; the API run is split)."""
     system, user = build_messages(arm, task)

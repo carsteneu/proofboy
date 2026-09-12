@@ -175,5 +175,236 @@ class SetsV02Test(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+class _FakeCall:
+    """Scripted transport: one entry per model call, in call order."""
+
+    def __init__(self, contents):
+        self.contents = list(contents)
+        self.messages_seen = []
+        self.calls = 0
+
+    def __call__(self, messages, timeout):
+        self.calls += 1
+        self.messages_seen.append([dict(m) for m in messages])
+        content = self.contents.pop(0) if self.contents else "Endantwort: 0"
+        payload = {
+            "content": content,
+            "reasoning": "",
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 10,
+                "completion_tokens_details": {"reasoning_tokens": 4},
+            },
+            "finish_reason": "stop",
+        }
+        return payload, {"choices": [{"message": {"content": content}}]}, 0.1, None
+
+
+class _FakeArgs:
+    def __init__(self, max_repairs=2):
+        self.timeout = 5.0
+        self.max_repairs = max_repairs
+
+
+_SHEET_OK = (
+    "g: pm(2,10,1000)?\n"
+    "h1: (((2 ^ 10) % 1000) = 24)\n"
+    "v h1: auto\n"
+    "h1+\n"
+    "CLAIM c1: (((2 ^ 10) % 1000) = 24)\n"
+    "WITNESS c1: ref h1\n"
+    "[HALT] c1"
+)
+_SHEET_BAD = (
+    "g: pm(2,10,1000)?\n"
+    "h1: (((2 ^ 10) % 1000) = 124)\n"
+    "v h1: auto\n"
+    "h1+\n"
+    "CLAIM c1: (((2 ^ 10) % 1000) = 124)\n"
+    "WITNESS c1: ref h1\n"
+    "[HALT] c1"
+)
+
+
+class FeedbackTest(unittest.TestCase):
+    """M3: Rueckfuetterung -- Appendix + Befunde, ohne Gold-Werte."""
+
+    def _evidence(self, arm, answer):
+        evidence = {}
+        record = harness.evaluate_run(arm, TASK_A, {"content": answer}, 0.5, None, None, evidence_out=evidence)
+        return record, evidence
+
+    def test_c_feedback_carries_appendix_and_question_reason(self):
+        record, evidence = self._evidence("C", _SHEET_BAD)
+        self.assertFalse(record["solved"])
+        verdicts, notes = harness.feedback_lines("C", TASK_A, evidence)
+        self.assertIn("#?: c1", verdicts)
+        self.assertIn("#xx: v1", verdicts)
+        self.assertTrue(any("v1" in note for note in notes))
+        self.assertFalse(any("#ok" in v for v in verdicts))
+
+    def test_c_feedback_has_no_gold_value(self):
+        # Die Rueckfuetterung darf den Erwartungswert nicht nennen; die eigene
+        # (falsche) Behauptung 124 ist erlaubt, das Gold 24 nicht.
+        record, evidence = self._evidence("C", _SHEET_BAD)
+        verdicts, notes = harness.feedback_lines("C", TASK_A, evidence)
+        text = "\n".join(verdicts + notes)
+        self.assertIsNone(re.search(r"(?<![0-9])24(?![0-9])", text))
+        self.assertNotIn("111", text)
+
+    def test_b_receives_own_claim_appendix(self):
+        # Fairness-Design (Default): B erhaelt seine eigenen maschinell
+        # geprueften Claim-Verdikte -- Verdikte, die es gibt.
+        bad_b = "CLAIM c1: (((2 ^ 10) % 1000) = 124)\nWITNESS c1: auto\n[HALT] c1"
+        evidence = {}
+        record = harness.evaluate_run("B", TASK_A, {"content": bad_b}, 0.5, None, None, evidence_out=evidence)
+        self.assertFalse(record["solved"])
+        verdicts, notes = harness.feedback_lines("B", TASK_A, evidence)
+        self.assertIn("#xx: c1", verdicts)
+
+    def test_sim_refutation_note_is_sanitized(self):
+        task = {
+            "id": "B-0001",
+            "tier": "B",
+            "tier_b_kind": "trace",
+            "machine": "1RB1RZ_0LA0LA",
+            "checkpoints_t": [1, 2],
+            "checkpoints_gold": [[1, "B", 1, "1"], [2, "A", 0, "1"]],
+            "prompt": "Simuliere.",
+        }
+        bad = (
+            "a: M = 1RB1RZ_0LA0LA\n"
+            "h1: cp 1: (B,4,1)\n"
+            "v h1: sim(0..2)\n"
+            "h1+\n"
+            "CLAIM c1: cp 1: (B,4,1)\n"
+            "WITNESS c1: ref h1\n"
+            "[HALT] c1"
+        )
+        evidence = {}
+        harness.evaluate_run("C", task, {"content": bad}, 0.5, None, None, evidence_out=evidence)
+        verdicts, notes = harness.feedback_lines("C", task, evidence)
+        joined = "\n".join(verdicts + notes)
+        # Der echte Grund nennt die Referenzwerte (z.B. "the head is at 1, not 4");
+        # die Rueckfuetterung darf sie nicht enthalten.
+        reason = evidence["result"].v_results[0].reason
+        self.assertIn("the head is at", reason)
+        self.assertNotIn("the head is at", joined)
+        self.assertIn("#xx: v1", verdicts)
+
+    def test_k_gets_no_verdicts(self):
+        verdicts, notes = harness.feedback_lines("K", TASK_A, None)
+        self.assertEqual(verdicts, [])
+        self.assertEqual(notes, [])
+
+    def test_repair_message_k_is_neutral(self):
+        text = prompts.build_repair_message("K", TASK_A, [], [], [])
+        self.assertIn("Pruefe", text)
+        self.assertIn("Endantwort", text)
+        for marker in ("#ok", "#xx", "#?"):
+            self.assertNotIn(marker, text)
+
+    def test_repair_message_sheet_arm_carries_appendix(self):
+        text = prompts.build_repair_message(
+            "C", TASK_A, ["#xx: v1"], ["v1: auto: the evaluated formula is false"], []
+        )
+        self.assertIn("#xx: v1", text)
+        self.assertIn("v1: auto", text)
+
+    def test_repair_message_lists_format_errors(self):
+        text = prompts.build_repair_message(
+            "B", TASK_A, [], [], ["line 3: no valid line head: 'kaputt'"]
+        )
+        self.assertIn("no valid line head", text)
+
+
+class RepairLoopTest(unittest.TestCase):
+    """M3: Runden-Schleife -- Abbruch bei ok, max 2 Reparaturen, Logs."""
+
+    def _root(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(dir=tmp_root))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def test_round0_solved_stops_without_repair(self):
+        fake = _FakeCall([_SHEET_OK])
+        root = self._root()
+        summary = harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=fake)
+        self.assertTrue(summary["final_solved"])
+        self.assertEqual(summary["rounds_to_ok"], 0)
+        self.assertEqual(summary["repairs_used"], 0)
+        self.assertEqual(len(summary["rounds"]), 1)
+        self.assertFalse((root / "A-0006" / "C-rep1" / "round1").exists())
+
+    def test_repair_round_fixes_and_is_logged(self):
+        fake = _FakeCall([_SHEET_BAD, _SHEET_OK])
+        root = self._root()
+        summary = harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=fake)
+        self.assertTrue(summary["final_solved"])
+        self.assertEqual(summary["rounds_to_ok"], 1)
+        self.assertEqual(summary["repairs_used"], 1)
+        self.assertEqual(len(summary["rounds"]), 2)
+        parsed0 = json.loads((root / "A-0006" / "C-rep1" / "round0" / "parsed.json").read_text())
+        self.assertIn("#?: c1", parsed0["next_feedback"])
+        parsed1 = json.loads((root / "A-0006" / "C-rep1" / "round1" / "parsed.json").read_text())
+        self.assertIn("#?: c1", parsed1["feedback_in"])
+        prompt1 = (root / "A-0006" / "C-rep1" / "round1" / "prompt.md").read_text()
+        self.assertIn("#?: c1", prompt1)
+        self.assertIn(_SHEET_BAD.splitlines()[1], prompt1)  # eigener Vorrunden-Text im Verlauf
+        # Die Wiederholung des Blattes in Runde 1 ist die Antwort des Modells,
+        # nicht die Rueckfuetterung -- der Verlauf waechst monoton.
+        summary_json = json.loads((root / "A-0006" / "C-rep1" / "summary.json").read_text())
+        self.assertEqual(summary_json["final_solved"], True)
+
+    def test_max_repairs_bounds_the_loop(self):
+        fake = _FakeCall([_SHEET_BAD, _SHEET_BAD, _SHEET_BAD])
+        root = self._root()
+        summary = harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(max_repairs=2), call=fake)
+        self.assertFalse(summary["final_solved"])
+        self.assertIsNone(summary["rounds_to_ok"])
+        self.assertEqual(summary["repairs_used"], 2)
+        self.assertEqual(len(summary["rounds"]), 3)
+        self.assertEqual(fake.calls, 3)
+
+    def test_k_repair_is_neutral_selfcheck(self):
+        fake = _FakeCall(["Endantwort: 124", "Endantwort: 24"])
+        root = self._root()
+        summary = harness.run_rounds("K", TASK_A, 1, root, _FakeArgs(), call=fake)
+        self.assertTrue(summary["final_solved"])
+        prompt1 = (root / "A-0006" / "K-rep1" / "round1" / "prompt.md").read_text()
+        self.assertIn("Pruefe", prompt1)
+        self.assertNotIn("#xx", prompt1)
+        self.assertNotIn("#ok", prompt1)
+        self.assertNotIn("#?", prompt1)
+
+    def test_transport_error_is_retried_once(self):
+        class ErrorCall(_FakeCall):
+            def __call__(self, messages, timeout):
+                if self.calls == 0:
+                    self.calls += 1
+                    self.messages_seen.append([dict(m) for m in messages])
+                    return None, None, 0.1, "URLError: boom"
+                return super().__call__(messages, timeout)
+
+        fake = ErrorCall([_SHEET_OK])
+        root = self._root()
+        summary = harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=fake)
+        self.assertTrue(summary["final_solved"])
+        self.assertEqual(summary["transport_retries"], 1)
+
+    def test_history_strips_reasoning(self):
+        fake = _FakeCall([_SHEET_BAD, _SHEET_OK])
+        root = self._root()
+        harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=fake)
+        last_messages = fake.messages_seen[-1]
+        roles = [m["role"] for m in last_messages]
+        self.assertEqual(roles, ["system", "user", "assistant", "user"])
+        assistant = [m for m in last_messages if m["role"] == "assistant"][0]
+        # decision: reasoning_content wird nicht zurueckgespielt.
+        self.assertEqual(set(assistant.keys()), {"role", "content"})
+
+
 if __name__ == "__main__":
     unittest.main()
