@@ -106,6 +106,46 @@ class CliTest(unittest.TestCase):
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["merge"], "UNVERIFIABLE")
 
+    def test_strict_fails_when_any_claim_stays_unverifiable(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+            'Tests run: python3 -c "import sys; sys.exit(3)" -> exit 0\n'
+        )
+        default = self.invoke("--report", report, "--json")
+        self.assertEqual(default.returncode, 0, default.stderr)
+        strict = self.invoke("--report", report, "--json", "--strict")
+        self.assertEqual(strict.returncode, 4, strict.stderr)
+
+    def test_strict_zero_claim_report_is_not_success(self):
+        report = self.write_report(
+            "Phase 6 report: everything went fine, all tests green, nothing to report.\n"
+        )
+        proc = self.invoke("--report", report, "--strict")
+        self.assertEqual(proc.returncode, 3, proc.stdout)
+
+    def test_strict_fully_confirmed_report_is_exit_zero(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+            "**Files in scope:** good.txt, test_ok.py\n"
+            "Tests run: python3 -m unittest test_ok -> exit 0\n"
+        )
+        proc = self.invoke(
+            "--report", report, "--json", "--base", self.repo["base"], "--strict"
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["commit_exists"], "CONFIRMED")
+        self.assertEqual(verdicts["branch_pushed"], "CONFIRMED")
+        self.assertEqual(verdicts["diff_scope"], "CONFIRMED")
+        self.assertEqual(verdicts["tests_green"], "CONFIRMED")
+
+    def test_strict_keeps_refuted_reports_at_exit_one(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {'0' * 40}]`\n"
+        )
+        proc = self.invoke("--report", report, "--strict")
+        self.assertEqual(proc.returncode, 1)
+
     def test_diff_scope_without_base_is_unverifiable(self):
         report = self.write_report(
             "**send_to payload:** `[COMMIT: %s]`\n"
@@ -285,6 +325,15 @@ class CliSectionTest(unittest.TestCase):
         proc = self.invoke("report", "--json")
         self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
         self.assertEqual(self.verdicts(proc.stdout)["commit_exists"], "CONFIRMED")
+
+    def test_strict_section_with_unverifiable_claim_fails(self):
+        self.add_section(
+            "mixed",
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+            'Tests run: python3 -c "import sys; sys.exit(3)" -> exit 0\n',
+        )
+        proc = self.invoke("mixed", "--strict")
+        self.assertEqual(proc.returncode, 4, proc.stdout + proc.stderr)
 
     def test_json_names_the_scratchpad_source(self):
         self.add_section("merge-only", "[MERGE: no]\n")

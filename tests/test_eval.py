@@ -310,6 +310,44 @@ class EvalCliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("set", proc.stderr.lower())
 
+    def test_strict_flags_unverifiable_claims_in_the_set(self):
+        proc = self.invoke("--strict", "--json", tmp="run-strict")
+        self.assertEqual(proc.returncode, 4, proc.stdout + proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["strict"])
+        self.assertGreater(payload["strict_violations"], 0)
+        self.assertEqual(
+            payload["strict_violations"], payload["rates"]["unverifiable_claims"]
+        )
+        self.assertTrue(payload["thresholds_met"])
+        self.assertFalse(payload["ok"])
+
+    def test_strict_passes_on_fully_verifiable_set(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"] = [
+            {
+                "name": "x-genuine-verifiable",
+                "group": "genuine",
+                "note": "its only claim is a confirmable commit",
+                "base": document["fixture"]["base"],
+                "targets": [],
+                "report": f"**send_to payload:** `[COMMIT: {document['fixture']['base']}]`\n",
+            },
+            {
+                "name": "x-false-missing-commit",
+                "group": "false",
+                "note": "the nonexistent commit is refuted, so the case is detected",
+                "base": document["fixture"]["base"],
+                "targets": ["commit_exists"],
+                "report": f"**send_to payload:** `[COMMIT: {'0' * 40}]`\n",
+            },
+        ]
+        path = self.write(document, "verifiable.json")
+        default = self.invoke(set_path=path, tmp="run-verifiable")
+        self.assertEqual(default.returncode, 0, default.stdout + default.stderr)
+        strict = self.invoke("--strict", set_path=path, tmp="run-verifiable-strict")
+        self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
+
     def test_errors_are_json_on_stdout_when_requested(self):
         proc = self.invoke(
             "--json", set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None
