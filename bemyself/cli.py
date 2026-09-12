@@ -208,7 +208,8 @@ def build_parser():
         help=(
             "largest N a [COLORING] claim may ask the checker to enumerate "
             f"(default {DEFAULT_COLORING_LIMIT}); a longer certificate stays "
-            "unverifiable"
+            "unverifiable -- report lines beyond 8192 characters are ignored "
+            "entirely, so higher values cannot take effect"
         ),
     )
     evaluate = sub.add_parser("eval", help="measure the verifier against a labelled message set")
@@ -266,7 +267,8 @@ def build_parser():
         help=(
             "largest N a [COLORING] claim may ask the checker to enumerate "
             f"(default {DEFAULT_COLORING_LIMIT}); a longer certificate stays "
-            "unverifiable"
+            "unverifiable -- report lines beyond 8192 characters are ignored "
+            "entirely, so higher values cannot take effect"
         ),
     )
     evaluate.add_argument(

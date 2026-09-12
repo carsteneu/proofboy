@@ -2,11 +2,11 @@
 (``bemyself.experiments.schur``).
 
 The search finds a coloring of 1..N with k colors without a monochromatic
-solution of x + y = z, for a fixed seed and a fixed node budget: two runs
-with the same arguments must produce the identical certificate. A found
-certificate is not taken on faith -- it is re-checked with the [COLORING]
-checker of this repository. Every certificate the search returns is an
-own-search certificate, not a literature value.
+solution of x + y = z, bounded by a node budget: two runs with the same
+arguments must produce the identical certificate -- there is no randomness
+and no seed. A found certificate is not taken on faith -- it is re-checked
+with the [COLORING] checker of this repository. Every certificate the
+search returns is an own-search certificate, not a literature value.
 """
 
 import io
@@ -103,6 +103,13 @@ class SchurSearchTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     schur.search(k, n)
 
+    def test_oversized_n_is_rejected_by_the_library(self):
+        # The solver keeps every position in one Python frame; beyond the
+        # documented bound the recursion would not survive (and nothing
+        # that large is computable anyway).
+        with self.assertRaises(ValueError):
+            schur.search(2, schur.MAX_N + 1)
+
 
 class SchurCliTest(unittest.TestCase):
     def run_cli(self, argv):
@@ -142,6 +149,38 @@ class SchurCliTest(unittest.TestCase):
             with self.subTest(argv=argv):
                 code, _, err = self.run_cli(argv)
                 self.assertEqual(code, 2, (argv, err))
+                self.assertIn("usage", err.lower())
+
+    def test_the_budget_is_never_exceeded(self):
+        # The node budget is exact: a stopped run reports at most as many
+        # nodes as the budget allows.
+        code, text, _ = self.run_cli(["4", "44", "--budget", "100"])
+        self.assertEqual(code, 1, text)
+        match = re.search(r"nodes=([0-9]+) budget=([0-9]+)", text)
+        self.assertIsNotNone(match, text)
+        self.assertEqual(int(match.group(2)), 100)
+        self.assertLessEqual(int(match.group(1)), 100)
+
+    def test_oversized_n_is_a_usage_error(self):
+        # n is checked before anything is allocated or recursed into.
+        for n in ("1200", "999999"):
+            with self.subTest(n=n):
+                code, _, err = self.run_cli(["2", n])
+                self.assertEqual(code, 2, err)
+                self.assertIn("usage", err.lower())
+
+    def test_absurdly_long_arguments_are_usage_errors(self):
+        # CPython refuses int() beyond ~4300 digits; the CLI checks the
+        # length first and reports a usage error instead of crashing.
+        long_digits = "9" * 5000
+        for argv in (
+            ["2", long_digits],
+            [long_digits, "4"],
+            ["2", "4", "--budget", long_digits],
+        ):
+            with self.subTest(argv=argv[:2]):
+                code, _, err = self.run_cli(argv)
+                self.assertEqual(code, 2, err)
                 self.assertIn("usage", err.lower())
 
 

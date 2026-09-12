@@ -424,8 +424,11 @@ Das ausfuehrbare Limit ist die groesste Laenge `N`, die ein COLORING
 nachrechnen darf: Default 4096 (die Tripelaufzaehlung ist quadratisch,
 etwa `N^2/4` Paare), konfigurierbar mit `--coloring-limit N` (auch fuer
 `eval`); eine laengere Behauptung wird nicht ausgefuehrt und bleibt
-`unpruefbar`. Der Typ ist repo-frei (wie `[SEARCHED]`, `[CYCLE]`,
-`[IDENT]`): `check --report` laeuft ohne `--repo`.
+`unpruefbar`. Zu beachten: Der Report-Leser ignoriert Zeilen ueber 8192
+Zeichen vollstaendig -- ein Zertifikat dieser Laenge erscheint gar nicht
+erst als Behauptung, ein Limit oberhalb dieser Grenze kann daher nie
+greifen. Der Typ ist repo-frei (wie `[SEARCHED]`, `[CYCLE]`, `[IDENT]`):
+`check --report` laeuft ohne `--repo`.
 
 Die Landkarte der belegten Schranken -- pro `k` die untere Schranke mit
 Zertifikat und Pruefbefehl, der obere Rand mit Quelle, und was dieses

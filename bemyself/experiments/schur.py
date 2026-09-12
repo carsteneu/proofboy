@@ -14,10 +14,16 @@ fewest allowed colors (the number 1 is fixed to color 1 -- permuting colors
 never changes whether a coloring is sum-free). A color is allowed for a
 number p when no triple involving p is monochromatic: not with p as the
 sum (``x + y = p``), not with p as a summand (``p + x = z``), and not
-``p + p = 2p``. Each decision is one *node*; the budget counts nodes, so
-two runs with the same arguments explore the exact same tree and return
-the exact same certificate. There is no randomness and no seed: runs are
-reproducible by construction.
+``p + p = 2p``. Each decision is one *node*; the budget bounds the number
+of expanded decision nodes exactly -- a stopped run never reports more
+nodes than the budget allows. Two runs with the same arguments explore
+the exact same tree and return the exact same certificate. There is no
+randomness and no seed: runs are reproducible by construction.
+
+The length is bounded by MAX_N = 500: every still uncolored number costs
+one Python frame, and 500 keeps every run inside CPython's default
+recursion limit with headroom (the largest certificate documented under
+``yesdocs/schur/`` is 160).
 
 Cost is empirical, not bounded: on the development machine (CPython,
 stdlib only) the own-search certificates of S(1)..S(4) are found playing
@@ -43,7 +49,13 @@ import sys
 # what would silently run for hours at larger N.
 DEFAULT_MAX_NODES = 50_000
 
-_USAGE = "usage: python3 -m bemyself.experiments.schur <k> <n> [--budget <nodes>]"
+# The largest n the solver accepts (see the module docstring).
+MAX_N = 500
+
+_USAGE = (
+    f"usage: python3 -m bemyself.experiments.schur <k> <n> [--budget <nodes>] "
+    f"(k 1..9, n 1..{MAX_N})"
+)
 
 
 def _allowed(colors, p, color, n):
@@ -71,6 +83,9 @@ def _search(k, n, max_nodes):
 
     def rec():
         nonlocal nodes
+        if nodes >= max_nodes:
+            # The node budget is spent: do not start another decision.
+            return False
         best = None
         best_options = None
         for p in range(2, n + 1):
@@ -84,9 +99,6 @@ def _search(k, n, max_nodes):
         if best is None:
             return True
         nodes += 1
-        if nodes >= max_nodes:
-            # The budget is spent: stop, do not finish this branch.
-            return False
         for color in best_options:
             colors[best] = color
             if rec():
@@ -109,6 +121,8 @@ def search(k, n, max_nodes=DEFAULT_MAX_NODES):
         raise ValueError(f"k must be 1..9, got {k}")
     if n < 1:
         raise ValueError(f"n must be >= 1, got {n}")
+    if n > MAX_N:
+        raise ValueError(f"n must be <= {MAX_N}, got {n}")
     if max_nodes < 1:
         raise ValueError(f"max_nodes must be >= 1, got {max_nodes}")
     digits, _ = _search(k, n, max_nodes)
@@ -126,7 +140,9 @@ def _parse_args(argv):
             if index + 1 >= len(argv):
                 return None
             text = argv[index + 1]
-            if not (text.isascii() and text.isdigit()):
+            # The length is checked before int(): CPython refuses absurdly
+            # long digit strings, and that must be a usage error.
+            if not (text.isascii() and text.isdigit()) or len(text) > 9:
                 return None
             budget = int(text)
             index += 2
@@ -138,9 +154,9 @@ def _parse_args(argv):
     if len(positional) != 2:
         return None
     k_text, n_text = positional
-    if not (k_text.isascii() and k_text.isdigit()):
+    if not (k_text.isascii() and k_text.isdigit()) or len(k_text) > 9:
         return None
-    if not (n_text.isascii() and n_text.isdigit()):
+    if not (n_text.isascii() and n_text.isdigit()) or len(n_text) > 9:
         return None
     return int(k_text), int(n_text), budget
 
@@ -153,10 +169,9 @@ def main(argv=None):
         print(_USAGE, file=sys.stderr)
         return 2
     k, n, budget = parsed
-    if not (1 <= k <= 9) or n < 1 or budget < 1:
+    if not (1 <= k <= 9) or not (1 <= n <= MAX_N) or budget < 1:
         print(
-            f"{_USAGE}: k must be 1..9, n >= 1, budget >= 1 "
-            f"(got k={k}, n={n}, budget={budget})",
+            f"{_USAGE}: got k={k}, n={n}, budget={budget}",
             file=sys.stderr,
         )
         return 2

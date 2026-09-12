@@ -208,7 +208,9 @@ der Verstoss steht als Zeuge im Urteil
 (`<x> + <y> = <z> with <x>, <y>, <z> all in color <c>`). `UNVERIFIABLE`
 bei falscher Rumpfform, einer Farbanzahl ausserhalb `1..9`, einer Ziffer
 ausserhalb `1..k`, einer leeren Folge oder einer Laenge ueber dem
-ausfuehrbaren Limit (Default 4096, `--coloring-limit`).
+ausfuehrbaren Limit (Default 4096, `--coloring-limit`; Zeilen jenseits
+von 8192 Zeichen ignoriert der Report-Leser, sodass ein hoeheres Limit
+nicht greifen kann).
 
 Abgrenzung: Ein `CONFIRMED` belegt nur die untere Schranke `S(k) >= N`;
 es beweist keine Gleichheit und sagt nichts ueber die obere Schranke.

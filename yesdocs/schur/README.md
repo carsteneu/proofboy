@@ -36,7 +36,7 @@ nachgerechnet -- die Uebersetzung ist die eigene Zutat, die Quelle nennt
 nur die Zerlegung.
 
 - **k = 1, N = 1.** Ein einziges Element, kein Tripel `x + y <= 1`:
-  jede Faerbung ist gultig. Eigene Suche, 0 Knoten. Die Schranke ist
+  jede Faerbung ist gueltig. Eigene Suche, 0 Knoten. Die Schranke ist
   exakt: `S(1) = 1` (mit zwei Zahlen erzeugt `1 + 1 = 2` zwingend eine
   monochromatische Loesung).
 
@@ -98,7 +98,7 @@ untere Schranke.
 Was dieses Werkzeug kann: jedes eingereichte Faerbungs-Zertifikat bis zur
 Laenge 4096 vollstaendig nachrechnen (alle Tripel `x <= y` mit
 `x + y <= N`) -- das umfasst alle hier gezeigten Faelle -- und die
-kleinen Faelle `S(1..4)` determinstisch selbst finden (Sekunden, s.
+kleinen Faelle `S(1..4)` deterministisch selbst finden (Sekunden, s.
 Befehle unten).
 
 Was dieses Werkzeug nicht kann -- und die Datei deshalb ehrlich offen
@@ -178,7 +178,8 @@ aus und enden mit Exit 0, z. B. `coloring k=4 n=44 nodes=18870
 deterministisch (kein Zufall): zweimal ausgefuehrt, identisches Ergebnis
 -- `tests/test_schur.py` fixiert das. Ein Budget, das nicht reicht, endet
 mit Ausgabe `none ...` und Exit 1 -- ein abgebrochener Lauf behauptet
-nichts.
+nichts; das Budget zaehlt expandierte Entscheidungsknoten exakt, ein
+gestoppter Lauf meldet nie mehr Knoten als das Budget erlaubt.
 
 ## 5. Grenzen dieser Auswertung
 
