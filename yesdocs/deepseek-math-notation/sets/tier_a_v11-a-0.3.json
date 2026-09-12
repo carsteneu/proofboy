@@ -1,0 +1,184 @@
+{
+  "set_version": "v11-a-0.3",
+  "created": "2026-09-12",
+  "seed": 20260912,
+  "note": "v0.3 (Haerte-Runde): mehrstellige Arithmetik (12-20 Stellen), mod/mulmod/gcd auf grossen Zahlen, vier lange Ziffernlaeufe. Ziffern-Politik je Familie im Bericht 05-10; Gold = Bibliothek.",
+  "tasks": [
+    {
+      "id": "A3-0001",
+      "tier": "A",
+      "kind": "add",
+      "prompt": "Berechne die Summe von 837465291837 und 192837465564. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "1030302757401",
+      "witness": "((837465291837 + 192837465564) = 1030302757401)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0002",
+      "tier": "A",
+      "kind": "add",
+      "prompt": "Berechne die Summe von 409638527194 und 583746291038. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "993384818232",
+      "witness": "((409638527194 + 583746291038) = 993384818232)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0003",
+      "tier": "A",
+      "kind": "add",
+      "prompt": "Berechne die Summe von 3847562918347652 und 9273846510298371. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "13121409428646023",
+      "witness": "((3847562918347652 + 9273846510298371) = 13121409428646023)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0004",
+      "tier": "A",
+      "kind": "add",
+      "prompt": "Berechne die Summe von 99999999999999999998 und 12345678901234567893. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "112345678901234567891",
+      "witness": "((99999999999999999998 + 12345678901234567893) = 112345678901234567891)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0005",
+      "tier": "A",
+      "kind": "mul",
+      "prompt": "Berechne das Produkt von 83746293 und 61835749. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "5178514753628457",
+      "witness": "((83746293 * 61835749) = 5178514753628457)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0006",
+      "tier": "A",
+      "kind": "mul",
+      "prompt": "Berechne das Produkt von 384756291834 und 927384651029. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "356817079433686172397186",
+      "witness": "((384756291834 * 927384651029) = 356817079433686172397186)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0007",
+      "tier": "A",
+      "kind": "mul",
+      "prompt": "Berechne das Produkt von 3847562918347652 und 9273846510298371. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "35681707943471788662404827274892",
+      "witness": "((3847562918347652 * 9273846510298371) = 35681707943471788662404827274892)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0008",
+      "tier": "A",
+      "kind": "mul",
+      "prompt": "Berechne das Produkt von 12345678901234567891 und 98765432109876543213. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "1219326311370217952373266269924843773783",
+      "witness": "((12345678901234567891 * 98765432109876543213) = 1219326311370217952373266269924843773783)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0009",
+      "tier": "A",
+      "kind": "mod",
+      "prompt": "Berechne den Rest von 987654321987654321 modulo 1234567891. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "545679084",
+      "witness": "((987654321987654321 % 1234567891) = 545679084)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0010",
+      "tier": "A",
+      "kind": "mod",
+      "prompt": "Berechne den Rest von 7777777777777777777777 modulo 98765432101. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "21558641979",
+      "witness": "((7777777777777777777777 % 98765432101) = 21558641979)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0011",
+      "tier": "A",
+      "kind": "mulmod",
+      "prompt": "Berechne den Rest von (987654321987 * 123456789123) modulo 1000000007. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "187830321",
+      "witness": "(((987654321987 * 123456789123) % 1000000007) = 187830321)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0012",
+      "tier": "A",
+      "kind": "gcd",
+      "prompt": "Bestimme den groessten gemeinsamen Teiler von 987654321987 und 123456789123. Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "3",
+      "witness": "(gcd(987654321987, 123456789123) = 3)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0013",
+      "tier": "A",
+      "kind": "long",
+      "prompt": "Berechne fc(40) (die Fakultaet von 40). Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "815915283247897734345611269596115894272000000000",
+      "witness": "(fc(40) = 815915283247897734345611269596115894272000000000)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0014",
+      "tier": "A",
+      "kind": "long",
+      "prompt": "Bestimme fb(300) (die 300-te Fibonacci-Zahl, fb(0)=0, fb(1)=1). Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "222232244629420445529739893461909967206666939096499764990979600",
+      "witness": "(fb(300) = 222232244629420445529739893461909967206666939096499764990979600)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0015",
+      "tier": "A",
+      "kind": "long",
+      "prompt": "Berechne ch(200,100) (den Binomialkoeffizienten \"200 ueber 100\"). Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "90548514656103281165404177077484163874504589675413336841320",
+      "witness": "(ch(200,100) = 90548514656103281165404177077484163874504589675413336841320)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A3-0016",
+      "tier": "A",
+      "kind": "long",
+      "prompt": "Berechne 2^200 (zwei hoch zweihundert). Gewuenscht ist der exakte Wert.",
+      "notation": "v11",
+      "expected": "1606938044258990275541962092341162602522202993782792835301376",
+      "witness": "((2 ** 200) = 1606938044258990275541962092341162602522202993782792835301376)",
+      "source": "generiert (tier_a_hard, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    }
+  ]
+}
