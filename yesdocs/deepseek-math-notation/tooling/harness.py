@@ -27,6 +27,22 @@ Verlauf. K erhaelt stattdessen eine neutrale Selbstpruefung; die Formel-Arme
 (B/C/D) erhalten ihre eigenen maschinell geprueften Verdikte -- niemals
 Referenzwerte (Gold-Leak-Schutz in :func:`feedback_lines`).
 
+Runde 3 (V13, Haerte): zwei Begriffe, getrennt gefuehrt --
+
+- **Erfolg** ist der tier-typisierte Endzustand einer Runde: Zahl exakt (K)
+  bzw. Beleg-Blatt bestaetigt (B/C/D), alle Checkpoints exakt (trace),
+  Zyklus-Zertifikat maschinenverifiziert (cyc, auch ohne Vorgabe).
+- **Trigger** ist das Ereignis, das die *naechste* Runde ausloest:
+  ``end_state_not_confirmed`` (siehe :data:`TRIGGER_NOT_CONFIRMED`). Er steht
+  als Feld ``trigger`` in jeder Rundenzeile; Form- und Transportfehler sind
+  kein Trigger (Transportfehler bekommen den einen Retry der 05-05-Stopregel).
+
+Dazu: das Zyklus-Scoring prueft die vom Modell genannten Werte gegen die
+Maschine (``claimtypes.cycle``) statt gegen den Goldstring, und die
+Rueckmeldung geht durch eine Default-Deny-Allowlist
+(:func:`_sanitize_reason`): nur die geprueften Beleg-Arten duerfen ihre
+Befunde durchreichen.
+
 Aufrufe::
 
     python3 harness.py batch --arms K,B,C,D --reps 2 --tier-a 16 --tier-b 12
@@ -53,6 +69,8 @@ ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(HERE))
 
+from bemyself.claimtypes import cycle  # noqa: E402
+from bemyself.model import Claim  # noqa: E402
 from bemyself.msheet.runner import run_sheet  # noqa: E402
 from bemyself.msheet.sheet import parse_sheet  # noqa: E402
 from bemyself.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
@@ -64,13 +82,17 @@ AUTH_PATH = os.path.expanduser("~/.local/share/opencode/auth.json")
 SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
 RUNS_DIR = ROOT / ".yesmem" / "tmp" / "runs"
 
-_TIER_A_SET = "tier_a_v11-a-0.2.json"
-_TIER_B_SET = "tier_b_v11-b-0.2.json"
+_TIER_A_SET = "tier_a_v11-a-0.3.json"
+_TIER_B_SET = "tier_b_v11-b-0.3.json"
 
 # Runde-2-Fairness-Design: Diese Arme erhalten in der Reparaturrunde ihre
 # eigenen maschinellen Verdikte (Appendix + Befunde). K erhaelt die neutrale
 # Selbstpruefung -- Verdikte, die es nicht gibt, werden nicht erfunden.
 MACHINE_FEEDBACK_ARMS = ("B", "C", "D")
+
+# Der einzige Trigger der Rundenkette (Haerte-Runde V13): der typisierte
+# Endzustand der Runde ist nicht bestaetigt, es folgt die naechste Runde.
+TRIGGER_NOT_CONFIRMED = "end_state_not_confirmed"
 
 
 def _api_key():
@@ -186,6 +208,42 @@ def _checkpoint_score(answer, gold):
     return matched, first_deviation, {str(k): v for k, v in sorted(pairs.items())}
 
 
+def _certificate_holds(machine_text, values):
+    """True when (t1,t2,d) verifies as a translation cycle of the machine.
+
+    The verdict comes from the same checker as the sheet path
+    (``claimtypes.cycle``): a valid *other* certificate is a solved task, a
+    made-up one never is (V13).
+    """
+    t1, t2, d = (str(value) for value in values)
+    claim = Claim(
+        kind="cycle",
+        line=0,
+        raw="harness-score",
+        fields={
+            "machine": machine_text,
+            "values": f"{t1},{t2},{d}",
+            "t1": t1,
+            "t2": t2,
+            "d": d,
+        },
+    )
+
+    class _Ctx:
+        cycle_limit = cycle.DEFAULT_CYCLE_LIMIT
+
+    try:
+        result = cycle.check(claim, _Ctx())
+    except Exception:  # noqa: BLE001 -- a broken certificate is never solved
+        return False
+    return result.verdict.value == "CONFIRMED"
+
+
+_CERT_RE = re.compile(
+    r"t1\s*=\s*(-?[0-9]+)[,;\s]+t2\s*=\s*(-?[0-9]+)[,;\s]+d\s*=\s*(-?[0-9]+)"
+)
+
+
 def _sheet_evaluation(answer):
     sheet = parse_sheet(extract_sheet_text(answer))
     result = run_sheet(sheet, sandbox="auto", timeout=20.0)
@@ -271,13 +329,17 @@ def evaluate_answer(arm, task, answer, evidence_out=None):
                 evidence_out["result"] = result
             fragment.update(_sheet_block(sheet, result))
     elif task.get("tier_b_kind") == "cyc":
-        t1, t2, d = (str(x) for x in task["certificate"])
         if arm in ("K", "B"):
+            # Maschinenverifiziert statt Goldstring-Vergleich: das Modell darf
+            # jedes gueltige Zertifikat nennen (die Nicht-Vorgabe-Variante
+            # findet regelmaessig ein anderes als das eingefrorene).
+            matches = _CERT_RE.findall(answer)
+            certificate = tuple(int(match) for match in matches[-1]) if matches else None
+            fragment["certificate_claimed"] = list(certificate) if certificate else None
             fragment["solved"] = (
                 "NICHT-HALTEND" in answer
-                and f"t1={t1}" in answer
-                and f"t2={t2}" in answer
-                and f"d={d}" in answer
+                and certificate is not None
+                and _certificate_holds(task["machine"], certificate)
             )
         else:
             sheet, result = _sheet_evaluation(answer)
@@ -330,21 +392,38 @@ def evaluate_run(arm, task, payload, duration, error, args, evidence_out=None):
 _SIM_STEP_RE = re.compile(r"sim: at step ([0-9]+)")
 
 
+# Default-Deny-Allowlist der Rueckmeldung (V13, 05-09 section 7.7). Nur die
+# Beleg-Arten hier duerfen ihre Befunde durchreichen, und ihre nicht-REFUTED-
+# Texte wurden darauf geprueft, keine berechneten Referenzwerte zu tragen
+# (Fehlertexte des Runners, Modell-eigene Werte). Eine neue Beleg-Art muss
+# bewusst aufgenommen *und* geprueft werden; ohne Eintrag kommt sie nur als
+# Marker zurueck -- ein kuenftiger Beleg-Typ kann die Referenzwerte damit
+# nicht versehentlich durchlassen.
+_ALLOWED_REASON_KINDS = frozenset({"auto", "ref", "sim", "cyc", "py"})
+# Refutations-Texte, die die Referenz selbst benennen (Zustand/Kopf/Band bzw.
+# Zertifikat-Groessen), bleiben immer gesanitisiert -- auch fuer erlaubte Arten.
+_WITHHELD_VERDICTS = frozenset({("sim", "REFUTED"), ("cyc", "REFUTED")})
+_DEFAULT_DENY_REASON = "{kind}: der Beleg traegt nicht (Rueckmeldung ohne Referenzwerte)"
+
+
 def _sanitize_reason(kind, verdict, reason):
     """The reason as safe to hand back: error texts stay, computed reference
     values do not (no gold leak). ``sim``/``cyc`` refutations name the actual
     state/head/tape or certificate parts -- the sheet owner must find its own
-    values again."""
-    if verdict != "REFUTED":
+    values again. Everything outside the reviewed kinds is withheld: the
+    allowlist is default-deny, so a future witness kind cannot leak."""
+    if verdict == "CONFIRMED":
         return reason
-    if kind == "sim":
-        match = _SIM_STEP_RE.search(reason)
-        where = f" bei Schritt {match.group(1)}" if match else ""
-        return (
-            f"sim: die Konfiguration{where} stimmt nicht mit der "
-            "Referenzsimulation ueberein"
-        )
-    if kind == "cyc":
+    if kind not in _ALLOWED_REASON_KINDS:
+        return _DEFAULT_DENY_REASON.format(kind=kind or "unbekannt")
+    if (kind, verdict) in _WITHHELD_VERDICTS:
+        if kind == "sim":
+            match = _SIM_STEP_RE.search(reason)
+            where = f" bei Schritt {match.group(1)}" if match else ""
+            return (
+                f"sim: die Konfiguration{where} stimmt nicht mit der "
+                "Referenzsimulation ueberein"
+            )
         return "cyc: das Zertifikat traegt fuer diese Maschine nicht"
     return reason
 
@@ -438,10 +517,27 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
         answer_full = (payload.get("content") or "") if payload else ""
         solved = bool(record["solved"])
         usage = record.get("usage") or {}
+
+        # Erfolg und Trigger getrennt (V13): der Endzustand der Runde ist der
+        # Erfolg; der Trigger ist das Ereignis, das die *naechste* Runde
+        # ausloest. Formfehler allein loesen nichts aus, Transportfehler
+        # bekommen den einen Retry der 05-05-Stopregel.
+        stop = solved or payload is None or round_index == max_repairs
+        trigger = None
+        repair_text = None
+        if not stop:
+            trigger = TRIGGER_NOT_CONFIRMED
+            result = evidence.get("result")
+            verdicts, notes = feedback_lines(arm, task, evidence)
+            format_errors = list(result.format_errors) if result is not None else []
+            repair_text = build_repair_message(arm, task, verdicts, notes, format_errors)
+        record["trigger"] = trigger
+        record["next_feedback"] = repair_text
         rounds.append(
             {
                 "round": round_index,
                 "solved": solved,
+                "trigger": trigger,
                 "error": error,
                 "duration_s": record["duration_s"],
                 "completion_tokens": usage.get("completion_tokens", 0),
@@ -451,15 +547,6 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
                 "format_errors": len(record.get("format_errors") or []),
             }
         )
-
-        stop = solved or payload is None or round_index == max_repairs
-        repair_text = None
-        if not stop:
-            result = evidence.get("result")
-            verdicts, notes = feedback_lines(arm, task, evidence)
-            format_errors = list(result.format_errors) if result is not None else []
-            repair_text = build_repair_message(arm, task, verdicts, notes, format_errors)
-        record["next_feedback"] = repair_text
         (out_dir / "parsed.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
 
         if stop:
@@ -479,6 +566,7 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
         "final_solved": bool(rounds and rounds[-1]["solved"]),
         "rounds_to_ok": rounds_to_ok,
         "repairs_used": len(rounds) - 1,
+        "triggered_rounds": [row["round"] for row in rounds if row["trigger"]],
         "transport_retries": retries,
         "total_completion_tokens": sum(row["completion_tokens"] for row in rounds),
         "total_reasoning_tokens": sum(row["reasoning_tokens"] for row in rounds),
@@ -620,7 +708,8 @@ def main(argv=None):
     dry.set_defaults(func=cmd_dry)
 
     args = parser.parse_args(argv)
-    if args.max_repairs < 0:
+    # ``dry`` kennt kein --max-repairs; der Check gilt nur fuer die Lauf-Kommandos.
+    if getattr(args, "max_repairs", 0) < 0:
         parser.error("--max-repairs must be >= 0")
     return args.func(args)
 

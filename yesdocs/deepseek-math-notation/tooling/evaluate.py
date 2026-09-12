@@ -113,6 +113,12 @@ def summarize_runs(runs):
             if run["summary"]["rounds"] and run["summary"]["rounds"][0]["solved"]
         )
         final_solved = sum(1 for run in rows if run["summary"]["final_solved"])
+        # Trigger = das Ereignis, das eine weitere Runde ausgeloest hat
+        # (Erfolg und Trigger sind getrennte Begriffe, V13). Laeufe im flachen
+        # V11-Layout kennen kein Trigger-Feld und zaehlen nicht mit.
+        triggered = sum(
+            1 for run in rows if run["summary"].get("triggered_rounds")
+        )
         repaired = sum(
             1
             for run in rows
@@ -166,6 +172,7 @@ def summarize_runs(runs):
             "final_rate": round(final_solved / n, 4) if n else None,
             "final_ci95": [round(low, 4), round(high, 4)],
             "repaired": repaired,
+            "triggered_runs": triggered,
             "repair_gain_pp": round(100 * (final_solved - r0_solved) / n, 1) if n else None,
             "rounds_to_ok": hist,
             "xx_resolution": {
@@ -187,14 +194,14 @@ def summarize_runs(runs):
 
 def render_round_markdown(summary, manifest):
     lines = [
-        "# Runden-Auswertung V12 (deskriptiv)",
+        "# Runden-Auswertung (deskriptiv)",
         "",
         f"- Lauf: {manifest.get('started', '?')} · Modell: {manifest.get('model', '?')} · Arme: {manifest.get('arms', '?')} · reps: {manifest.get('reps', '?')} · max_repairs: {manifest.get('max_repairs', '?')}",
         f"- Tier-A-Set: {manifest.get('tier_a_set', {}).get('version', '?')} sha256 {manifest.get('tier_a_set', {}).get('sha256', '?')[:16]}…",
         f"- Tier-B-Set: {manifest.get('tier_b_set', {}).get('version', '?')} sha256 {manifest.get('tier_b_set', {}).get('sha256', '?')[:16]}…",
         "",
-        "| Arm-Tier | n | R0 gelöst | R0-Rate | Formfehler-Läufe R0 | Final gelöst | Final-Rate (95%-CI) | repariert | Reparaturgewinn | Runden bis ok (0..max/offen) | #xx-Auflösung | Tokens gesamt | Tokens/Treffer | Zeit gesamt |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| Arm-Tier | n | R0 gelöst | R0-Rate | Formfehler-Läufe R0 | Final gelöst | Final-Rate (95%-CI) | repariert | Trigger-Läufe | Reparaturgewinn | Runden bis ok (0..max/offen) | #xx-Auflösung | Tokens gesamt | Tokens/Treffer | Zeit gesamt |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for entry in summary.values():
         hist = entry["rounds_to_ok"]
@@ -209,7 +216,7 @@ def render_round_markdown(summary, manifest):
             else "—"
         )
         lines.append(
-            "| {arm}-{tier} | {n} | {r0} | {r0r} | {ferr} | {fin} | {finr} ({lo:.2f}–{hi:.2f}) | {rep} | +{gain} pp | {hist} | {res}/{tot} | {tok} | {tps} | {wall}s |".format(
+            "| {arm}-{tier} | {n} | {r0} | {r0r} | {ferr} | {fin} | {finr} ({lo:.2f}–{hi:.2f}) | {rep} | {trig} | +{gain} pp | {hist} | {res}/{tot} | {tok} | {tps} | {wall}s |".format(
                 arm=entry["arm"],
                 tier=entry["tier"],
                 n=entry["n"],
@@ -221,6 +228,7 @@ def render_round_markdown(summary, manifest):
                 lo=entry["final_ci95"][0],
                 hi=entry["final_ci95"][1],
                 rep=entry["repaired"],
+                trig=entry["triggered_runs"],
                 gain=entry["repair_gain_pp"],
                 hist=hist_str,
                 res=resolution["resolved"],
@@ -232,7 +240,10 @@ def render_round_markdown(summary, manifest):
         )
     lines.append("")
     lines.append(
-        "Hinweise: `repariert` = R0 nicht gelöst, final gelöst; `Reparaturgewinn` = Differenz "
+        "Hinweise: `repariert` = R0 nicht gelöst, final gelöst; `Trigger-Läufe` = Läufe, in "
+        "denen mindestens eine Runde den Trigger `end_state_not_confirmed` trug (Erfolg und "
+        "Trigger sind getrennte Begriffe; V11-Läufe ohne Trigger-Feld zählen 0); "
+        "`Reparaturgewinn` = Differenz "
         "in Prozentpunkten über n; `Runden bis ok` zählt die Buckets 0..max in Ordnung, dann "
         "die offenen Läufe; `#xx-Auflösung` = Anteil der in Runde r refutierten ids, "
         "die in Runde r+1 nicht mehr refutiert sind; `Tokens` = completion über "

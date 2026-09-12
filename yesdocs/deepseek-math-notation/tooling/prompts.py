@@ -155,15 +155,31 @@ def _answer_instruction(arm, task):
         )
     if tier == "B" and kind == "cyc":
         t1, t2, d = task.get("certificate", ["?", "?", "?"])
+        # ``certificate_given=False`` (Haerte-Runde V13): die Aufgabe ist die
+        # *Bestimmung* des Zertifikats; die Werte stehen dann nirgends im Text
+        # (nur das Muster mit Platzhaltern -- nichts zum Abschreiben).
+        if task.get("certificate_given", True):
+            if arm in ("K", "B"):
+                return (
+                    f"Fasse den Nachweis in wenigen Zeilen zusammen und beende mit genau "
+                    f"einer Zeile: Endantwort: NICHT-HALTEND (t1={t1},t2={t2},d={d})"
+                )
+            return (
+                f"Formuliere h1: M zyklisch (Translation), verifiziere mit v h1: cyc({t1},{t2},{d}), "
+                "setze h1+, wiederhole den Gegenstand als CLAIM c1: M zyklisch (Translation) und "
+                "belege ihn mit WITNESS c1: ref h1; Ende: [HALT] c1."
+            )
         if arm in ("K", "B"):
             return (
-                f"Fasse den Nachweis in wenigen Zeilen zusammen und beende mit genau "
-                f"einer Zeile: Endantwort: NICHT-HALTEND (t1={t1},t2={t2},d={d})"
+                "Fasse den Nachweis in wenigen Zeilen zusammen; bestimme die Zykluswerte "
+                "t1, t2 und d selbst aus dem Lauf und beende mit genau einer Zeile: "
+                "Endantwort: NICHT-HALTEND (t1=<wert>,t2=<wert>,d=<wert>)"
             )
         return (
-            f"Formuliere h1: M zyklisch (Translation), verifiziere mit v h1: cyc({t1},{t2},{d}), "
-            "setze h1+, wiederhole den Gegenstand als CLAIM c1: M zyklisch (Translation) und "
-            "belege ihn mit WITNESS c1: ref h1; Ende: [HALT] c1."
+            "Formuliere h1: M zyklisch (Translation), bestimme die Zykluswerte t1, t2 und d "
+            "selbst aus dem Lauf und verifiziere mit \"v h1: cyc(<t1>,<t2>,<d>)\" mit deinen "
+            "Werten; setze h1+, wiederhole den Gegenstand als CLAIM c1: M zyklisch (Translation) "
+            "und belege ihn mit WITNESS c1: ref h1; Ende: [HALT] c1."
         )
     raise ValueError(f"no answer instruction for arm {arm!r} and task {task.get('id')!r}")
 
@@ -194,11 +210,19 @@ def _k_selfcheck(task):
     elif kind == "trace":
         tail = "Antworte erneut mit den geforderten cp-Zeilen (Konvention wie oben)."
     elif kind == "cyc":
-        t1, t2, d = task.get("certificate", ["?", "?", "?"])
-        tail = (
-            "Beende erneut mit genau einer Zeile: "
-            f"Endantwort: NICHT-HALTEND (t1={t1},t2={t2},d={d})"
-        )
+        if task.get("certificate_given", True):
+            t1, t2, d = task.get("certificate", ["?", "?", "?"])
+            tail = (
+                "Beende erneut mit genau einer Zeile: "
+                f"Endantwort: NICHT-HALTEND (t1={t1},t2={t2},d={d})"
+            )
+        else:
+            # Ohne Vorgabe bleibt der Reparaturpfad wertfrei: die Zertifikatswerte
+            # sind das Gesuchte, nicht das Gegebene.
+            tail = (
+                "Beende erneut mit genau einer Zeile: "
+                "Endantwort: NICHT-HALTEND (t1=<wert>,t2=<wert>,d=<wert>)"
+            )
     else:
         tail = "Antworte erneut im geforderten Format."
     return (
