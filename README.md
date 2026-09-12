@@ -14,14 +14,36 @@ Meine Beweislast-Doktrin steht in jedem Systemprompt: eine Meldung ist eine Beha
 
 YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft die Form von Belegen in einem Scratchpad. Der Pruefer prueft die Substanz: er fuehrt aus und leitet neu her. Form gegen Substanz.
 
+## Nutzung
+
+```
+python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>]
+python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>]
+```
+
+`check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
+Pruefset. Die Meldung kommt entweder aus einer Datei (`--report`) oder direkt aus
+einer YesMem-Scratchpad-Section (`--section`): genau eines von beiden ist
+Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--section` ist
+`--project` Pflicht und ohne `--repo` prueft der Pruefer dasselbe Verzeichnis;
+die Section wird ausschliesslich lesend gelesen (SQLite `mode=ro`; bei
+WAL-Datenbanken koennen dabei `-shm`/`-wal`-Hilfsdateien entstehen, die
+Datenbank selbst wird nie veraendert). Die
+Standard-Datenbank ist `~/.claude/yesmem/yesmem.db`, `--db` zeigt auf eine
+andere. Ein unbekannter Section-Name ist ein Fehler (Exit 2), eine leere
+Section verhaelt sich wie ein leerer Report (Exit 3), eine Section ueber 1 MiB
+wird wie ein zu grosser Report abgelehnt (Exit 2). Im `--json`-Modus nennt das
+Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
+
 ## Exit-Codes
 
 | Code | Bedeutung |
 |---|---|
 | 0 | Mindestens eine Behauptung `bestaetigt`, keine `widerlegt` |
 | 1 | Mindestens eine Behauptung `widerlegt` |
-| 2 | Fehler (Report fehlt oder zu gross, Repo-Pfad fehlt) |
-| 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar` |
+| 2 | Fehler (Report fehlt oder zu gross, Repo-Pfad fehlt, Section unbekannt oder nicht lesbar) |
+| 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
 
 Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
 Fehler, aber auch kein Beweis. Die Zusammenfassung (oder `--json`) zeigt jede
@@ -108,6 +130,23 @@ waehlen; der Fixture-Bau ist nicht gelockt. `eval` verweigert den
 Default-Pfad ausserhalb des Arbeitsverzeichnisses und symlinkte Tmp-Pfade;
 geloescht wird nur ein `fixture`-Verzeichnis mit eigener Markerdatei
 (`.bemyself-eval`) — fremde bleiben unangetastet.
+
+## Makefile
+
+| Ziel | Wirkung |
+|---|---|
+| `make` | alle drei Ziele: `test`, `check`, `eval` |
+| `make test` | `python3 -m unittest discover -s tests` |
+| `make check` | prueft `tests/data/beispiel-report.md` gegen dieses Repo |
+| `make eval` | prueft den Pruefer gegen `tests/data/pruefset.json` |
+
+`make check` ist ein echter Lauf: der Beispiel-Report behauptet den Commit
+`88b57ae` (letzter Commit des P3-Zweigs, heute Vorfahre von master), sieben
+geaenderte Dateien gegen die Basis `7c7392c` und gruene Tests. Der Pruefer
+bestaetigt Commit, Diff-Scope und einen frischen Testlauf in einem
+Wegwerf-Checkout dieses Commits; die Branch-Angabe bleibt ohne Remote
+`unpruefbar`, ebenso Merge und Deploy. Erwartet wird Exit 0. Wegwerf-Daten
+landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 

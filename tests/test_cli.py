@@ -1,5 +1,6 @@
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -192,6 +193,159 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("tmp", proc.stderr.lower())
         self.assertEqual(os.listdir(outside), [], "scratch files were written outside the repo")
+
+    def test_committed_yesmem_symlink_with_json_reports_an_error(self):
+        link = os.path.join(self.repo.path, ".yesmem")
+        if not os.path.lexists(link):
+            outside = os.path.join(self._tmp.name, "outside-json")
+            os.makedirs(outside, exist_ok=True)
+            os.symlink(outside, link)
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+        )
+        proc = self.invoke("--report", report, "--json", tmp=False)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("tmp", proc.stderr.lower())
+        self.assertIn("tmp", json.loads(proc.stdout)["error"].lower())
+
+
+class CliSectionTest(unittest.TestCase):
+    """``check --section`` reads the message from a scratchpad database.
+
+    Every test passes ``--db``; the live YesMem database is never touched.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.repo = make_repo(os.path.join(cls._tmp.name, "fixture"))
+        cls.db = os.path.join(cls._tmp.name, "scratchpad.db")
+        con = sqlite3.connect(cls.db)
+        con.executescript(
+            """
+            CREATE TABLE scratchpad_entries (
+                project TEXT NOT NULL,
+                section TEXT NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                UNIQUE(project, section)
+            );
+            """
+        )
+        con.commit()
+        con.close()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def add_section(self, section, content):
+        con = sqlite3.connect(self.db)
+        con.execute(
+            "INSERT OR REPLACE INTO scratchpad_entries (project, section, content) VALUES (?, ?, ?)",
+            (self.repo.path, section, content),
+        )
+        con.commit()
+        con.close()
+
+    def invoke(self, section, *extra, project=None, db=None, tmp=True):
+        command = [
+            sys.executable,
+            "-m",
+            "bemyself",
+            "check",
+            "--section",
+            section,
+            "--project",
+            project or self.repo.path,
+            "--db",
+            db or self.db,
+        ]
+        if tmp:
+            command += ["--tmp", os.path.join(self._tmp.name, "tmp")]
+        return subprocess.run(
+            command + list(extra),
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    def invoke_raw(self, *args):
+        return subprocess.run(
+            [sys.executable, "-m", "bemyself", "check"] + list(args),
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    def verdicts(self, stdout):
+        return {c["kind"]: c["verdict"] for c in json.loads(stdout)["claims"]}
+
+    def test_section_message_is_verified(self):
+        self.add_section("report", f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n")
+        proc = self.invoke("report", "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
+        self.assertEqual(self.verdicts(proc.stdout)["commit_exists"], "CONFIRMED")
+
+    def test_json_names_the_scratchpad_source(self):
+        self.add_section("merge-only", "[MERGE: no]\n")
+        proc = self.invoke("merge-only", "--json")
+        self.assertEqual(proc.returncode, 3)
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload["report"], f"scratchpad:merge-only@{self.repo.path}")
+
+    def test_unknown_section_is_an_error(self):
+        proc = self.invoke("missing", "--json")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("missing", proc.stderr)
+        self.assertIn("missing", json.loads(proc.stdout)["error"])
+
+    def test_empty_section_is_nothing_to_verify(self):
+        self.add_section("empty", "")
+        proc = self.invoke("empty", "--json")
+        self.assertEqual(proc.returncode, 3)
+        self.assertEqual(json.loads(proc.stdout)["claims"], [])
+
+    def test_unreadable_database_is_an_error(self):
+        proc = self.invoke("report", db=os.path.join(self._tmp.name, "no-such.db"))
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("database", proc.stderr.lower())
+
+    def test_oversized_section_is_an_error(self):
+        self.add_section("huge", "x" * ((1 << 20) + 1))
+        proc = self.invoke("huge")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("1 MiB", proc.stderr)
+
+    def test_section_and_report_are_mutually_exclusive(self):
+        proc = self.invoke_raw(
+            "--section",
+            "report",
+            "--project",
+            self.repo.path,
+            "--db",
+            self.db,
+            "--report",
+            os.path.join(self._tmp.name, "report.txt"),
+            "--repo",
+            self.repo.path,
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--section", proc.stderr)
+
+    def test_one_of_report_and_section_is_required(self):
+        proc = self.invoke_raw("--repo", self.repo.path)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--report", proc.stderr)
+
+    def test_section_requires_project(self):
+        proc = self.invoke_raw("--section", "report", "--db", self.db)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--project", proc.stderr)
+
+    def test_report_still_requires_repo(self):
+        proc = self.invoke_raw("--report", os.path.join(self._tmp.name, "report.txt"))
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--repo", proc.stderr)
 
 
 if __name__ == "__main__":

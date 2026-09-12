@@ -11,6 +11,7 @@ import sys
 from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, git_env, run_claim
 from bemyself.model import Claim, Verdict
 from bemyself.report import parse_report
+from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
 
 EXIT_OK = 0
 EXIT_REFUTED = 1
@@ -68,9 +69,9 @@ def _resolve_repo_root(path):
     return path
 
 
-def _json_error(report_path, repo, message):
+def _json_error(source, repo, message):
     return {
-        "report": report_path,
+        "report": source,
         "repo": repo,
         "claims": [],
         "summary": summarize([]),
@@ -91,8 +92,20 @@ def build_parser():
     )
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("check", help="verify every claim in a report")
-    check.add_argument("--report", required=True, help="path to the report file")
-    check.add_argument("--repo", required=True, help="path to the git repository")
+    check.add_argument("--report", help="path to the report file")
+    check.add_argument(
+        "--section",
+        help="name of a YesMem scratchpad section to verify instead of a file",
+    )
+    check.add_argument(
+        "--project",
+        help="scratchpad project of --section; --repo defaults to the same path",
+    )
+    check.add_argument(
+        "--db",
+        help=f"path to the YesMem database (default {DEFAULT_DB}), opened read-only",
+    )
+    check.add_argument("--repo", help="path to the git repository")
     check.add_argument(
         "--base",
         help="base revision for diff-scope; without it diff-scope claims stay UNVERIFIABLE",
@@ -156,9 +169,9 @@ def exit_code(results):
     return EXIT_OK
 
 
-def _json_payload(report_path, repo, results):
+def _json_payload(source, repo, results):
     return {
-        "report": report_path,
+        "report": source,
         "repo": repo,
         "claims": [
             {
@@ -208,42 +221,86 @@ def _tmp_dir(args, repo):
     return candidate
 
 
-def run_check(args):
-    report_path = os.path.abspath(args.report)
-    repo_arg = os.path.abspath(args.repo)
-    try:
-        with open(report_path, encoding="utf-8", errors="replace") as handle:
-            text = handle.read(MAX_REPORT_BYTES + 1)
-    except OSError as exc:
-        message = f"cannot read report {report_path}: {exc}"
-        print(f"bemyself: {message}", file=sys.stderr)
-        if args.json:
-            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=True))
-        return EXIT_ERROR
+def _validate_check_args(parser, args):
+    """Enforce the source contract before any file or database is touched.
 
-    if len(text) > MAX_REPORT_BYTES:
-        # Verifying a silently truncated report could hide the claims that
-        # matter; refuse instead of guessing.
-        message = f"report exceeds 1 MiB; refusing to verify a truncated report: {report_path}"
-        print(f"bemyself: {message}", file=sys.stderr)
-        if args.json:
-            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=True))
-        return EXIT_ERROR
+    argparse cannot express the dependency pairs, so this is a usage error
+    (exit 2) in every invalid combination.
+    """
+    if args.report is None and args.section is None:
+        parser.error("one of --report or --section is required")
+    if args.report is not None and args.section is not None:
+        parser.error("--report and --section are mutually exclusive")
+    if args.report is not None and args.repo is None:
+        parser.error("--repo is required with --report")
+    if args.section is not None and args.project is None:
+        parser.error("--project is required with --section")
+
+
+def _source_error(as_json, source, repo, message):
+    """Report a source (file or section) error in both output modes."""
+    print(f"bemyself: {message}", file=sys.stderr)
+    if as_json:
+        print(json.dumps(_json_error(source, repo, message), indent=2, ensure_ascii=True))
+    return EXIT_ERROR
+
+
+def run_check(args):
+    if args.section is not None:
+        # The descriptor names the source in the JSON output: there is no
+        # report file behind a section, and the exit code alone cannot say
+        # where the message came from.
+        source = f"scratchpad:{args.section}@{args.project}"
+        repo_arg = os.path.abspath(args.repo or args.project)
+        try:
+            text = read_section(
+                args.db or default_db_path(), args.project, args.section, MAX_REPORT_BYTES + 1
+            )
+        except ScratchpadError as exc:
+            return _source_error(args.json, source, repo_arg, f"cannot read scratchpad section: {exc}")
+        if text is None:
+            return _source_error(
+                args.json,
+                source,
+                repo_arg,
+                f"section {args.section!r} not found in project {args.project!r}",
+            )
+        if len(text) > MAX_REPORT_BYTES:
+            return _source_error(
+                args.json,
+                source,
+                repo_arg,
+                f"section exceeds 1 MiB; refusing to verify a truncated section: {source}",
+            )
+    else:
+        source = os.path.abspath(args.report)
+        repo_arg = os.path.abspath(args.repo)
+        try:
+            with open(source, encoding="utf-8", errors="replace") as handle:
+                text = handle.read(MAX_REPORT_BYTES + 1)
+        except OSError as exc:
+            return _source_error(args.json, source, repo_arg, f"cannot read report {source}: {exc}")
+        if len(text) > MAX_REPORT_BYTES:
+            # Verifying a silently truncated report could hide the claims that
+            # matter; refuse instead of guessing.
+            return _source_error(
+                args.json,
+                source,
+                repo_arg,
+                f"report exceeds 1 MiB; refusing to verify a truncated report: {source}",
+            )
 
     if not os.path.isdir(repo_arg):
-        message = f"repo path does not exist: {repo_arg}"
-        print(f"bemyself: {message}", file=sys.stderr)
-        if args.json:
-            print(json.dumps(_json_error(report_path, repo_arg, message), indent=2, ensure_ascii=True))
-        return EXIT_ERROR
+        return _source_error(args.json, source, repo_arg, f"repo path does not exist: {repo_arg}")
     repo = _resolve_repo_root(repo_arg)
 
     claims = _apply_files_override(parse_report(text), args.files)
 
     if not claims:
-        print("bemyself: no verifiable claims found in the report", file=sys.stderr)
+        kind = "section" if args.section is not None else "report"
+        print(f"bemyself: no verifiable claims found in the {kind}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_payload(report_path, repo, []), indent=2, ensure_ascii=True))
+            print(json.dumps(_json_payload(source, repo, []), indent=2, ensure_ascii=True))
         return EXIT_NOTHING
 
     tmp_dir = _tmp_dir(args, repo)
@@ -254,7 +311,7 @@ def run_check(args):
         )
         print(f"bemyself: {message}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_error(report_path, repo, message), indent=2, ensure_ascii=True))
+            print(json.dumps(_json_error(source, repo, message), indent=2, ensure_ascii=True))
         return EXIT_ERROR
     ctx = Ctx(
         repo=repo,
@@ -265,7 +322,7 @@ def run_check(args):
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 
     if args.json:
-        print(json.dumps(_json_payload(report_path, repo, results), indent=2, ensure_ascii=True))
+        print(json.dumps(_json_payload(source, repo, results), indent=2, ensure_ascii=True))
     else:
         print(sanitize(render_text(results)))
 
@@ -276,6 +333,7 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "check":
+        _validate_check_args(parser, args)
         return run_check(args)
     if args.command == "eval":
         # Imported here so the check path does not load the eval harness.
