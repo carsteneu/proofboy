@@ -173,6 +173,34 @@ Tier A (Mikro-Bench, [05-04](05-04-test-harness.md) Abschnitt 2) ist problemunab
 
 **(ii) Ungepaarte vs. gepaarte n-Welten.** Die ungepaarte Welt (zwei unabhängige Gruppen) verlangt bei Δ = 0,10 und p₀ ≈ 0,5 rund 388 pro Gruppe (pwr/Cohen-Näherung; eigene Nachrechnung 387,2) ([pwr.2p.test](https://rdrr.io/cran/pwr/man/pwr.2p.test.html, accessed 2026-09-12)). Die gepaarte Miller-Formel verlangt bei δ = 0,10 je nach Varianzannahme 88–349 Aufgaben (Tabelle 1) — andere Annahmen, anderes Design (gleiche Aufgaben in beiden Armen statt unabhängiger Stichproben; ω² trägt die Aufgabenvarianz). Die Zahlen dürfen nicht vermischt oder ineinander umgerechnet werden (Setzung). Unser Design ist gepaart; die 388 dienen nur als Referenzordnung der Lehrbuchwelt.
 
+## 10. Nachtrag (2026-09-12): V1.1-Denk-Leiter (Arme C/D)
+
+Ausgelöst durch den V1.1-Entwurf ([05-07](05-07-denksprache-v1.1.md); Auftrag Carsten 2026-09-12, „Thinking in der Sprache"). Der Nachtrag ändert nichts an den Abschnitten 1–9 für die Hauptfrage; er erweitert das Design um eine geprüfte Leiter, weil die größten Token-Posten im Denken liegen.
+
+**Arme (Leiter).** Die bisherige Sub-Ablation S3 (Zonen-Radikalität) wird zum eigenen Arm; Gesamtleiter:
+
+| Arm | Denkseite | Belegseite | Rolle |
+|---|---|---|---|
+| K | Standard-Schreibweise mit Prosa-CoT | freie Endantwort | Kontrolle (bisherige Kontrolle) |
+| B | V1-Denkzone (`S`-Zeilen, Kurzprosa erlaubt) | V1-Behauptungszone | bisherige Behandlung; Default-Kandidat |
+| C | V1.1 voll-strikt (Tags, Status; „Kopf strikt, Rumpf frei") | V1 unverändert | [05-07](05-07-denksprache-v1.1.md) §§2–7 |
+| D | C + Zeugenpflicht für jede `=`-Konsequenz + Verdikt-Rückkanal über Turns | V1 unverändert | stärkste Form; nur wo Zeugen billig (Tier-A-Teilmenge, Tier-B T2/T3) |
+
+**Hypothesen (hierarchisch vorregistriert).** H1: B > K (bleibt der konfirmatorische K1). H2: C vs. B — entscheidet die Kernfrage der Denk-Sprache (die P3-Falsifikation aus [05-01](05-01-designprinzipien.md) wird hier zur Entscheidung). H3: D vs. C — Fehler-Containment gegen Kosten. H2/H3 sind sekundär/explorativ (Effektgrößen + Intervalle, keine Bestätigungs-Etikettierung; Multiplizitäts-Regel Abschnitt 5 gilt).
+
+**Neue Metriken (Ergänzung zu Abschnitt 4).**
+
+| # | Metrik | Definition | Quelle der Wahrheit |
+|---|---|---|---|
+| h | Marker-Treue Denken | Anteil Denkzeilen mit gültigem `<tag><n>:`-Kopf; zusätzlich Marker-Dichte im exportierten `reasoning_content` | Parser / `export.json` |
+| i | Reasoning-Tokens | `reasoning` getrennt von `output` (aus den `step_finish`-Tokenfeldern) | `raw.jsonl` |
+| j | Checks pro Blatt | Zahl der `v`-Zeilen samt Verdiktverteilung | Runner-Trace |
+| k | Error-Containment | Position des ersten `#xx` (REFUTED) unter den Verdikten, normiert auf die Blattlänge | Runner-Trace |
+
+**Metrik-c-Anpassung.** In V1.1-Armen zählen Denkzeilen über ihren Tag-Kopf (nicht mehr `S…:`); arm-vergleichbar bleibt die Gesamtzahl der Denkzeilen je Aufgabe.
+
+**Sub-Schalter.** S6–S9 aus [05-07](05-07-denksprache-v1.1.md) §10; Fallzahlen je Sub-Arm erst nach dem Kalibrierlauf registriert (Budget-Regel Abschnitt 1). S8 (Trace-Formen) hat Vorrang in Tier B, S7 (Kürzel) in beiden Tiers.
+
 ## Quellen
 
 1. Sclar, M., Choi, Y., Tsvetkov, Y. und Suhr, A. (2024): Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting. ICLR 2024, arXiv:2310.11324. https://arxiv.org/abs/2310.11324 (accessed 2026-09-12)
