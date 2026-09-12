@@ -10,7 +10,7 @@ import subprocess
 import sys
 import unittest
 
-from bemyself.turing import MachineError, parse, run
+from bemyself.turing import MachineError, parse, run, run_checkpoints
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -51,6 +51,10 @@ BB6_RECORD = "1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE"
 # The BB(6) Cryptid "Antihydra" in the canonical notation of the bbchallenge
 # wiki, including the undefined F0 transition (`---`); believed to never halt.
 ANTIHYDRA = "1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA"
+
+# Hand trace: step 1 writes 1 at 0 and moves right; state B then reads 0,
+# whose transition is undefined, so the machine halts before executing it.
+UNDEFINED_HALT = "1RB1RZ_---0LA"
 
 
 class ParseTest(unittest.TestCase):
@@ -212,6 +216,101 @@ class UndefinedTransitionTest(unittest.TestCase):
         result = run(machine, 1000)
         self.assertFalse(result.halts)
         self.assertEqual(result.steps, 1000)
+
+
+class CheckpointTest(unittest.TestCase):
+    """``run_checkpoints``: the configuration at a step, without changing what
+    ``run`` does. A Snapshot carries the state, the head and the tape cells
+    trimmed to the written extent -- cells beyond are zero by construction."""
+
+    def test_initial_checkpoint_is_the_start_configuration(self):
+        result, snapshots = run_checkpoints(parse(TRACE_MACHINE), 10, (0,))
+        self.assertEqual(result, (True, 3, 1))
+        snapshot = snapshots[0]
+        self.assertEqual((snapshot.state, snapshot.head), (0, 0))
+        self.assertEqual(snapshot.right, b"")
+        self.assertEqual(snapshot.left, b"")
+
+    def test_cells_are_trimmed_to_the_written_extent(self):
+        # The tape arrays grow in chunks of 1024 cells; the snapshot carries
+        # the written cells only, so cells beyond it are zero.
+        result, snapshots = run_checkpoints(parse(WALKER), 4, (3,))
+        self.assertEqual(result, (False, 4, 4))
+        snapshot = snapshots[3]
+        self.assertEqual((snapshot.state, snapshot.head), (0, 3))
+        self.assertEqual(snapshot.right, b"\x01\x01\x01")
+        self.assertEqual(snapshot.left, b"")
+
+    def test_left_half_cells_are_mirrored(self):
+        # LEFT_HALF_MACHINE writes one 1 at position -1 within two steps.
+        result, snapshots = run_checkpoints(parse(LEFT_HALF_MACHINE), 10, (2,))
+        self.assertEqual(result, (True, 4, 1))
+        snapshot = snapshots[2]
+        self.assertEqual((snapshot.state, snapshot.head), (0, 0))
+        self.assertEqual(snapshot.left, b"\x01")
+        self.assertEqual(snapshot.right, b"")
+
+    def test_an_all_zero_walker_captures_empty_cells(self):
+        result, snapshots = run_checkpoints(parse(ZERO_WALKER), 4, (4,))
+        self.assertEqual(result, (False, 4, 0))
+        snapshot = snapshots[4]
+        self.assertEqual((snapshot.state, snapshot.head), (0, -4))
+        self.assertEqual((snapshot.right, snapshot.left), (b"", b""))
+
+    def test_a_halted_run_captures_nothing_at_or_after_the_halt(self):
+        result, snapshots = run_checkpoints(parse(TRACE_MACHINE), 10, (3, 5))
+        self.assertEqual(result, (True, 3, 1))
+        self.assertIsNone(snapshots[3])
+        self.assertIsNone(snapshots[5])
+
+    def test_checkpoints_beyond_the_limit_stay_empty(self):
+        result, snapshots = run_checkpoints(parse(WALKER), 5, (5, 6))
+        self.assertEqual(result, (False, 5, 5))
+        self.assertEqual(snapshots[5].right, b"\x01" * 5)
+        self.assertIsNone(snapshots[6])
+
+    def test_capture_does_not_change_the_run_result(self):
+        for machine, steps in (
+            (TRACE_MACHINE, 10),
+            (WALKER, 7),
+            (ZERO_WALKER, 4),
+            (OVERWRITE_MACHINE, 10),
+            (UNDEFINED_HALT, 10),
+        ):
+            with self.subTest(machine=machine):
+                result, _ = run_checkpoints(parse(machine), steps, (0, 1, 2, 3, 5, 9))
+                self.assertEqual(result, run(parse(machine), steps))
+
+    def test_max_cells_bounds_the_materialized_tape(self):
+        result, snapshots = run_checkpoints(parse(WALKER), 5, (2, 3), max_cells=2)
+        self.assertEqual(result, (False, 5, 5))
+        self.assertIsNotNone(snapshots[2])
+        self.assertEqual(snapshots[2].right, b"\x01\x01")
+        self.assertIsNone(snapshots[3])
+
+    def test_without_a_bound_every_checkpoint_materializes(self):
+        _, snapshots = run_checkpoints(parse(WALKER), 5, (3,))
+        self.assertIsNotNone(snapshots[3])
+
+    def test_negative_checkpoints_are_rejected(self):
+        with self.assertRaises(ValueError):
+            run_checkpoints(parse(WALKER), 5, (-1,))
+
+    def test_duplicate_checkpoints_capture_once(self):
+        result, snapshots = run_checkpoints(parse(WALKER), 5, (3, 3))
+        self.assertEqual(result, (False, 5, 5))
+        self.assertEqual(sorted(snapshots), [3])
+        self.assertEqual(snapshots[3].right, b"\x01" * 3)
+
+    def test_undefined_transition_captures_up_to_the_halt_step(self):
+        # UNDEFINED_HALT halts by reading an undefined pair at step 1 (the
+        # pair is not executed): the configuration after step 1 -- the last
+        # executed transition -- is captured, a later one is not.
+        result, snapshots = run_checkpoints(parse(UNDEFINED_HALT), 10, (1, 2))
+        self.assertEqual(result, (True, 1, 1))
+        self.assertEqual((snapshots[1].state, snapshots[1].head), (1, 1))
+        self.assertEqual(snapshots[1].right, b"\x01")
+        self.assertIsNone(snapshots[2])
 
 
 class TuringCliTest(unittest.TestCase):
