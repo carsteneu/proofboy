@@ -183,7 +183,8 @@ die Behauptung "haelt exakt bei n" und wird nie als "haelt nie" ausgegeben;
 eine Behauptung jenseits des Limits (etwa die Groessenordnung des
 BB(6)-Rekordhalters, `2↑↑↑5`) bleibt ehrlich `unpruefbar`. Ein `[SCORE]`
 ohne `[HALT]` derselben Maschine auf derselben Zeile ist keine Behauptung;
-widersprechende `[SCORE]`-Marker (zwei verschiedene Werte fuer dieselbe
+dasselbe gilt fuer einen `[HALT]`-Marker ohne Pfeil. Widersprechende
+`[SCORE]`-Marker (zwei verschiedene Werte fuer dieselbe
 Maschine) machen die Behauptung `unpruefbar`.
 
 Das ausfuehrbare Limit ist die groesste Schrittzahl, die der Simulator fuer
