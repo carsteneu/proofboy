@@ -276,10 +276,10 @@ def run_eval(args):
             "pass a different --tmp",
         )
     shutil.rmtree(fixture_root, ignore_errors=True)
-    os.makedirs(fixture_root, exist_ok=True)
-    with open(marker, "w", encoding="utf-8") as handle:
-        handle.write("fixture of bemyself eval; safe to delete\n")
     try:
+        os.makedirs(fixture_root, exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write("fixture of bemyself eval; safe to delete\n")
         fixture = evalset.build_fixture(fixture_root)
     except (OSError, RuntimeError) as exc:
         return _fail(args, f"cannot build the eval fixture: {exc}")

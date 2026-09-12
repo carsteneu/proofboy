@@ -83,6 +83,26 @@ class FixtureTest(unittest.TestCase):
         self.assertEqual(main.stdout.strip(), fixture.commits["scoped"], main.stderr)
         self.assertEqual(fixture.commits, self.fixture.commits)
 
+    def test_fixture_ignores_template_hooks_and_config_parameters(self):
+        template = os.path.join(self._tmp.name, "template")
+        os.makedirs(os.path.join(template, "hooks"), exist_ok=True)
+        marker = os.path.join(self._tmp.name, "hook-ran")
+        hook = os.path.join(template, "hooks", "pre-commit")
+        with open(hook, "w", encoding="utf-8") as handle:
+            handle.write(f"#!/bin/sh\ntouch {marker}\n")
+        os.chmod(hook, 0o755)
+        trace = os.path.join(self._tmp.name, "trace.log")
+        hostile = {
+            "GIT_TEMPLATE_DIR": template,
+            "GIT_CONFIG_PARAMETERS": "'commit.gpgsign=true'",
+            "GIT_TRACE": trace,
+        }
+        with mock.patch.dict(os.environ, hostile):
+            fixture = evalset.build_fixture(os.path.join(self._tmp.name, "fixture-hostile"))
+        self.assertEqual(fixture.commits, self.fixture.commits)
+        self.assertFalse(os.path.exists(marker))
+        self.assertFalse(os.path.exists(trace))
+
 
 class StandardSetTest(unittest.TestCase):
     @classmethod

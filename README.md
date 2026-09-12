@@ -105,8 +105,9 @@ verfehlte Erwartung — ebenso `expect_not_confirmed`-Verstoesse und markierte
 Arten, die der Report gar nicht hergibt. Case-Reports unterliegen derselben
 1-MiB-Grenze wie beim `check`. Je nebenlaeufigem Lauf ein eigenes `--tmp`
 waehlen; der Fixture-Bau ist nicht gelockt. `eval` verweigert den
-Default-Pfad ausserhalb des Arbeitsverzeichnisses, symlinkte Tmp-Pfade und
-das Loeschen fremder `fixture`-Verzeichnisse.
+Default-Pfad ausserhalb des Arbeitsverzeichnisses und symlinkte Tmp-Pfade;
+geloescht wird nur ein `fixture`-Verzeichnis mit eigener Markerdatei
+(`.bemyself-eval`) — fremde bleiben unangetastet.
 
 ## Messlatte
 

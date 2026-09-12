@@ -380,6 +380,15 @@ class EvalCliTest(unittest.TestCase):
         second = self.invoke(set_path=SET_PATH, tmp="rerun")
         self.assertEqual(second.returncode, 0, second.stderr)
 
+    def test_unusable_default_tmp_exits_two(self):
+        workdir = os.path.join(self._tmp.name, "cwd-file-yesmem")
+        os.makedirs(workdir, exist_ok=True)
+        with open(os.path.join(workdir, ".yesmem"), "w", encoding="utf-8") as handle:
+            handle.write("not a directory\n")
+        proc = self.invoke(set_path=SET_PATH, tmp=None, cwd=workdir)
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("cannot build", proc.stderr)
+
     def test_failed_evaluation_exits_one(self):
         document = evalset.load_set(SET_PATH)
         document["cases"] = [
