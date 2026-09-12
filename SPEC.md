@@ -165,11 +165,14 @@ nutzbarem Sandkasten bei `--sandbox=require`, Timeout (300 s), stdout ueber
 Kommando laeuft je ohne Allowlist, ohne Shell-Interpretation und ohne
 Sandkastenpfad. Die Limits begrenzen einen Lauf, nicht die Meldung.
 
-Die COMPUTE-Allowlist ist getrennt und minimal: Default
-`python3 -m bemyself.turing` (der Simulator dieses Repos; in einem anderen
-Repo laeuft er nur, wenn der gepinnte Commit das Paket mitbringt);
+Die COMPUTE-Allowlist ist getrennt und minimal: Default sind die
+Repo-eigenen Module als literale Eintraege -- `python3 -m bemyself.turing`
+(der Simulator dieses Repos) und `python3 -m bemyself.experiments.erdos_straus`
+(das beschraenkte Erdős-Straus-Experiment, s. README "Experimente"); in einem
+anderen Repo laufen sie nur, wenn der gepinnte Commit das Paket mitbringt.
 `--allow <prefix>` (wiederholbar) erweitert sie zusammen mit der
-Test-Allowlist. Das Netzwerk ist im Sandkasten aus (bestehende
+Test-Allowlist. Kein Wildcard: ein kuenftiges Modul des Experiment-Pakets
+wird nicht implizit geoeffnet. Das Netzwerk ist im Sandkasten aus (bestehende
 `--unshare-net`-Semantik).
 
 Grenze: Der Hash belegt die Ausgabe des Kommandos auf dem gepinnten Commit,
