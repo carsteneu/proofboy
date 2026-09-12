@@ -679,7 +679,7 @@
         "merge": "UNVERIFIABLE"
       },
       "expect_claim_count": 2,
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[COLORING: k=<k> ; <digits>]\nTests run: <cmd> -> exit 0\n**Files in scope:** <pfad1>, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[COLORING: k=<k> ; <digits>]\n[COMMIT: e5b68dd1\u2026]\n[COMMIT: TODO]\nTests run: <cmd> -> exit 0\n**Files in scope:** <pfad1>, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
     }
   ]
 }

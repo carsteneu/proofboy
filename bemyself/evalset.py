@@ -907,6 +907,8 @@ def standard_set(fixture):
                 "[COMPUTE: <cmd> -> <sha256>]",
                 "[ARTIFACT: <pfad> -> <sha256>]",
                 "[COLORING: k=<k> ; <digits>]",
+                "[COMMIT: e5b68dd1\u2026]",
+                "[COMMIT: TODO]",
                 "Tests run: <cmd> -> exit 0",
                 "**Files in scope:** <pfad1>, <pfad2>",
                 payload("[DONE]", f"[COMMIT: {commits['good']}]", "[MERGE: no]"),

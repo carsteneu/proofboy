@@ -51,10 +51,12 @@ _FILES_RE = re.compile(
 )
 
 # An angle token ("<hash>", "<machine>", "<pfad>") is a template slot. The
-# class excludes the brackets themselves and whitespace, so scanning a
-# hostile run of "<" stays linear: each "<" can advance at most to the next
-# delimiter (see bemyself/claimtypes/halt.py for the same reasoning).
-_ANGLE_TOKEN_RE = re.compile(r"<[^<>\s]*>")
+# class excludes the brackets themselves and whitespace and needs at least
+# one character, so a bare "<>" (an operator in a shell command) stays a
+# value; scanning a hostile run of "<" stays linear either way: each "<" can
+# advance at most to the next delimiter (see bemyself/claimtypes/halt.py for
+# the same reasoning).
+_ANGLE_TOKEN_RE = re.compile(r"<[^<>\s]+>")
 _ELLIPSES = ("...", "\u2026")  # "..." and the Unicode ellipsis
 
 

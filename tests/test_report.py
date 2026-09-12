@@ -280,6 +280,7 @@ class PlaceholderReportTest(unittest.TestCase):
             "[DEPLOY: none]\n"
             "[BRANCH: yesloop/x]\n"
             "**Files in scope:** a<b.txt, c.txt\n"  # '<' without a closing '>'
+            "[DEPLOY: <>]\n"  # an empty token is no template slot
         )
         kinds = [claim.kind for claim in parse_report(text)]
         self.assertEqual(
@@ -293,6 +294,7 @@ class PlaceholderReportTest(unittest.TestCase):
                 "deploy",
                 "branch_pushed",
                 "diff_scope",
+                "deploy",
             ],
         )
 
