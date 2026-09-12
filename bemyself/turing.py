@@ -186,6 +186,7 @@ def _execute(
     state = 0
     ones = 0
     step = 0
+    total = len(checkpoints)
     snapshots: dict[int, Snapshot | None] = {checkpoint: None for checkpoint in checkpoints}
     pending = 0
     # The head excursion of the interval that ends at the next checkpoint:
@@ -211,6 +212,10 @@ def _execute(
             return RunResult(True, step, ones), snapshots
         if step >= max_steps:
             return RunResult(False, step, ones), snapshots
+        # Once every checkpoint is captured, no snapshot needs the written
+        # extents or the excursion any more: skip that bookkeeping (run() in
+        # particular pays nothing for the checkpoint machinery).
+        capturing = pending < total
         step += 1
         if write != symbol:
             if position >= 0:
@@ -218,7 +223,7 @@ def _execute(
                     grow = max(_TAPE_CHUNK, right_len * 2, position + 1)
                     right.extend(bytes(grow - right_len))
                     right_len = grow
-                if position >= right_written:
+                if capturing and position >= right_written:
                     right_written = position + 1
                 right[position] = write
             else:
@@ -227,7 +232,7 @@ def _execute(
                     grow = max(_TAPE_CHUNK, left_len * 2, index + 1)
                     left.extend(bytes(grow - left_len))
                     left_len = grow
-                if index >= left_written:
+                if capturing and index >= left_written:
                     left_written = index + 1
                 left[index] = write
             ones += 1 if write else -1
@@ -235,7 +240,7 @@ def _execute(
             return RunResult(True, step, ones), snapshots
         position += move
         state = target
-        if pending < len(checkpoints):
+        if capturing:
             if position < low:
                 low = position
             if position > high:

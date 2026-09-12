@@ -26,9 +26,9 @@ reachable window; REFUTED when the machine halts inside the window (the halt
 is the witness) or a compared part differs; UNVERIFIABLE when the machine
 does not parse, a value is not a plain integer (t1 and t2 non-negative, d
 signed), t2 <= t1, d is 0, the step count exceeds the executable limit, or a
-configuration's tape does not materialize within the comparison bound of
-:data:`TAPE_LIMIT` cells -- the comparison must really have been performed,
-there is no confirmation by omission.
+configuration's tape (or the compared window itself) exceeds the comparison
+bound of :data:`TAPE_LIMIT` cells -- the comparison must really have been
+performed, there is no confirmation by omission.
 
 Cost: one claim at the limit means a few seconds of simulation plus the
 comparison; the limit bounds each claim, not the report.
@@ -47,10 +47,11 @@ from bemyself.model import ClaimType, Result, Verdict
 # certificate is opened explicitly (--cycle-limit).
 DEFAULT_CYCLE_LIMIT = 10_000_000
 
-# The largest tape window one comparison may materialize, both halves
-# together. A configuration wider than this stays UNVERIFIABLE: the verdict
-# requires the comparison to have really been performed, and without a bound
-# one claim could force an arbitrarily wide one.
+# The largest tape window a comparison may materialize: a snapshot carrying
+# more cells (both halves together) does not materialize, and a comparison
+# window wider than this stays UNVERIFIABLE. A verdict must rest on a really
+# performed comparison; without a bound one claim could force an arbitrarily
+# wide one.
 TAPE_LIMIT = 1 << 24
 
 # One lazy "anything but a bracket" capture per marker, fields split out of it
@@ -128,14 +129,14 @@ def _first_difference(left, right):
     return lo
 
 
-def _tape_difference(first, second, low, high):
-    """The first relative position where the tapes differ, or None.
+def _comparison_window(first, second, low, high):
+    """The relative index range to compare, as ``[start, end)``.
 
-    ``low`` and ``high`` bound the relative indices that are compared (None
-    for an open end): the cells outside the reachable window are deliberately
-    not compared, because the machine never reads them again. Inside the
-    window the comparison is exact -- both patterns cover every written cell
-    (outside them the tape is zero by construction).
+    Both patterns are compared over the union of their written extents (they
+    cover every written cell, and outside them the tape is zero by
+    construction), clipped to the reachable window: ``low`` and ``high``
+    bound the relative indices the machine can still read (None for an open
+    end). An empty range is allowed and compared as equal.
     """
     cells1, lo1 = _pattern(first)
     cells2, lo2 = _pattern(second)
@@ -145,9 +146,19 @@ def _tape_difference(first, second, low, high):
         start = low
     if high is not None and high + 1 < end:
         end = high + 1
+    return start, end
+
+
+def _tape_difference(first, second, start, end):
+    """The first relative position where the tapes differ in ``[start, end)``.
+
+    An empty range is equal: the patterns cover every written cell, so both
+    tapes are zero there.
+    """
     if start >= end:
-        # Nothing inside the window was written: both tapes are zero there.
         return None
+    cells1, lo1 = _pattern(first)
+    cells2, lo2 = _pattern(second)
     window1 = _window(cells1, lo1, start, end)
     window2 = _window(cells2, lo2, start, end)
     if window1 == window2:
@@ -250,16 +261,27 @@ def check(claim, ctx):
             f"not at cell {first.head} + {d} = {first.head + d}",
         )
     # The Lin window: moving right (d > 0), the machine must not read below
-    # the head's lowest position of the interval -- cells further left are
-    # never read again and are deliberately not part of the comparison. For
-    # d < 0 the mirror: the cells right of the highest position.
+    # the head's lowest position of the interval. The fold includes the head
+    # at step t1 itself -- the cell the first transition after t1 reads -- so
+    # the excursion is at least 0; the clamp keeps the window sound even if
+    # that seeding ever changes. Cells further left are never read again and
+    # stay out of the comparison; for d < 0 the mirror.
     if d > 0:
-        excursion = first.head - second.min_head
+        excursion = max(0, first.head - second.min_head)
         low, high, side = -excursion, None, "left"
     else:
-        excursion = second.max_head - first.head
+        excursion = max(0, second.max_head - first.head)
         low, high, side = None, excursion, "right"
-    difference = _tape_difference(first, second, low, high)
+    start, end = _comparison_window(first, second, low, high)
+    if end - start > TAPE_LIMIT:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command,
+            output,
+            f"the comparison window of {end - start} cells exceeds the tape "
+            f"bound of {TAPE_LIMIT} cells; the comparison cannot be performed",
+        )
+    difference = _tape_difference(first, second, start, end)
     if difference is not None:
         return Result(
             Verdict.REFUTED,

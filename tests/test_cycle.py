@@ -192,6 +192,25 @@ class CycleCheckTest(unittest.TestCase):
             result.reason,
         )
 
+    def test_a_machine_that_only_moves_away_confirms_with_a_zero_excursion(self):
+        # WALKER only ever moves right: its interval fold still includes the
+        # head at step 3 itself, so the excursion is 0 -- never negative --
+        # and the proof sentence says so.
+        result = self.check_report(f"[CYCLE: {WALKER} -> 3,5,2]")
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertEqual(
+            result.reason, PROVEN.format(t1=3, t2=5, d=2, excursion=0, side="left")
+        )
+
+    def test_the_mirrored_machine_confirms_with_a_zero_excursion(self):
+        # 1LA1LA writes 1 and walks left forever: the same clamp on the
+        # d < 0 side.
+        result = self.check_report("[CYCLE: 1LA1LA -> 3,5,-2]")
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertEqual(
+            result.reason, PROVEN.format(t1=3, t2=5, d=-2, excursion=0, side="right")
+        )
+
     def test_a_state_mismatch_refutes_on_the_state(self):
         result = self.check_report(f"[CYCLE: {TWO_STATE_WALKER} -> 1,2,1]")
         self.assertIs(result.verdict, Verdict.REFUTED)
@@ -282,6 +301,18 @@ class CycleCheckTest(unittest.TestCase):
             result = self.check_report(f"[CYCLE: {WIKI_CYCLER} -> 6,16,2]")
         self.assertIs(result.verdict, Verdict.CONFIRMED)
 
+    def test_a_comparison_window_beyond_the_tape_bound_stays_unverifiable(self):
+        # The bound holds for the comparison itself, not only for the single
+        # snapshot: a wider window is not compared, and no performed
+        # comparison means no confirmation.
+        with mock.patch.object(
+            cycle, "_comparison_window", return_value=(0, cycle.TAPE_LIMIT + 1)
+        ):
+            result = self.check_report(f"[CYCLE: {WIKI_CYCLER} -> 6,16,2]")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("comparison window", result.reason)
+        self.assertIn("tape bound", result.reason)
+
     def test_the_check_needs_no_repository(self):
         result = self.check_report(
             f"[CYCLE: {WIKI_CYCLER} -> 6,16,2]", ctx=Ctx(repo="/nonexistent", tmp_dir=".")
@@ -294,6 +325,40 @@ class CycleCheckTest(unittest.TestCase):
         ), mock.patch("subprocess.Popen", side_effect=AssertionError("subprocess")):
             result = self.check_report(f"[CYCLE: {WIKI_CYCLER} -> 6,16,2]")
         self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+
+class CycleWindowTest(unittest.TestCase):
+    """The pure window arithmetic: the union of the written extents, clipped
+    to the reachable region (relative to the head at t1)."""
+
+    def snapshot(self, head, right=b"", left=b""):
+        return turing.Snapshot(0, head, right, left, head, head)
+
+    def test_the_window_is_the_union_of_the_written_extents(self):
+        first = self.snapshot(0, right=b"\x01\x01")
+        second = self.snapshot(2, right=b"\x01")
+        self.assertEqual(cycle._comparison_window(first, second, None, None), (-2, 2))
+
+    def test_the_window_is_clipped_to_the_reachable_region(self):
+        first = self.snapshot(0, right=b"\x01\x01")
+        second = self.snapshot(2, right=b"\x01")
+        self.assertEqual(cycle._comparison_window(first, second, -1, None), (-1, 2))
+        self.assertEqual(cycle._comparison_window(first, second, None, 0), (-2, 1))
+
+    def test_an_empty_window_compares_as_equal(self):
+        first = self.snapshot(0, right=b"\x01\x01")
+        second = self.snapshot(2, right=b"\x01")
+        start, end = cycle._comparison_window(first, second, 5, None)
+        self.assertGreater(start, end)
+        self.assertIsNone(cycle._tape_difference(first, second, start, end))
+
+    def test_the_first_difference_is_reported(self):
+        # The second snapshot still carries its 1 at relative -2 (the union
+        # covers it), so the first difference sits there.
+        first = self.snapshot(0, right=b"\x01\x00")
+        second = self.snapshot(2, right=b"\x01")
+        start, end = cycle._comparison_window(first, second, None, None)
+        self.assertEqual(cycle._tape_difference(first, second, start, end), -2)
 
 
 class CycleBoundaryTest(unittest.TestCase):
