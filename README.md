@@ -104,7 +104,9 @@ stehen im Set; `eval` prueft sie maschinell und zaehlt jeden Verstoss als
 verfehlte Erwartung — ebenso `expect_not_confirmed`-Verstoesse und markierte
 Arten, die der Report gar nicht hergibt. Case-Reports unterliegen derselben
 1-MiB-Grenze wie beim `check`. Je nebenlaeufigem Lauf ein eigenes `--tmp`
-waehlen; der Fixture-Bau ist nicht gelockt.
+waehlen; der Fixture-Bau ist nicht gelockt. `eval` verweigert den
+Default-Pfad ausserhalb des Arbeitsverzeichnisses, symlinkte Tmp-Pfade und
+das Loeschen fremder `fixture`-Verzeichnisse.
 
 ## Messlatte
 

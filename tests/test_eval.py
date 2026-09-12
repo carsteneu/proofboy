@@ -184,6 +184,11 @@ class SetLoadingTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             evalset.load_set(path)
 
+    def test_load_set_rejects_deeply_nested_json(self):
+        path = self.write("deep.json", b"[" * 300000)
+        with self.assertRaises(ValueError):
+            evalset.load_set(path)
+
     def test_load_set_rejects_unknown_version(self):
         path = self.write("old.json", json.dumps({"version": 99, "cases": []}).encode())
         with self.assertRaises(ValueError):
@@ -261,7 +266,7 @@ class EvalCliTest(unittest.TestCase):
     def tearDownClass(cls):
         cls._tmp.cleanup()
 
-    def invoke(self, *args, set_path=None, tmp="run"):
+    def invoke(self, *args, set_path=None, tmp="run", cwd=None):
         command = [
             sys.executable,
             "-m",
@@ -272,7 +277,17 @@ class EvalCliTest(unittest.TestCase):
         ]
         if tmp is not None:
             command += ["--tmp", os.path.join(self._tmp.name, tmp)]
-        return subprocess.run(command + list(args), cwd=REPO_ROOT, capture_output=True, text=True)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = REPO_ROOT + (
+            os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+        )
+        return subprocess.run(
+            command + list(args),
+            cwd=cwd or REPO_ROOT,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
 
     def test_json_run_reports_the_rates(self):
         proc = self.invoke("--json")
@@ -324,6 +339,46 @@ class EvalCliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
         self.assertIn("symlink", proc.stderr)
         self.assertEqual(os.listdir(target), [])
+
+    def test_symlinked_check_dir_is_refused(self):
+        target = os.path.join(self._tmp.name, "check-target")
+        os.makedirs(target, exist_ok=True)
+        root = os.path.join(self._tmp.name, "symlinked-check")
+        os.makedirs(root, exist_ok=True)
+        os.symlink(target, os.path.join(root, "check"))
+        proc = self.invoke(set_path=SET_PATH, tmp="symlinked-check")
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("symlink", proc.stderr)
+        self.assertEqual(os.listdir(target), [])
+
+    def test_default_tmp_outside_the_working_directory_is_refused(self):
+        workdir = os.path.join(self._tmp.name, "cwd-with-symlink")
+        target = os.path.join(self._tmp.name, "escape-target")
+        os.makedirs(workdir, exist_ok=True)
+        os.makedirs(target, exist_ok=True)
+        os.symlink(target, os.path.join(workdir, ".yesmem"))
+        proc = self.invoke(set_path=SET_PATH, tmp=None, cwd=workdir)
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("outside", proc.stderr)
+        self.assertEqual(os.listdir(target), [])
+
+    def test_foreign_fixture_dir_is_not_deleted(self):
+        root = os.path.join(self._tmp.name, "foreign")
+        os.makedirs(os.path.join(root, "fixture"), exist_ok=True)
+        precious = os.path.join(root, "fixture", "precious.txt")
+        with open(precious, "w", encoding="utf-8") as handle:
+            handle.write("user data\n")
+        proc = self.invoke(set_path=SET_PATH, tmp="foreign")
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("refusing to delete", proc.stderr)
+        with open(precious, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), "user data\n")
+
+    def test_second_run_reuses_its_own_fixture(self):
+        first = self.invoke(set_path=SET_PATH, tmp="rerun")
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.invoke(set_path=SET_PATH, tmp="rerun")
+        self.assertEqual(second.returncode, 0, second.stderr)
 
     def test_failed_evaluation_exits_one(self):
         document = evalset.load_set(SET_PATH)

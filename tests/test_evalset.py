@@ -74,6 +74,15 @@ class FixtureTest(unittest.TestCase):
             fixture = evalset.build_fixture(os.path.join(self._tmp.name, "fixture-globalcfg"))
         self.assertEqual(fixture.commits, self.fixture.commits)
 
+    def test_fixture_drops_ambient_git_variables(self):
+        with mock.patch.dict(os.environ, {"GIT_NAMESPACE": "evil"}):
+            fixture = evalset.build_fixture(os.path.join(self._tmp.name, "fixture-namespace"))
+        # A surviving namespace would move the pushed refs under
+        # refs/namespaces/evil/...; the bare remote must hold refs/heads/main.
+        main = _git("--git-dir", fixture.remote, "rev-parse", "refs/heads/main")
+        self.assertEqual(main.stdout.strip(), fixture.commits["scoped"], main.stderr)
+        self.assertEqual(fixture.commits, self.fixture.commits)
+
 
 class StandardSetTest(unittest.TestCase):
     @classmethod

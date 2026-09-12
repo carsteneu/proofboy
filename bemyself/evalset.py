@@ -27,19 +27,6 @@ MAX_SET_BYTES = 4 << 20
 IDENTITY_NAME = "Fixture"
 IDENTITY_EMAIL = "fixture@example.com"
 _DATE_TEMPLATE = "2026-09-01T12:%02d:00+0000"
-_GIT_ENV_KEYS = (
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_SYSTEM",
-    "GIT_CONFIG_COUNT",
-    "XDG_CONFIG_HOME",
-)
-_GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 _TEST_OK = (
     "import unittest\n"
@@ -85,25 +72,25 @@ def _run(args, env, check=True):
 
 
 def _fixture_env(home, minute):
-    """An isolated git environment with a fixed identity and commit date."""
+    """An isolated git environment: every GIT_* variable is dropped, then
+    HOME, identity, dates and the object format are pinned. Leaving GIT_*
+    variables in place would let ambient configuration flip commit hashes
+    (GIT_DEFAULT_HASH), reroute config (GIT_CONFIG_*), namespace refs
+    (GIT_NAMESPACE) or run build-time hooks (GIT_TEMPLATE_DIR)."""
     env = dict(os.environ)
+    for key in list(env):
+        if key.startswith("GIT_") or key == "XDG_CONFIG_HOME":
+            env.pop(key)
     env["HOME"] = home
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_DEFAULT_HASH"] = "sha1"
     env["GIT_AUTHOR_NAME"] = IDENTITY_NAME
     env["GIT_AUTHOR_EMAIL"] = IDENTITY_EMAIL
     env["GIT_COMMITTER_NAME"] = IDENTITY_NAME
     env["GIT_COMMITTER_EMAIL"] = IDENTITY_EMAIL
     env["GIT_AUTHOR_DATE"] = _DATE_TEMPLATE % minute
     env["GIT_COMMITTER_DATE"] = _DATE_TEMPLATE % minute
-    for key in _GIT_ENV_KEYS:
-        env.pop(key, None)
-    for key in list(env):
-        if key.startswith(_GIT_ENV_PREFIXES):
-            env.pop(key)
-    # Pinned rather than inherited: an ambient GIT_DEFAULT_HASH would flip the
-    # object format and with it every hash anchor of the set.
-    env["GIT_DEFAULT_HASH"] = "sha1"
     return env
 
 
@@ -649,7 +636,9 @@ def load_set(path):
         raise ValueError(f"set file exceeds {MAX_SET_BYTES} bytes: {path}")
     try:
         document = json.loads(data.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        # Deeply nested input raises RecursionError, not JSONDecodeError; it
+        # must end in the documented exit 2, not a traceback.
         raise ValueError(f"not a valid JSON set: {exc}") from exc
     _validate(document)
     return document

@@ -215,6 +215,14 @@ def render_text(report):
     return sanitize("\n".join(lines))
 
 
+FIXTURE_MARKER = ".bemyself-eval"
+DEFAULT_TMP = (".yesmem", "tmp", "eval")
+
+
+def _inside(path, root):
+    return path == root or path.startswith(root + os.sep)
+
+
 def _fail(args, message):
     """A run-level error; ``--json`` gets the error object on stdout, like check."""
     print(f"bemyself: {message}", file=sys.stderr)
@@ -239,15 +247,38 @@ def run_eval(args):
     tmp_root = (
         os.path.abspath(args.tmp)
         if args.tmp
-        else os.path.join(os.getcwd(), ".yesmem", "tmp", "eval")
+        else os.path.join(os.getcwd(), *DEFAULT_TMP)
     )
     fixture_root = os.path.join(tmp_root, "fixture")
-    for path in (tmp_root, fixture_root):
+    check_root = os.path.join(tmp_root, "check")
+    if args.tmp is None and not _inside(
+        os.path.realpath(tmp_root), os.path.realpath(os.getcwd())
+    ):
+        # Mirrors check: a committed .yesmem symlink must not redirect the
+        # throwaway root outside the working directory.
+        return _fail(
+            args,
+            "default tmp dir resolves outside the working directory "
+            "(committed .yesmem symlink?); pass --tmp to place it elsewhere",
+        )
+    for path in (tmp_root, fixture_root, check_root):
         if os.path.islink(path):
             # A symlinked tmp path would quietly redirect the fixture build
             # outside the throwaway root; the check path refuses these too.
             return _fail(args, f"refusing to use a symlinked tmp path: {path}")
+    marker = os.path.join(fixture_root, FIXTURE_MARKER)
+    if os.path.isdir(fixture_root) and not os.path.exists(marker):
+        # Never rmtree a directory we cannot prove we created: a user-named
+        # --tmp may well contain a 'fixture' dir of their own.
+        return _fail(
+            args,
+            f"refusing to delete {fixture_root}: not created by bemyself eval; "
+            "pass a different --tmp",
+        )
     shutil.rmtree(fixture_root, ignore_errors=True)
+    os.makedirs(fixture_root, exist_ok=True)
+    with open(marker, "w", encoding="utf-8") as handle:
+        handle.write("fixture of bemyself eval; safe to delete\n")
     try:
         fixture = evalset.build_fixture(fixture_root)
     except (OSError, RuntimeError) as exc:
