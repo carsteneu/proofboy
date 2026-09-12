@@ -29,6 +29,47 @@ if str(TOOLING) not in sys.path:
 
 harness = _load("harness")
 prompts = _load("prompts")
+evaluate = _load("evaluate")
+
+
+class EvaluateTest(unittest.TestCase):
+    def _record(self, arm, tier, solved, **over):
+        record = {
+            "arm": arm,
+            "tier": tier,
+            "solved": solved,
+            "duration_s": 2.0,
+            "usage": {
+                "prompt_tokens": 500,
+                "completion_tokens": 100,
+                "completion_tokens_details": {"reasoning_tokens": 80},
+            },
+            "answer": "h1: (1 = 1)",
+        }
+        record.update(over)
+        return record
+
+    def test_summary_counts_and_rates(self):
+        records = [
+            self._record("C", "A", True, claims=[{"id": "c1", "verdict": "CONFIRMED", "reason": ""}]),
+            self._record("C", "A", False, claims=[{"id": "c1", "verdict": "REFUTED", "reason": ""}]),
+        ]
+        summary = evaluate.summarize(records)
+        entry = summary["C-A"]
+        self.assertEqual(entry["n"], 2)
+        self.assertEqual(entry["solved"], 1)
+        self.assertEqual(entry["claims_confirmed"], 1)
+        self.assertEqual(entry["claims_refuted"], 1)
+        self.assertEqual(entry["false_confirm_proxy"], 0.5)
+        self.assertAlmostEqual(entry["reasoning_tokens_mean"], 80.0)
+
+    def test_wilson_bounds(self):
+        low, high = evaluate.wilson(0, 10)
+        self.assertGreaterEqual(low, 0.0)
+        self.assertLess(high, 0.4)
+        low, high = evaluate.wilson(10, 10)
+        self.assertGreater(low, 0.6)
+        self.assertLessEqual(high, 1.0)
 
 
 class CheckpointScoreTest(unittest.TestCase):
@@ -112,6 +153,29 @@ class PromptBuilderTest(unittest.TestCase):
         _system, user = prompts.build_messages("C", self.TASK_TRACE)
         self.assertIn("1, 2", user)
         self.assertIn("sim(0..t)", user)
+
+
+class CycScoringTest(unittest.TestCase):
+    TASK = {
+        "id": "B-0012",
+        "tier": "B",
+        "tier_b_kind": "cyc",
+        "machine": "0LA0LA",
+        "certificate": [0, 1, -1],
+        "prompt": "Zeige.",
+    }
+
+    def test_sheet_must_bind_the_task_machine(self):
+        good = "a: M = 0LA0LA\nh1: M zyklisch\nv h1: cyc(0,1,-1)\nh1+\nCLAIM c1: M zyklisch\nWITNESS c1: ref h1\n[HALT] c1"
+        record = harness.evaluate_run("C", self.TASK, {"content": good}, 1.0, None, None)
+        self.assertTrue(record["machine_bound"])
+        self.assertTrue(record["solved"])
+
+    def test_other_machine_does_not_count(self):
+        wrong = "a: M = 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC\nh1: M zyklisch\nv h1: cyc(6,16,2)\nh1+\nCLAIM c1: M zyklisch\nWITNESS c1: ref h1\n[HALT] c1"
+        record = harness.evaluate_run("C", self.TASK, {"content": wrong}, 1.0, None, None)
+        self.assertFalse(record["machine_bound"])
+        self.assertFalse(record["solved"])
 
 
 if __name__ == "__main__":
