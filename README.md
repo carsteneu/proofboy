@@ -17,8 +17,8 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 ```
 
@@ -31,7 +31,10 @@ Pruefer ein Repository braucht (`COMMIT`, `BRANCH`, Tests, Diff-Scope; eine per
 `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit); ein
 Report aus repo-freien Behauptungen (etwa `[HALT]`) laeuft ohne `--repo`. Fehlt
 `--repo` fuer einen repo-beduerftigen Report, bricht der Aufruf mit Exit 2 und
-usage ab und nennt den Behauptungstyp. Mit `--section` ist
+usage ab und nennt den Behauptungstyp. `[MERGE]` und `[ARTIFACT]` verlangen
+kein `--repo`: ohne Repository bleibt eine Merge-Behauptung `unpruefbar`, und
+`[ARTIFACT]` loest seine Pfade gegen die Artefakt-Wurzel auf
+(`--artifact-root`, Default das Repository; ohne beides `unpruefbar`). Mit `--section` ist
 `--project` Pflicht und ohne `--repo` prueft der Pruefer dasselbe Verzeichnis;
 die Section wird ausschliesslich lesend gelesen (SQLite `mode=ro`; bei
 WAL-Datenbanken koennen dabei `-shm`/`-wal`-Hilfsdateien entstehen, die
@@ -96,7 +99,9 @@ Branch-Anspruche werden nur gegen `refs/heads` geprueft, nie gegen Tags oder
 Remote-HEAD. Waehrend jeder Pruefung deaktiviert der Pruefer
 programmausfuehrende Repo-Konfiguration (Git-Hooks, `core.fsmonitor`,
 `remote.uploadpack`, `core.sshCommand`, Credential-Helfer) und ignoriert
-Objektdaten-Manipulationen des Repos (`refs/replace`, `info/grafts`); ein Repo,
+Objektdaten-Manipulationen des Repos (`refs/replace`, `info/grafts`) sowie den
+abgeleiteten Commit-Graph (`core.commitGraph=false` -- eine gepatchte
+Commit-Graph-Datei kann Parents erfinden, die das Objekt nicht hat); ein Repo,
 dessen Konfiguration `core.gitProxy`, `core.askpass` oder einen
 URL-spezifischen HTTP-Proxy setzt, wird beim Branch-Check nicht angefasst
 (`unpruefbar`). Der Standard-Ablageort fuer Wegwerf-Daten ist
@@ -506,6 +511,115 @@ Testlaeufen Schreiben, IP-Netz und Prozesssicht, nicht Lesezugriffe. Die
 Limits (Zeit, Ausgabe) begrenzen einen Lauf, nicht die Meldung: eine Meldung
 kann viele COMPUTE-Behauptungen tragen, jede mit eigenem Lauf.
 
+## Merges (`[MERGE]`)
+
+`[MERGE: <branch>]` behauptet, dass der Commit der Meldung der Merge des
+genannten Branches ist. Der Commit kommt wie bei `[COMPUTE]` aus dem genau
+einen hash-foermigen `[COMMIT]`-Marker der Meldung (Platzhalter wie `<hash>`
+zaehlen nicht; mehrere verschiedene Commits binden nichts, dann bleibt die
+Behauptung `unpruefbar`). Geprueft wird die Struktur des Commits, lokal und
+ohne Netz:
+
+- Der Commit existiert und hat genau zwei Parents; null, ein oder mehr als
+  zwei Parents heissen: kein Merge-Commit, `widerlegt`.
+- Einer der Parents ist der Tip des genannten Branches (zuerst
+  `refs/heads/<branch>`, dann der Origin-Tracking-Ref
+  `refs/remotes/origin/<branch>`).
+- Der andere Parent liegt auf der Zielbranch oder ist ihr Tip. Zielbranch ist
+  die Default-Branch des Remotes (`origin/HEAD`), sonst eine lokale `main`
+  oder `master`, sonst die aktuelle Branch; laesst sich keine bestimmen,
+  bleibt die Behauptung `unpruefbar`.
+
+Widerspricht der Commit der Behauptung, wird sie `widerlegt` und das Urteil
+nennt die Parents, die es wirklich gibt (kurze Hashes) sowie den Tip des
+genannten Branches. `widerlegt` ist auch ein Commit, der selbst auf dem
+genannten Branch liegt (eine Branch wird nicht in einen Commit gemergt, den
+sie schon enthaelt -- so faellt der Zielbranch auf, wenn er als gemergter
+Branch genannt wird) und ein Commit, dessen kein Parent zur Geschichte des
+genannten Branches gehoert. `unpruefbar` bleiben ausserdem: ein Wert ohne
+Branchnamen (`[MERGE: no]`, `pending-PR`, `blocked-PR` sind Statuswerte des
+Yesloop-DONE-Payloads, keine Branches; auch `HEAD` ist eine Revision, keine
+Branch), ein Branch, der weder lokal noch auf `origin` aufloest (ein nach dem
+Merge geloeschter Branch wird nicht erraten), ein Branch, dessen Tip nach dem
+Merge weiterlief (kein Objekt haelt fest, wo eine Branch beim Merge zeigte --
+das Urteil nennt den Parent, der in der Branch-Geschichte liegt), ein
+fehlender Commit und ein nicht aufloesbarer Commit-Hash. Ein
+`[MERGE]`-Claim verlangt kein `--repo`: eine Meldung, die nur `[MERGE: no]`
+traegt, laeuft weiter ohne Repository (und bleibt `unpruefbar`); mit `--repo`
+wird die Behauptung geprueft.
+
+**Grenzen:** Der Check belegt die Merge-Struktur, nicht die Absicht. Er liest
+den Tip des Branches zum Pruefzeitpunkt; ein Branch, der nach dem Merge
+weiterlief, macht die Behauptung `unpruefbar` statt `widerlegt` (das Urteil
+nennt den Parent, der in seiner Geschichte liegt). Ein geloeschter Branch
+macht sie `unpruefbar` -- solange kein Origin-Tracking-Ref desselben Namens
+mehr aufloest; ist die Branch nur auf dem Remote geloescht und der
+Tracking-Ref noch nicht gepruned, prueft der Check gegen diesen. Geprueft
+wird der andere Parent gegen die Zielbranch, nicht der gemeldete Commit
+selbst: ein Merge, der die Zielbranch nie erreicht hat (etwa ein Merge in
+einer weggeworfenen Branch), wird `bestaetigt`, wenn der andere Parent auf
+der Zielbranch liegt -- die Behauptung nennt dann eine wahre Merge-Struktur,
+aber keinen Merge auf der Zielbranch.
+
+```
+$ python3 -m bemyself check --report merge-report.md --repo <repo>
+merge          CONFIRMED     79aaa8161516 is a merge of 'topic': parent 1487f8796175 is its tip and parent 7954a3c59f69 lies on main
+```
+
+## Artefakte (`[ARTIFACT]`) und Deploys (`[DEPLOY]`)
+
+`[ARTIFACT: <pfad> -> <sha256>]` behauptet, dass die Datei existiert und ihr
+Inhalt genau den behaupteten SHA-256 hat -- die ehrliche Form von "das
+Deploy-Artefakt ist da":
+
+```
+[ARTIFACT: dist/app.bin -> 106675dc1490d5cdd6d1f0410731316ce93fc964c6cf6726e2b0d53e19688feb]
+```
+
+Der Pfad kommt aus einer Meldung, also aus untrusted Input: er wird unter der
+Artefakt-Wurzel aufgeloest und nie ausserhalb gelesen. Die Wurzel ist
+standardmaessig das Repository (`--repo`), `--artifact-root <dir>` setzt eine
+andere; ohne Wurzel (kein `--repo`, kein `--artifact-root`) bleibt die
+Behauptung `unpruefbar`. Der Pfad wird mit `realpath` aufgeloest und nur
+akzeptiert, wenn er in der Wurzel bleibt: `..`-Bestandteile werden abgelehnt
+(auch wenn sie rechnerisch wieder hineinfuehren), und ein Symlink innerhalb
+der Wurzel, der nach aussen zeigt, bleibt `unpruefbar`. Ein Symlink, dessen
+Ziel in der Wurzel bleibt, wird verfolgt. Die Datei wird genau einmal
+geoeffnet (`O_NONBLOCK`, damit eine Named Pipe den Pruefer nicht blockiert),
+per `fstat` als regulaere Datei bestaetigt und durch diesen Deskriptor
+gehasht; der SHA-256 streamt in Bloecken, das Gedaechtnis bleibt konstant. Ein
+Groessenlimit von 256 MiB begrenzt die Zeit pro Behauptung: eine groessere
+Datei bleibt `unpruefbar` (nie gekuerzt in ein Urteil), und eine Datei, die
+waehrend des Lesens ueber das Limit waechst, ebenfalls.
+
+Urteile: `bestaetigt` nur, wenn die Datei vollstaendig gelesen wurde und ihr
+Digest exakt dem behaupteten entspricht (Gross-/Kleinschreibung des Digests
+ist egal). `widerlegt` bei fehlender Datei, bei einem Pfad, der keine
+regulaere Datei ist (Verzeichnis, Named Pipe, Geraet), und bei abweichendem
+Digest -- Abwesenheit und Abweichung sind Befunde, kein Unwissen; das Urteil
+nennt Pfad, tatsaechlichen Digest und Groesse. `unpruefbar` bei fehlender oder
+nicht existierender Wurzel, bei einem Pfad ausserhalb der Wurzel (auch ueber
+einen Symlink), bei einem Pfad, den der Pruefer nicht oeffnen darf
+(fehlende Rechte), bei einem leeren Pfad, bei einem Digest, der keine 64
+Hex-Ziffern sind, und bei einer Datei ueber dem Limit.
+
+**Grenzen:** Die Wurzel ist der Vertrauensbereich des Aufrufers. Bleibt die
+Konfinierung auch gewahrt -- gelesen wird nur, was unter der Wurzel liegt --
+so ist der Inhalt der Wurzel nicht gegen einen Schreiber geschuetzt, der
+Zugriff darin hat: eine Datei kann zwischen der Aufloesung des Pfades und dem
+Oeffnen ausgetauscht werden (derselbe Vertrauensbereich, keine neue
+Faehigkeit), und ein Hardlink in der Wurzel ist von einer eigenen Datei nicht
+zu unterscheiden (gleicher Inode).
+
+`[DEPLOY: ...]` bleibt bewusst ohne Pruefer und damit dauerhaft `unpruefbar`:
+"Deploy" hat keinen generischen, nachrechenbaren Sinn -- je nach Ziel ist
+"deployed" ein neuer Prozess, ein DNS-Eintrag, ein Artefakt in einer fremden
+Registry oder eine Nachricht an eine dritte Partei, und eine Pruefung, die
+davon nichts anfasst, waere eine Scheinpruefung. Wer "Deploy erfolgt"
+behaupten will, behauptet stattdessen, was wirklich pruefbar ist: das
+Artefakt und seinen Digest (`[ARTIFACT: ... -> <sha256>]`) -- das ist der
+ehrliche Ersatz.
+
 ## Experimente (`bemyself/experiments/`)
 
 Ein Experiment ist ein Modul unter `bemyself/experiments/`, das eine endliche
@@ -663,6 +777,23 @@ Die Probe der Identitaet `[IDENT: n=3t ; a=t, b=4t, c=12t]` laeuft ohne
 nicht-affiner Ausdruck bleibt `unpruefbar`. Details: Abschnitt
 "Parameterisierte Identitaeten".
 
+Durchgerechnetes ARTIFACT-Mini-Beispiel (ein Datei-Digest unter einer
+konfigurierten Wurzel; das Marker-Pattern liegt im eigenen Modul, die
+Kern-Marker-Regex in `bemyself/report.py` bleibt unberuehrt):
+
+```python
+# bemyself/claimtypes/artifact.py (Auszug)
+ARTIFACT = ClaimType(kind="artifact",
+                     pattern=re.compile(r"\[ARTIFACT:(?P<body>[^\]\[]*?)\]"),
+                     parse=parse, check=check)
+```
+
+Die Probe `[ARTIFACT: good.txt -> <sha256 von "good\n">]` laeuft ohne
+`--repo`, wenn `--artifact-root <dir>` die Wurzel nennt (sonst faellt die
+Wurzel auf `--repo` zurueck); ein falscher Digest oder eine fehlende Datei ist
+`widerlegt`, ein Pfad ausserhalb der Wurzel bleibt `unpruefbar`. Details:
+Abschnitt "Artefakte und Deploys".
+
 ## Evaluation
 
 `python3 -m bemyself eval --set tests/data/pruefset.json` fuehrt den Pruefer
@@ -682,16 +813,18 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt dreiundvierzig Meldungen im Report-Format: zweiundzwanzig
-ehrliche und einundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt fuenfzig Meldungen im Report-Format: fuenfundzwanzig
+ehrliche und fuenfundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
 Behauptung, boesartige Riesen-Reports, falsche Turingmaschinen-Schrittzahlen
 und -Scores, ein COMPUTE-Zertifikat mit falschem stdout-Hash, ein
 CYCLE-Zertifikat mit falschem Versatz, ein CYCLE-Zertifikat fuer eine
-Maschine, die im Fenster haelt, und eine parameterisierte Identitaet mit
-verfaelschtem Koeffizienten). Dazu kommen
+Maschine, die im Fenster haelt, eine parameterisierte Identitaet mit
+verfaelschtem Koeffizienten, ein ARTIFACT-Zertifikat mit falschem Digest, ein
+ARTIFACT-Pfad, der mit `..` aus der Wurzel herauszeigt, und eine
+MERGE-Behauptung, die den Zielbranch statt des gemergten Branches nennt). Dazu kommen
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
 `unpruefbar`, eine ehrliche SEARCHED-Meldung, die fuer denselben
@@ -702,7 +835,11 @@ COMPUTE-Meldung auf dem Fixture-Stub des Experiment-Moduls
 (`python3 -m bemyself.experiments.erdos_straus`), die am neuen, literalen
 Default-Allowlist-Eintrag haengt: ohne ihn bliebe sie `unpruefbar` statt
 `bestaetigt`, und eine ehrliche IDENT-Meldung, die die Identitaet fuer die
-Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig). Es liegt als `tests/data/pruefset.json`
+Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig), ein
+ehrliches ARTIFACT-Zertifikat (SHA-256 von `good.txt` unter der Wurzel des
+Fixture-Repos) und eine ehrliche MERGE-Meldung auf dem Merge-Commit des
+Fixtures (ein Parent ist der Tip von `topic`, der andere liegt auf `main`).
+Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
 baut dasselbe Fixture zur Laufzeit und lehnt Sets ab, die zu einem anderen
@@ -741,7 +878,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus dreiundvierzig Meldungen (zweiundzwanzig ehrlich, einundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus fuenfzig Meldungen (fuenfundzwanzig ehrlich, fuenfundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

@@ -70,7 +70,7 @@ def parse_report(text: str) -> list[Claim]:
                     Claim("branch_pushed", lineno, raw, {"branch": value, "commit": None})
                 )
             elif key == "MERGE":
-                claims.append(Claim("merge", lineno, raw, {"value": value}))
+                claims.append(Claim("merge", lineno, raw, {"value": value, "commit": None}))
             elif key == "DEPLOY":
                 claims.append(Claim("deploy", lineno, raw, {"value": value}))
 
@@ -102,10 +102,11 @@ def parse_report(text: str) -> list[Claim]:
     bound_commit = candidates.pop() if len(candidates) == 1 else None
     if bound_commit is not None:
         # A claim kind declares this at its registry entry (binds_commit), so
-        # the parser stays free of per-kind branches.
+        # the parser stays free of per-kind branches; the built-in branch and
+        # merge claims bind the same way.
         binders = {claim_type.kind for claim_type in claimtypes.CLAIM_TYPES if claim_type.binds_commit}
         for claim in claims:
-            if claim.kind == "branch_pushed" or claim.kind in binders:
+            if claim.kind in ("branch_pushed", "merge") or claim.kind in binders:
                 if claim.fields.get("commit") is None:
                     claim.fields["commit"] = bound_commit
 

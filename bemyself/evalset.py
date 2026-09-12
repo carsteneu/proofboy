@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of forty-five messages live in the
+hashes. That is what lets the standard set of fifty messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -66,6 +66,10 @@ _FIXTURE_ERDOS_STRAUS = (
     'print("fixture erdos-straus")\n'
 )
 _FIXTURE_ERDOS_STRAUS_OUT = "fixture erdos-straus\n"
+
+# The content of the fixture's good.txt: the [ARTIFACT] case derives its
+# digest from this constant, so case and file cannot drift apart.
+_GOOD_TXT = "good\n"
 
 # BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
 # so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
@@ -157,7 +161,7 @@ def build_fixture(root):
     _write(repo, "base.txt", "base\n")
     commits["base"] = _commit(repo, _fixture_env(home, 1), "base")
 
-    _write(repo, "good.txt", "good\n")
+    _write(repo, "good.txt", _GOOD_TXT)
     _write(repo, "test_ok.py", _TEST_OK)
     commits["good"] = _commit(repo, _fixture_env(home, 2), "good")
 
@@ -199,6 +203,20 @@ def build_fixture(root):
     )
     commits["experiment"] = _commit(repo, _fixture_env(home, 8), "fixture experiment")
 
+    # A real merge commit for the [MERGE] cases: a topic branch off "good",
+    # merged --no-ff into main. The anchors (base, fixed) and the pushed
+    # refs are committed before this point, so they do not move; the branch
+    # tip stays at the merge's second parent, the shape the checker confirms.
+    _run(["git", "-C", repo, "checkout", "-q", "-b", "topic", commits["good"]], env)
+    _write(repo, "topic.txt", "topic\n")
+    commits["topic"] = _commit(repo, _fixture_env(home, 9), "topic work")
+    _run(["git", "-C", repo, "checkout", "-q", "main"], env)
+    _run(
+        ["git", "-C", repo, "merge", "-q", "--no-ff", "-m", "merge topic", "topic"],
+        _fixture_env(home, 10),
+    )
+    commits["merge"] = _run(["git", "-C", repo, "rev-parse", "HEAD"], env).stdout.strip()
+
     blobs = {
         "good.txt": _run(
             ["git", "-C", repo, "rev-parse", f"{commits['good']}:good.txt"], env
@@ -208,7 +226,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard forty-five-message set (23 honest, 22 false).
+    """Return the standard fifty-message set (25 honest, 25 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -218,6 +236,7 @@ def standard_set(fixture):
     """
     commits = fixture.commits
     blob = fixture.blobs["good.txt"]
+    good_txt_digest = hashlib.sha256(_GOOD_TXT.encode("ascii")).hexdigest()
 
     def case(
         name,
@@ -269,7 +288,12 @@ def standard_set(fixture):
                     "config wiring",
                 )
             ),
-            expect_verdicts={"commit_exists": "CONFIRMED", "branch_pushed": "CONFIRMED"},
+            expect_verdicts={
+                "commit_exists": "CONFIRMED",
+                "branch_pushed": "CONFIRMED",
+                "merge": "UNVERIFIABLE",
+                "deploy": "UNVERIFIABLE",
+            },
         ),
         case(
             "g02-tests-exit-honest",
@@ -813,6 +837,54 @@ def standard_set(fixture):
             ),
             targets=["coloring"],
             expect_verdicts={"coloring": "REFUTED"},
+        ),
+        # --- file digests ([ARTIFACT], root defaults to the fixture repo) -----
+        case(
+            "g24-artifact-digest",
+            "genuine",
+            "Ehrliche Meldung: der SHA-256 von good.txt unter der Wurzel "
+            "(Default: das Repo) stimmt -- der Pfad kommt aus der Meldung und "
+            "wird auf die Wurzel konfiniert.",
+            done(payload("[DONE]"), f"[ARTIFACT: good.txt -> {good_txt_digest}]"),
+            expect_verdicts={"artifact": "CONFIRMED"},
+        ),
+        case(
+            "f23-artifact-wrong-digest",
+            "false",
+            "Falsch: [ARTIFACT] behauptet einen falschen SHA-256 fuer eine "
+            "Datei, die existiert; das Urteil nennt beide Werte.",
+            done(payload("[DONE]"), f"[ARTIFACT: good.txt -> {'0' * 64}]"),
+            targets=["artifact"],
+            expect_verdicts={"artifact": "REFUTED"},
+        ),
+        case(
+            "f24-artifact-path-escapes-root",
+            "false",
+            "Boesartig: der [ARTIFACT]-Pfad zeigt mit '..' aus der Wurzel "
+            "heraus; kein Lesevorgang ausserhalb, die Behauptung bleibt "
+            "unpruefbar.",
+            done(payload("[DONE]"), f"[ARTIFACT: ../outside.txt -> {'a' * 64}]"),
+            targets=["artifact"],
+            expect_verdicts={"artifact": "UNVERIFIABLE"},
+        ),
+        # --- merge commits ([MERGE], bound to the report's [COMMIT]) ----------
+        case(
+            "g25-merge-commit",
+            "genuine",
+            "Ehrliche Meldung: der gemeldete Commit ist der Merge des Branches "
+            "topic; ein Parent ist dessen Tip, der andere liegt auf main.",
+            done(payload("[DONE]", f"[COMMIT: {commits['merge']}]", "[MERGE: topic]")),
+            expect_verdicts={"commit_exists": "CONFIRMED", "merge": "CONFIRMED"},
+        ),
+        case(
+            "f25-merge-wrong-branch",
+            "false",
+            "Falsch: [MERGE: main] nennt den Zielbranch statt des gemergten "
+            "Branches; main zeigt auf den Merge-Commit selbst, keiner seiner "
+            "Parents ist sein Tip -- REFUTED mit den echten Parents.",
+            done(payload("[DONE]", f"[COMMIT: {commits['merge']}]", "[MERGE: main]")),
+            targets=["merge"],
+            expect_verdicts={"merge": "REFUTED"},
         ),
     ]
     return {
