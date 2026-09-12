@@ -31,17 +31,17 @@ Jede Pruefung liefert ein Ergebnis `CONFIRMED`, `REFUTED` oder `UNVERIFIABLE` mi
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> --repo <pfad> [--strict]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
-| `python3 -m bemyself eval --set <datei> [--strict]` | Pruefset auswerten, Erkennungsraten berichten |
+| `python3 -m bemyself check --report <datei> --repo <pfad> [--strict] [--sandbox auto\|require\|off]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
 ## Harte Regeln
 
 - Nur lesend auf `~/.claude/yesmem`. Keine Schreibzugriffe auf Live-Datenbanken.
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
-- Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen ungesandboxt und koennen das Netzwerk erreichen; Netz-Isolation ist nicht Teil von P1.
-- Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek.
+- Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum. Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt) und schuetzt nicht gegen Kernel-Exploits.
+- Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst.
 - Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`.
 
 ## Strict-Modus
