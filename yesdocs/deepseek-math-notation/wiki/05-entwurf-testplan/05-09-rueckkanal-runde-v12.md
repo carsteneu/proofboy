@@ -95,7 +95,7 @@ Tier B (n = 12 je Arm):
 
 Trace-Ebene (Tier B, R0, exakt getroffene Gold-Checkpoints über die 10 Trace-Aufgaben, 29 Prüfpunkte): K 27/29, B 29/29, C 26/29, D 29/29.
 
-**Falschbestätigungen: 0** über alle 200 Runden (Definition wie Pilot: alle Verdikte bestätigt, aber der Endzustand ist es nicht — kein solcher Fall).
+**Falschbestätigungen: 0** über alle 179 Runden (176 Läufe + 3 Reparaturrunden; Definition wie Pilot: alle Verdikte bestätigt, aber der Endzustand ist es nicht — kein solcher Fall).
 
 ### 5.2 Der Rückkanal wurde dreimal live gebraucht — und löste jedes Mal
 
@@ -134,7 +134,7 @@ Zwischen den Läufen liegen **zwei Änderungen**: Legenden v0.2 (`%`-Regel, cp-Z
 Belegt (Rohdaten in `.yesmem/tmp/runs-v12-20260912/`, Assets):
 1. Der Reparatur-Loop funktioniert über den echten Proxy: 3 Live-Reparaturen, alle drei erfolgreich; `#xx`-Auflösung 3/3 im einzigen Fall mit Refutationen (C/B-0003).
 2. Kein Gold-Leak: die sanierten Befunde nannten keine Referenzwerte; die Korrekturen kamen aus eigenem Nachrechnen (B-0003: erneutes `sim`).
-3. 0 Falschbestätigungen über 200 Runden.
+3. 0 Falschbestätigungen über 179 Runden (176 Läufe + 3 Reparaturrunden).
 4. Endzustände: **176/176 Läufe final bestätigt** (Tier A 128/128, Tier B 48/48), 4 Reparaturen nötig und erfolgreich (A-0012/B, B-0001/K, B-0003/C; plus die Vorsonde).
 
 Nicht belegt:

@@ -147,7 +147,7 @@ Runde 2 ist in [05-09](05-09-rueckkanal-runde-v12.md) vollständig dokumentiert 
 1. **Klammerregel (`%`)** — erledigt: Legenden v0.2 machen die operandenweise Klammerung explizit; das alte Legend-Beispiel war parser-invalid. Wirkung: die `%`-Fehler aus §3.2/§5 treten in Tier A nicht mehr auf (B 31/32, C 32/32 R0).
 2. **Arm D** — gelaufen (Zeugenpflicht + Rückkanal): Tier A 32/32, Tier B 12/12 R0; Endzustände durchweg bestätigt.
 3. **Kopf-Origin-Konvention** — präzisiert („Konfiguration ist der Zustand NACH dem Schritt“); die Trace-Verschiebungen des Piloten (B 13/20, C 8/20 Checkpoints) treten nicht wieder auf (R0: K 27/29, B 29/29, C 26/29, D 29/29).
-4. **Reparaturrunde** — gebaut und gefahren: 3 Live-Reparaturen, alle erfolgreich; `#xx`-Auflösung 3/3 (C/B-0003); 0 Falschbestätigungen über 200 Runden.
+4. **Reparaturrunde** — gebaut und gefahren: 3 Live-Reparaturen, alle erfolgreich; `#xx`-Auflösung 3/3 (C/B-0003); 0 Falschbestätigungen über 179 Runden (176 Läufe + 3 Reparaturrunden).
 5. **B-0011** (schwerer Übersetzer-Zyklus) — gefahren: alle vier Arme lösten in Runde 0; C/D brauchten dafür ~0,6–0,9 k Tokens (~3–4 s), K/B ~24–26 k Tokens (~103 s).
 6. **Set-Hygiene** — erledigt: v11-a-0.2/v11-b-0.2 (Lizenz CC0 für generierte Maschinen, Quellen-Referenz ersetzt); v0.1 eingefroren.
 7. **Harness-Härtung** — teilweise: Transport in `messages`-Form mit Retry, Manifest erweitert, Runden-Logs; Env-Übersteuerung und `run_sheet`-Deadline bleiben offen.
