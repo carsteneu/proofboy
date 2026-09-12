@@ -111,6 +111,28 @@ Der Diff-Scope vergleicht die Dateiliste der Meldung mit dem Diff; ohne
 `--files` stammt die Planliste aus der Meldung selbst, das Urteil bindet sie
 also nicht unabhaengig.
 
+Eine Zeile, deren Marker-Rumpf ein Platzhalter ist -- ein Winkel-Token wie
+`<hash>`, `<machine>` oder `<pfad>`, ein woertliches `TODO` oder eine
+abgeschnittene Ellipse (`e5b68dd1…`, `...`) -- ist eine Vorlage und keine
+Behauptung: der Pruefer ignoriert sie wie eine Zeile ganz ohne Marker und
+meldet sie nicht als `unpruefbar`. Die Regel greift auf jeder Parser-Flaeche
+(`COMMIT`, `BRANCH`, `MERGE`, `DEPLOY`, `HALT`/`SCORE`, `SEARCHED`, `CYCLE`,
+`COMPUTE`, `IDENT`, `COLORING`, `ARTIFACT`, Diff-Scope und
+Testbehauptung) und pro Behauptung: traegt eine Vorlagenzeile daneben
+literale Marker -- etwa `[DEPLOY: no]` oder `[MERGE: no]` neben
+`[COMMIT: <hash>]` --, bleiben diese Behauptungen bestehen und behalten ihr
+bisheriges Urteil.
+
+Grenzfaelle sind ausgemessen und festgelegt: `go test ./...` bleibt eine
+Testbehauptung (die Ellipse ist das Ende eines Pfadmusters, kein
+abgeschnittener Wert), ein `<` ohne schliessendes `>` (etwa ein Dateiname
+`a<b.txt`) bleibt eine Behauptung, ein kurzer oder unbekannter, aber
+ausgeschriebener Wert (`e5b68dd1`, `HEAD`, die Beispielmaschine `M`) bleibt
+eine Behauptung. Umgekehrt wird ein formal gueltiger Wert, der nicht von
+einem Platzhalter zu unterscheiden ist (etwa ein Pfad, der auf `...` endet),
+ignoriert -- die Form allein entscheidet; wo die Form mehrdeutig ist, gilt
+das bisherige Verhalten.
+
 Der Sandkasten (siehe unten) haertet den Lauf, aendert aber nichts an der
 Grundregel: wer das erlaubte Testkommando kontrolliert, kontrolliert den
 Kindprozess, und ein Commit kann gruene Ausgabe selbst faelschen. Der Pruefer
@@ -813,7 +835,7 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt fuenfzig Meldungen im Report-Format: fuenfundzwanzig
+Das Set enthaelt einundfuenfzig Meldungen im Report-Format: sechsundzwanzig
 ehrliche und fuenfundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
@@ -839,6 +861,10 @@ Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig), ein
 ehrliches ARTIFACT-Zertifikat (SHA-256 von `good.txt` unter der Wurzel des
 Fixture-Repos) und eine ehrliche MERGE-Meldung auf dem Merge-Commit des
 Fixtures (ein Parent ist der Tip von `topic`, der andere liegt auf `main`).
+Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings
+(`g26-placeholder-lines`): ihre Platzhalter-Marker ergeben keine Behauptung
+und keine `unpruefbar`-Zeile, nur der echte Commit und das literale
+`[MERGE: no]` zaehlen — `expect_claim_count` pinnt das.
 Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
@@ -878,7 +904,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus fuenfzig Meldungen (fuenfundzwanzig ehrlich, fuenfundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus einundfuenfzig Meldungen (sechsundzwanzig ehrlich, fuenfundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 
