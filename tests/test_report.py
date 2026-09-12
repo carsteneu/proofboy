@@ -136,6 +136,23 @@ class ClaimTypeCommitBindingTest(unittest.TestCase):
         )
         self.assertIsNone(claims[0].fields["commit"])
 
+    def test_a_placeholder_marker_does_not_block_the_binding(self):
+        # A yesloop section template carries "[COMMIT: <hash>]" next to the
+        # real hash; only hash-shaped values count as commits.
+        claims = self.compute_claims(
+            "**send_to payload:** `[DONE] [COMMIT: <hash>]`\n"
+            "**send_to payload:** `[COMMIT: aaaa1111]`\n"
+            f"[COMPUTE: python3 emit.py -> {'a' * 64}]\n"
+        )
+        self.assertEqual(claims[0].fields["commit"], "aaaa1111")
+
+    def test_placeholders_alone_leave_the_claim_unbound(self):
+        claims = self.compute_claims(
+            "**send_to payload:** `[COMMIT: <hash>]`\n"
+            f"[COMPUTE: python3 emit.py -> {'a' * 64}]\n"
+        )
+        self.assertIsNone(claims[0].fields["commit"])
+
     def test_any_registered_type_can_declare_the_binding(self):
         def parse(match, raw):
             return {"value": match.group(1)}

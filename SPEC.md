@@ -106,8 +106,9 @@ nicht das HALT-Limit), konfigurierbar mit `--search-limit N` bei `check` und
 
 `[COMPUTE: <kommando> -> <sha256>]` behauptet, dass das Kommando auf stdout
 genau die Bytes ausgibt, deren SHA-256 behauptet wird. Der Pruefer checkt den
-Commit der Meldung (genau ein `[COMMIT]`-Marker; die Bindung deklariert der
-Typ mit `binds_commit=True`) in einen Wegwerf-Checkout aus
+Commit der Meldung (genau ein hash-foermiger `[COMMIT]`-Marker -- Platzhalter
+wie `<hash>` zaehlen nicht; die Bindung deklariert der Typ mit
+`binds_commit=True`) in einen Wegwerf-Checkout aus
 (`git clone --no-hardlinks` + `git checkout`) und fuehrt das Kommando dort im
 Sandkasten aus (dieselbe bwrap-Semantik wie bei Testkommandos: read-only
 Wurzel, beschreibbarer Checkout, eigener Netz-/PID-/UTS-Namensraum,

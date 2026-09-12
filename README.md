@@ -282,9 +282,10 @@ wird nie ausgefuehrt. Das Netzwerk ist im Sandkasten aus (bestehende
 
 Ein COMPUTE braucht das Repo (den gepinnten Commit): ohne `--repo` bricht
 `check --report` mit Exit 2 und einer Meldung ab, die den Typ nennt. Der
-Commit kommt wie bei Testlaeufen aus dem genau einen `[COMMIT]`-Marker der
-Meldung; mehrere verschiedene Commits binden nichts, und der Claim bleibt
-`unpruefbar`.
+Commit kommt wie bei Testlaeufen aus dem genau einen hash-foermigen
+`[COMMIT]`-Marker der Meldung (Platzhalter wie `<hash>` zaehlen nicht, sie
+stehen nur in Vorlagen); mehrere verschiedene Commits binden nichts, und der
+Claim bleibt `unpruefbar`.
 
 ```
 $ python3 -m bemyself check --report compute-report.md --repo <repo>
