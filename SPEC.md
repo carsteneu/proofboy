@@ -61,7 +61,9 @@ BB(5)-Champion), konfigurierbar ueber `--halt-limit N` bei `check` und
 `run(machine, max_steps)`) laeuft in-process in reiner
 Standardbibliothek: kein Subprozess, kein Netz-, Repo- oder Sandkastenbezug
 (es entsteht kein ungesandboxtes Fremdkommando); der Speicher waechst linear
-mit den ausgefuehrten Schritten.
+mit den ausgefuehrten Schritten. Das Limit begrenzt die einzelne Behauptung,
+nicht den Report; ein Claim am Limit kostet wenige Sekunden, viele HALT-Zeilen
+summieren sich.
 
 Erweiterbarkeit: Behauptungstypen liegen als Registry vor
 (`bemyself/claimtypes/`): ein neuer Typ ist ein Modul plus ein Eintrag in

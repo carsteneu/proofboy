@@ -15,6 +15,9 @@ is not a proof that the machine never halts), or halts with a different
 score; UNVERIFIABLE when the machine does not parse, the step count is not a
 plain non-negative integer, or it exceeds the executable limit. A [SCORE]
 marker without a [HALT] marker for its machine is not a claim.
+
+Cost: one claim at the limit means roughly five seconds of simulation, and a
+report may carry many claims; the limit bounds each claim, not the report.
 """
 
 from __future__ import annotations
@@ -33,18 +36,27 @@ if TYPE_CHECKING:
 # UNVERIFIABLE (--halt-limit changes it).
 DEFAULT_HALT_LIMIT = 47_176_870
 
-_ARROW = r"(?:->|\u2192)"
-_HALT_RE = re.compile(
-    r"\[HALT:[ \t]*(?P<machine>[^\]\[]*?)[ \t]*"
-    + _ARROW
-    + r"[ \t]*(?P<steps>[^\]\[]*?)[ \t]*\]"
-)
-_SCORE_RE = re.compile(
-    r"\[SCORE:[ \t]*(?P<machine>[^\]\[]*?)[ \t]*"
-    + _ARROW
-    + r"[ \t]*(?P<ones>[^\]\[]*?)[ \t]*\]"
-)
+_ARROW = "->"
+_UNICODE_ARROW = "\u2192"
+# One lazy "anything but a bracket" capture per marker, fields split out of it
+# afterwards. Whitespace *must not* appear as its own quantifier around the
+# capture: the classes overlap, and on a hostile whitespace run behind an
+# unterminated marker the engine then explores combinations polynomially (a
+# 2 KB line took ~7 s). A report is untrusted input, so the patterns stay
+# linear.
+_HALT_RE = re.compile(r"\[HALT:(?P<body>[^\]\[]*?)\]")
+_SCORE_RE = re.compile(r"\[SCORE:(?P<body>[^\]\[]*?)\]")
 _COUNT_RE = re.compile(r"\A[0-9]+\Z")
+
+
+def _split_body(match):
+    """(machine, value) of one marker, or None when it has no arrow."""
+    body = match.group("body")
+    for arrow in (_UNICODE_ARROW, _ARROW):
+        if arrow in body:
+            left, right = body.rsplit(arrow, 1)
+            return left.strip(), right.strip()
+    return None
 
 
 def _count(text):
@@ -61,15 +73,19 @@ def _count(text):
 
 def parse(match, raw):
     """Fields of one [HALT] marker, plus its same-line [SCORE] if any."""
-    machine = match.group("machine").strip()
-    scores = {
-        score.group("ones").strip()
-        for score in _SCORE_RE.finditer(raw)
-        if score.group("machine").strip() == machine
-    }
+    parts = _split_body(match)
+    if parts is None:
+        # An arrow-less marker names no claim.
+        return None
+    machine, steps = parts
+    scores = set()
+    for score in _SCORE_RE.finditer(raw):
+        score_parts = _split_body(score)
+        if score_parts is not None and score_parts[0] == machine:
+            scores.add(score_parts[1])
     fields = {
         "machine": machine,
-        "steps": match.group("steps").strip(),
+        "steps": steps,
         "score": None,
         "score_conflict": False,
     }

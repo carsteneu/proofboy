@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of thirty messages live in the
+hashes. That is what lets the standard set of thirty-four messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -159,7 +159,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard thirty-message set for ``fixture`` (15 honest, 15 false).
+    """Return the standard thirty-four-message set (17 honest, 17 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts

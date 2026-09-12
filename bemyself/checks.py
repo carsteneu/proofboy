@@ -1044,6 +1044,8 @@ def run_claim(claim: Claim, ctx: Ctx, registry: dict | None = None) -> Result:
             )
     checker = registry.get(claim.kind)
     if checker is None:
+        # A caller-supplied registry is an override layer, not an exhaustive
+        # one: optional claim types stay resolvable even then.
         checker = claimtypes.checker_for(claim.kind)
     if checker is None:
         return Result(

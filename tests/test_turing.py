@@ -30,6 +30,11 @@ ONE_STEP = "1RZ1RZ"
 # it, moves right and halts. Four steps, score 1 (the 1 at cell 0).
 OVERWRITE_MACHINE = "1RB1RB_1LA0RZ"
 
+# Hand trace: step 1 writes 1 at 0 and moves left, step 2 writes 1 at -1 and
+# moves right, step 3 reads the 0 at 0 and moves left, step 4 reads the 1 at
+# -1 (the left tape half), moves left and halts. Four steps, score 1.
+LEFT_HALF_MACHINE = "0LB0RB_1RA1LZ"
+
 # Published machines (bbchallenge wiki, BB(5) page; Michel, Historical Survey).
 BB5_CHAMPION = "1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA"  # 47176870 steps, 4098 ones
 BB5_SECOND = "1RB0LD_1LC1RD_1LA1LC_1RZ1RE_1RA0RB"  # 23554764 steps, 4097 ones
@@ -109,6 +114,9 @@ class RunTest(unittest.TestCase):
 
     def test_overwriting_a_one_decrements_the_score(self):
         self.assertEqual(run(parse(OVERWRITE_MACHINE), 10), (True, 4, 1))
+
+    def test_writes_and_reads_on_the_left_tape_half(self):
+        self.assertEqual(run(parse(LEFT_HALF_MACHINE), 10), (True, 4, 1))
 
     def test_result_fields(self):
         result = run(parse(ONE_STEP), 1)

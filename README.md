@@ -191,7 +191,9 @@ eine Behauptung ausfuehren darf: Default 47.176.870, konfigurierbar mit
 `--halt-limit N` (auch fuer `eval`); eine Behauptung darueber wird gar nicht
 erst ausgefuehrt und bleibt `unpruefbar`. Der Speicher waechst linear mit
 den ausgefuehrten Schritten (zwei Bytearrays, worst case wenige zehn
-Megabyte), nicht mit der Bandposition. Die Testdaten stammen aus der
+Megabyte), nicht mit der Bandposition. Das Limit begrenzt die einzelne
+Behauptung, nicht den Report: eine Behauptung am Limit kostet wenige
+Sekunden, und viele HALT-Zeilen in einem Report summieren sich. Die Testdaten stammen aus der
 bbchallenge-Wiki und werden nachgerechnet: BB(5)-Champion (47.176.870
 Schritte, 4098 Einsen; Coq-BB5, arXiv:2509.12337), der Halter von Marxen &
 Buntrock 1989 (23.554.764/4097), Uhing 1984 (2.133.492/1915) und der

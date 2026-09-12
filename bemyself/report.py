@@ -25,7 +25,11 @@ from bemyself.model import Claim
 
 _MAX_LINE = 8192
 
-_MARKER_RE = re.compile(r"\[(COMMIT|BRANCH|MERGE|DEPLOY):[ \t]*([^\]\[]*?)[ \t]*\]")
+# One lazy "anything but a bracket" capture, stripped in Python: overlapping
+# whitespace runs around the capture would let the engine backtrack cubically
+# on a hostile whitespace run behind an unterminated marker (see
+# bemyself/claimtypes/halt.py for the same shape).
+_MARKER_RE = re.compile(r"\[(COMMIT|BRANCH|MERGE|DEPLOY):([^\]\[]*?)\]")
 _TESTS_RE = re.compile(
     r"^[ \t]*(?:\*\*)?Tests? run:[ \t]*(?P<cmd>\S(?:.*\S)?)[ \t]+"
     r"(?:->|\u2192)[ \t]+exit[ \t]+(?P<code>-?\d+)[ \t]*$"

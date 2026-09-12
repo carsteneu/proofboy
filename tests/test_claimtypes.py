@@ -1,6 +1,7 @@
 """Tests for the claim-type registry and the [HALT]/[SCORE] claim type."""
 
 import re
+import time
 import unittest
 from unittest import mock
 
@@ -227,6 +228,49 @@ class HaltCheckTest(unittest.TestCase):
         ):
             result = self.check_report(f"[HALT: {SMALL} -> 3]")
         self.assertIs(result.verdict, Verdict.CONFIRMED)
+
+
+class CaptureCostTest(unittest.TestCase):
+    """A hostile report must not make the parser burn minutes on one line.
+
+    A whitespace run behind an unterminated marker used to send the regex
+    engine into cubic backtracking (measured: ~7s for a 2000-character run,
+    growing 8x per doubling). The patterns must not overlap that way: the
+    budget below is many orders of magnitude above linear scanning time and
+    far below the old cubic cost.
+    """
+
+    BUDGET = 0.5
+    RUN = 2000
+
+    def parsed_within_budget(self, line):
+        start = time.perf_counter()
+        claims = parse_report(line + "\n")
+        elapsed = time.perf_counter() - start
+        self.assertLess(elapsed, self.BUDGET, f"{elapsed:.3f}s for a {len(line)}-char line")
+        return claims
+
+    def test_unterminated_halt_marker(self):
+        self.assertEqual(self.parsed_within_budget("[HALT:" + " " * self.RUN), [])
+
+    def test_unterminated_score_marker(self):
+        self.assertEqual(self.parsed_within_budget("[SCORE:" + " " * self.RUN), [])
+
+    def test_unterminated_score_behind_a_halt_claim(self):
+        # halt.parse re-scans the line for SCORE markers, so this path has to
+        # stay linear as well.
+        claims = self.parsed_within_budget(f"[HALT: {SMALL} -> 3] [SCORE:" + " " * (self.RUN - 30))
+        self.assertEqual(len(claims), 1)
+        self.assertIsNone(claims[0].fields["score"])
+
+    def test_unterminated_halt_marker_with_tabs(self):
+        self.assertEqual(self.parsed_within_budget("[HALT:" + "\t" * self.RUN), [])
+
+    def test_arrow_without_terminator(self):
+        self.assertEqual(self.parsed_within_budget("[HALT: M ->" + " " * self.RUN), [])
+
+    def test_repeated_arrows_without_terminator(self):
+        self.assertEqual(self.parsed_within_budget("[HALT: M " + "->" * 700 + " "), [])
 
 
 if __name__ == "__main__":
