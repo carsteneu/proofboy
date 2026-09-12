@@ -22,9 +22,9 @@ not exist, cannot run in the sandbox, times out, printed more than the
 documented output limit (a larger stream is refused, never truncated into a
 verdict), or left a non-zero exit status. The exit code is not the digest
 criterion, but it is a completion gate: no certificate without a completed
-run. Note that the default allowlist entry is the simulator of this
-repository: in another repository it runs only when the pinned commit carries
-that package.
+run. Note that the default allowlist entries are modules of this repository:
+in another repository they run only when the pinned commit carries that
+package.
 
 Limits: ``COMPUTE_TIMEOUT`` bounds one run; ``MAX_COMPUTE_BYTES`` bounds the
 stdout that is hashed (streamed, so memory stays constant and no disk is
@@ -49,9 +49,14 @@ from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
 from bemyself.model import ClaimType, Result, Verdict
 
 # Command prefixes a [COMPUTE] claim may run. Deliberately minimal: by default
-# only the simulator entry that ships with this repository; any other
-# computation is opened explicitly (--allow, repeated).
-DEFAULT_COMPUTE_ALLOWLIST = ("python3 -m bemyself.turing",)
+# only repository-owned modules as literal entries -- the simulator and the
+# bounded Erdős-Straus experiment; any other computation is opened explicitly
+# (--allow, repeated). No wildcard: a future module of the experiments package
+# is not opened implicitly.
+DEFAULT_COMPUTE_ALLOWLIST = (
+    "python3 -m bemyself.turing",
+    "python3 -m bemyself.experiments.erdos_straus",
+)
 
 # One compute run must finish within this many seconds.
 COMPUTE_TIMEOUT = 300

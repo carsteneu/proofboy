@@ -533,6 +533,18 @@
         "cycle": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [CYCLE: 1RB1RZ_0LA0LA -> 1,5,1]`\n"
+    },
+    {
+      "name": "g21-compute-erdos-straus-stub",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: COMPUTE-Zertifikat des Experiment-Moduls python3 -m bemyself.experiments.erdos_straus auf dem Fixture-Stub -- haengt am zweiten, literalen Default-Allowlist-Eintrag: ohne ihn bliebe der Lauf unpruefbar statt CONFIRMED.",
+      "base": "ca16045ba1cd8ca1313d5e667c08e5a14130b12c",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "compute": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: ca16045ba1cd8ca1313d5e667c08e5a14130b12c]`\n[COMPUTE: python3 -m bemyself.experiments.erdos_straus 8 -> 4754fa6e7c4ae0b2e22171b0b16bddf6b9dad14b2293342675a782e18f76a52e]\n"
     }
   ]
 }

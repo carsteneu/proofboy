@@ -92,7 +92,19 @@ class ComputeRegistryTest(unittest.TestCase):
         self.assertTrue(compute.COMPUTE.binds_commit)
 
     def test_the_default_allowlist_is_minimal(self):
-        self.assertEqual(compute.DEFAULT_COMPUTE_ALLOWLIST, ("python3 -m bemyself.turing",))
+        self.assertEqual(
+            compute.DEFAULT_COMPUTE_ALLOWLIST,
+            (
+                "python3 -m bemyself.turing",
+                "python3 -m bemyself.experiments.erdos_straus",
+            ),
+        )
+
+    def test_the_default_allowlist_does_not_open_the_experiments_package(self):
+        # The experiment entry is literal: a future module of the package is
+        # not opened implicitly.
+        argv = ["python3", "-m", "bemyself.experiments.some_future_module"]
+        self.assertFalse(compute._allowed_by_tokens(argv, compute.DEFAULT_COMPUTE_ALLOWLIST))
 
 
 class ComputeCheckTest(unittest.TestCase):
@@ -139,6 +151,21 @@ class ComputeCheckTest(unittest.TestCase):
         self.assertIn("git checkout", result.command)
         self.assertIn("--sandbox=off", result.reason)
         self.assertIs(result.sandboxed, False)
+
+    def test_the_default_allowlist_runs_the_experiment_module(self):
+        repo, commit = self.probe_repo(
+            "experiment",
+            "print('fixture erdos-straus')\n",
+            filename=os.path.join("bemyself", "experiments", "erdos_straus.py"),
+        )
+        ctx = self.ctx(repo.path, compute_allowlist=compute.DEFAULT_COMPUTE_ALLOWLIST)
+        result = self.check_report(
+            "python3 -m bemyself.experiments.erdos_straus 8",
+            digest("fixture erdos-straus\n"),
+            commit,
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
     def test_default_auto_sandboxes_when_bwrap_is_available(self):

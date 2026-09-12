@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of forty messages live in the
+hashes. That is what lets the standard set of forty-one messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -13,6 +13,7 @@ checker itself, this module uses only the standard library plus git.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -56,6 +57,15 @@ _FIXTURE_TURING = (
     '"""Fixture stub: prints a fixed line, arguments are ignored."""\n'
     "print(\"fixture\")\n"
 )
+
+# The same for the Erdős-Straus experiment module (the second, literal default
+# COMPUTE allowlist entry): its stub prints a fixed line, and the expected
+# digest is derived from that line, so the case and the stub cannot drift.
+_FIXTURE_ERDOS_STRAUS = (
+    '"""Fixture stub: prints a fixed line, arguments are ignored."""\n'
+    'print("fixture erdos-straus")\n'
+)
+_FIXTURE_ERDOS_STRAUS_OUT = "fixture erdos-straus\n"
 
 # BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
 # so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
@@ -179,6 +189,16 @@ def build_fixture(root):
     _write(repo, os.path.join("bemyself", "turing.py"), _FIXTURE_TURING)
     commits["tool"] = _commit(repo, _fixture_env(home, 7), "fixture tool")
 
+    # The experiment module of the second default COMPUTE allowlist entry, in
+    # its own commit: no other case's diff scope moves.
+    os.makedirs(os.path.join(repo, "bemyself", "experiments"), exist_ok=True)
+    _write(
+        repo,
+        os.path.join("bemyself", "experiments", "erdos_straus.py"),
+        _FIXTURE_ERDOS_STRAUS,
+    )
+    commits["experiment"] = _commit(repo, _fixture_env(home, 8), "fixture experiment")
+
     blobs = {
         "good.txt": _run(
             ["git", "-C", repo, "rev-parse", f"{commits['good']}:good.txt"], env
@@ -188,7 +208,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard forty-message set (20 honest, 20 false).
+    """Return the standard forty-one-message set (21 honest, 20 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -724,6 +744,22 @@ def standard_set(fixture):
             ),
             targets=["cycle"],
             expect_verdicts={"cycle": "REFUTED"},
+        ),
+        # --- the experiment module of the default COMPUTE allowlist ---------
+        case(
+            "g21-compute-erdos-straus-stub",
+            "genuine",
+            "Ehrliche Meldung: COMPUTE-Zertifikat des Experiment-Moduls "
+            "python3 -m bemyself.experiments.erdos_straus auf dem Fixture-Stub "
+            "-- haengt am zweiten, literalen Default-Allowlist-Eintrag: ohne "
+            "ihn bliebe der Lauf unpruefbar statt CONFIRMED.",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['experiment']}]"),
+                "[COMPUTE: python3 -m bemyself.experiments.erdos_straus 8 -> "
+                f"{hashlib.sha256(_FIXTURE_ERDOS_STRAUS_OUT.encode('ascii')).hexdigest()}]",
+            ),
+            at="experiment",
+            expect_verdicts={"compute": "CONFIRMED"},
         ),
     ]
     return {
