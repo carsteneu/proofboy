@@ -48,7 +48,7 @@ Dieser Bericht schließt den Bau- und Pilotzyklus ab, den [05-07](05-07-denkspra
 
 **Verdikt-Doktrin im Betrieb:** CONFIRMED nur bei exakter Prüfung. Belege aus dem Lauf: 12 REFUTED-`v`-Zeilen und 0 falsch-bestätigte Claims; `ref`-Promotionen wurden 5× mit `ref_unconfirmed` blockiert (Status `+` ohne ok-Prüfung); Guard-, Timeout- und Parse-Fälle liefen als `#?:`.
 
-**Suite:** 550 Tests (Baseline vor dem Zyklus: 443, alle grün).
+**Suite:** 554 Tests (Baseline vor dem Zyklus: 443, alle grün).
 
 ## 2. Lauf-Setup
 
@@ -137,4 +137,4 @@ Dieser Bericht schließt den Bau- und Pilotzyklus ab, den [05-07](05-07-denkspra
 3. Lokale Quelle: [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, A/B-Leiter, Metriken a–k, Multiplizitätsregel.
 4. Lokale Quelle: [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln; Abweichung §6.1).
 5. Lokale Quelle: [01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme (W1).
-6. Lokale Quelle: `bemyself/msheet/` + `tests/test_msheet*.py`, `tests/test_v11_harness.py` — Engine, Zeugen, Harness-Tests (550 Tests grün).
+6. Lokale Quelle: `bemyself/msheet/` + `tests/test_msheet*.py`, `tests/test_v11_harness.py` — Engine, Zeugen, Harness-Tests (554 Tests grün).

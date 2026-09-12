@@ -316,7 +316,11 @@ def main(argv=None):
         text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
         path.write_text(text, encoding="utf-8")
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        print(f"{path.relative_to(ROOT)}  sha256={digest}")
+        try:
+            shown = path.resolve().relative_to(ROOT)
+        except ValueError:
+            shown = path.resolve()
+        print(f"{shown}  sha256={digest}")
     print(f"Tier A: {len(tier_a['tasks'])} Aufgaben, Tier B: {len(tier_b['tasks'])} Aufgaben")
     return 0
 
