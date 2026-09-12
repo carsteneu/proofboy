@@ -7,7 +7,7 @@ from unittest import mock
 
 from bemyself import claimtypes
 from bemyself.claimtypes import halt
-from bemyself.checks import Ctx, kind_needs_repo, run_claim
+from bemyself.checks import Ctx, kind_needs_repo, needs_repo, run_claim
 from bemyself.model import ClaimType, Result, Verdict
 from bemyself.report import parse_report
 
@@ -71,6 +71,26 @@ class RegistryTest(unittest.TestCase):
             check=check,
         )
         self.assertFalse(even.needs_repo)
+
+    def test_a_decorated_checker_declares_the_need_too(self):
+        # The @needs_repo marker works on an optional type's checker just like
+        # on a built-in one: the resolution honors both declaration sites.
+        @needs_repo
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="checked")
+
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        decorated = ClaimType(
+            kind="decorated",
+            pattern=re.compile(r"\[DECORATED: (\w+)\]"),
+            parse=parse,
+            check=check,
+        )
+        self.assertTrue(getattr(check, "needs_repo"))
+        with mock.patch.object(claimtypes, "CLAIM_TYPES", claimtypes.CLAIM_TYPES + (decorated,)):
+            self.assertTrue(kind_needs_repo("decorated"))
 
     def test_a_new_type_needs_no_parser_or_cli_change(self):
         # The documented recipe: one new module and one registration entry.

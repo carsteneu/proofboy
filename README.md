@@ -26,8 +26,9 @@ python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sand
 Pruefset. Die Meldung kommt entweder aus einer Datei (`--report`) oder direkt aus
 einer YesMem-Scratchpad-Section (`--section`): genau eines von beiden ist
 Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--report` ist
-`--repo` nur dann Pflicht, wenn der Report eine Behauptung enthaelt, deren
-Pruefer ein Repository braucht (`COMMIT`, `BRANCH`, Tests, Diff-Scope); ein
+`--repo` nur dann Pflicht, wenn die Meldung eine Behauptung enthaelt, deren
+Pruefer ein Repository braucht (`COMMIT`, `BRANCH`, Tests, Diff-Scope; eine per
+`--files` ergaenzte Diff-Scope-Behauptung zaehlt mit); ein
 Report aus repo-freien Behauptungen (etwa `[HALT]`) laeuft ohne `--repo`. Fehlt
 `--repo` fuer einen repo-beduerftigen Report, bricht der Aufruf mit Exit 2 und
 usage ab und nennt den Behauptungstyp. Mit `--section` ist
@@ -245,7 +246,7 @@ liest: `ClaimType(..., needs_repo=True)`. Ohne die Angabe (Default `False`)
 laeuft `check --report` auch ohne `--repo`; mit `needs_repo=True` verlangt ein
 Report, der eine solche Behauptung enthaelt, `--repo` (usage-Fehler, Exit 2,
 mit dem Typ in der Meldung). Den Bedarf liest der Pruefer aus der Registry
-(`bemyself.checks.kind_needs_repo`); kein Typ-Name steht im CLI-Code.
+(`bemyself.checks.kind_needs_repo`), nicht aus einer Typ-Liste im CLI-Code.
 
 ## Evaluation
 

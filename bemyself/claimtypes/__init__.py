@@ -34,6 +34,12 @@ def checker_for(kind: str) -> Callable | None:
 
 
 def type_needs_repo(kind: str) -> bool:
-    """Whether the registered optional claim kind declares a repo need."""
+    """Whether the registered optional claim kind declares a repo need.
+
+    The declaration is the ``ClaimType.needs_repo`` field or the
+    :func:`bemyself.checks.needs_repo` marker on the type's checker.
+    """
     claim_type = _find(kind)
-    return claim_type is not None and claim_type.needs_repo
+    if claim_type is None:
+        return False
+    return claim_type.needs_repo or bool(getattr(claim_type.check, "needs_repo", False))

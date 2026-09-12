@@ -84,7 +84,8 @@ Abschnitt "Neuen Behauptungstyp hinzufuegen".
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
 `--repo` verlangt `check --report` nur, wenn mindestens eine vorkommende
-Behauptung ein Repository deklariert (COMMIT, BRANCH, Tests, Diff-Scope). Der
+Behauptung ein Repository deklariert (COMMIT, BRANCH, Tests, Diff-Scope; eine
+per `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit). Der
 Bedarf steht am Checker bzw. am `ClaimType.needs_repo` in der Registry, nicht
 als Liste im CLI; HALT/SCORE und unbekannte Typen ohne Checker laufen ohne
 `--repo` (und bleiben gegebenenfalls `UNVERIFIABLE`).
