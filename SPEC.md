@@ -123,7 +123,7 @@ Kopfdistanz exakt `d` und exakt gleichem Band im erreichbaren Fenster; der
 Urteilstext nennt den Beweisgrund in fester Formulierung ("the configuration
 at step t2 equals the configuration at step t1 translated by d on every cell
 the machine can still reach (it never goes more than L cells left/right of
-the head); therefore by determinism the machine never halts"). `REFUTED` bei
+the head at step t1); therefore by determinism the machine never halts"). `REFUTED` bei
 Halt im Fenster, abweichendem Zustand, falscher Kopfdistanz oder abweichender
 Zelle (die erste abweichende relative Position im erreichbaren Fenster steht
 im Urteil). `UNVERIFIABLE` bei unparsebarer Maschine, ungueltigen Werten

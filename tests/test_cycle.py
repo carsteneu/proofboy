@@ -46,8 +46,8 @@ TWO_STATE_WALKER = "0RB1LA_0RA1LA"
 PROVEN = (
     "the configuration at step {t2} equals the configuration at step {t1} "
     "translated by {d} on every cell the machine can still reach "
-    "(it never goes more than {excursion} cells {side} of the head); "
-    "therefore by determinism the machine never halts"
+    "(it never goes more than {excursion} cells {side} of the head at "
+    "step {t1}); therefore by determinism the machine never halts"
 )
 
 

@@ -283,7 +283,7 @@ Der Beweisgrund im Urteilstext ist fixiert:
 ```
 the configuration at step 16 equals the configuration at step 6 translated by 2
 on every cell the machine can still reach (it never goes more than 2 cells left
-of the head); therefore by determinism the machine never halts
+of the head at step 6); therefore by determinism the machine never halts
 ```
 
 Warum das ein vollstaendiger Beweis ist: Das Verhalten der Maschine haengt nur

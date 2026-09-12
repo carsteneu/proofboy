@@ -275,8 +275,8 @@ def check(claim, ctx):
         output,
         f"the configuration at step {t2} equals the configuration at step {t1} "
         f"translated by {d} on every cell the machine can still reach "
-        f"(it never goes more than {excursion} cells {side} of the head); "
-        f"therefore by determinism the machine never halts",
+        f"(it never goes more than {excursion} cells {side} of the head at "
+        f"step {t1}); therefore by determinism the machine never halts",
     )
 
 
