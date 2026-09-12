@@ -8,13 +8,14 @@ Ein lokales Kommandozeilen-Werkzeug, das eine Meldung ueber den Zustand der Welt
 
 Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt, typischerweise:
 
-- `[COMMIT: <hash>]`, `[BRANCH: <name>]`, `[MERGE: ...]`, `[DEPLOY: ...]`
+- `[COMMIT: <hash>]`, `[BRANCH: <name>]`, `[MERGE: <branch>]`, `[DEPLOY: ...]`
 - `[HALT: <machine> -> <steps>]` und optional `[SCORE: <machine> -> <ones>]`
 - `[SEARCHED: <machine> -> <n>]` (begrenzter Suchlauf ohne Halt, kein Nicht-Halte-Beweis)
 - `[CYCLE: <machine> -> t1,t2,d]` (uebersetzter Zyklus, Nicht-Halte-Beweis fuer diese Maschine mit diesem Zertifikat)
 - `[IDENT: n=<affine> ; a=<affine>, b=<affine>, c=<affine>]` (parameterisierte Identitaet, exakt als rationale Funktion in `t`; optional `; t >= <Schranke>`)
 - `[COLORING: k=<k> ; <farbziffern>]` (Schur-Faerbung: explizites k-Faerbungs-Zertifikat fuer `1..N`; belegt nur die untere Schranke `S(k) >= N`)
 - `[COMPUTE: <kommando> -> <sha256 des stdout>]` (Rechenzertifikat, gepinnter Commit)
+- `[ARTIFACT: <pfad> -> <sha256>]` (Datei-Digest unter der Artefakt-Wurzel)
 - "Tests run: <command> -> exit 0"
 - "Regression baseline: ..."
 - "send_to orchestrator: yes"
@@ -34,8 +35,10 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 | IDENT | beide Seiten als rationale Funktionen in t expandieren, Differenz bilden, Zaehler identisch null pruefen; dazu Bereichsbedingungen (a,b,c positiv, n >= 2 fuer alle t >= Schranke) -- eine Progression fuer alle Parameter, kein Beweis der Vermutung |
 | COLORING | alle Tripel x <= y mit x + y <= N nachzaehlen (in-process); CONFIRMED nur ohne monochromatisches Tripel, REFUTED mit dem ersten Verstoss in kanonischer Reihenfolge -- ein Zertifikat der unteren Schranke S(k) >= N, keine Gleichheit, nichts ueber die obere Schranke |
 | COMPUTE | Kommando im Wegwerf-Checkout des gepinnten Commits im bwrap-Sandkasten ausfuehren, sha256(stdout) streamen und vergleichen |
+| MERGE | Commit existiert, genau zwei Parents, ein Parent ist der Tip des genannten Branches, der andere liegt auf der Zielbranch; Widerspruch nennt die echten Parents |
+| ARTIFACT | Datei existiert unter der Artefakt-Wurzel und ihr SHA-256 stimmt; Pfad per realpath konfiniert, Streaming mit Groessenlimit |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
-| Deploy erfolgt | Artefakt-Metadaten (mtime, Version) gegen den behaupteten Stand |
+| Deploy erfolgt | Kein Checker (absichtlich): ein generischer Deploy-Begriff fehlt; `[ARTIFACT]` ist die pruefbare Form |
 
 Jede Pruefung liefert ein Ergebnis `CONFIRMED`, `REFUTED` oder `UNVERIFIABLE` mit dem ausgeführten Kommando und der rohen Ausgabe.
 
@@ -84,7 +87,7 @@ deklariert, ohne Aenderung an Parser (`bemyself/report.py`) oder CLI
 (`bemyself/cli.py`) --
 `check --report` verlangt `--repo` nur, wenn ein vorkommender Typ ihn
 deklariert. Rezept mit durchgerechnetem Mini-Beispielen (`[EVEN]`,
-`[COMPUTE]`): README, Abschnitt "Neuen Behauptungstyp hinzufuegen".
+`[COMPUTE]`, `[ARTIFACT]`): README, Abschnitt "Neuen Behauptungstyp hinzufuegen".
 
 ## Begrenzter Suchlauf (`SEARCHED`)
 
@@ -265,12 +268,85 @@ Grenze: Der Hash belegt die Ausgabe des Kommandos auf dem gepinnten Commit,
 nicht die Bedeutung der Rechnung; der Checkout bringt seinen eigenen Code
 mit, wer den Commit kontrolliert, kontrolliert die Ausgabe.
 
+## Merges (`MERGE`)
+
+`[MERGE: <branch>]` behauptet, dass der Commit der Meldung der Merge des
+genannten Branches ist. Die Bindung an den Commit ist dieselbe wie bei
+COMPUTE: genau ein hash-foermiger `[COMMIT]`-Marker bindet (Platzhalter wie
+`<hash>` zaehlen nicht); mehrere verschiedene Commits binden nichts und die
+Behauptung bleibt `UNVERIFIABLE`. Geprueft wird lokal, ohne Netz und ohne
+Fetch:
+
+- Der Commit existiert und hat genau zwei Parents; null, ein oder mehr als
+  zwei Parents ergeben `REFUTED` (kein Merge-Commit).
+- Einer der Parents ist der Tip des genannten Branches (`refs/heads/<branch>`,
+  sonst `refs/remotes/origin/<branch>`).
+- Der andere Parent liegt auf der Zielbranch oder ist ihr Tip; Zielbranch ist
+  `origin/HEAD`, sonst eine lokale `main` oder `master`, sonst die aktuelle
+  Branch. Ohne bestimmbare Zielbranch bleibt die Behauptung `UNVERIFIABLE`.
+
+Ein Widerspruch ergibt `REFUTED` und das Urteil nennt die tatsaechlichen
+Parents und den Tip des genannten Branches (kurze Hashes). `UNVERIFIABLE`
+bleiben ausserdem: ein Wert ohne Branchnamen (`[MERGE: no]`, `pending-PR`,
+`blocked-PR` sind Statuswerte des Yesloop-DONE-Payloads, keine Branches), ein
+Branch, der weder lokal noch auf `origin` aufloest (ein nach dem Merge
+geloeschter Branch wird nicht erraten), ein fehlender Commit und ein nicht
+aufloesbarer Commit-Hash.
+
+Abgrenzung: Der Check belegt die Merge-Struktur, nicht die Absicht. Er liest
+den Tip des Branches zum Pruefzeitpunkt; ein Branch, der nach dem Merge
+weiterlief, macht den Merge-Commit nicht mehr als Merge dieses Branches
+erkennbar. Ein Merge, der die Zielbranch nie erreicht hat, ist `REFUTED` (der
+andere Parent liegt dann nicht auf ihr). Ein `MERGE`-Claim deklariert keinen
+Repo-Bedarf: eine Meldung, die nur `[MERGE: no]` traegt, laeuft ohne `--repo`
+weiter (Exit-Codes unveraendert), und ohne Repository bleibt die Behauptung
+`UNVERIFIABLE` statt eines Usage-Fehlers.
+
+## Artefakte (`ARTIFACT`) und die Grenze von `DEPLOY`
+
+`[ARTIFACT: <pfad> -> <sha256>]` behauptet, dass die Datei existiert und ihr
+Inhalt genau den behaupteten SHA-256 hat. Der Pfad stammt aus einer
+untrusted Meldung und wird darum konfiniert: er wird unter der Artefakt-Wurzel
+aufgeloest und nur akzeptiert, wenn der ueber `realpath` aufgeloeste Pfad in
+der Wurzel bleibt. `..`-Bestandteile werden abgelehnt (auch wenn sie
+rechnerisch wieder in die Wurzel fuehren); ein Symlink innerhalb der Wurzel,
+der nach aussen zeigt, bleibt `UNVERIFIABLE`; ein Symlink, dessen Ziel in der
+Wurzel bleibt, wird verfolgt. Ausserhalb der Wurzel findet kein Lesevorgang
+statt. Die Datei wird einmal geoeffnet (`O_NONBLOCK` gegen blockierende Named
+Pipes), per `fstat` als regulaere Datei geprueft und durch diesen Deskriptor
+in Bloecken gehasht (konstantes Gedaechtnis); das Limit
+`MAX_ARTIFACT_BYTES = 256 MiB` begrenzt die Zeit pro Behauptung, eine
+groessere Datei bleibt `UNVERIFIABLE`, ebenso eine Datei, die waehrend des
+Lesens ueber das Limit waechst. Ein Hardlink in der Wurzel ist von einer
+eigenen Datei nicht unterscheidbar (gleicher Inode); der Inhalt der Wurzel
+ist der Vertrauensbereich des Aufrufers.
+
+Urteile: `CONFIRMED` nur bei vollstaendig gelesener Datei mit exakt dem
+behaupteten Digest (Gross-/Kleinschreibung egal); `REFUTED` bei fehlender
+Datei, bei einem Pfad, der keine regulaere Datei ist (Verzeichnis, Named
+Pipe, Geraet), und bei abweichendem Digest -- das Urteil nennt Pfad,
+tatsaechlichen Digest und Groesse, denn Abwesenheit und Abweichung sind
+Befunde. `UNVERIFIABLE` ohne Wurzel (kein `--artifact-root`, kein `--repo`),
+bei fehlender oder nicht-Verzeichnis-Wurzel, bei einem Pfad ausserhalb der
+Wurzel, bei einem Digest, der keine 64 Hex-Ziffern sind, und bei einer Datei
+ueber dem Limit. Der Typ deklariert keinen Repo-Bedarf: die Wurzel ist
+konfiguriert (`--artifact-root <dir>`, Default das Repository), nicht das
+Repository.
+
+`DEPLOY` bleibt absichtlich ohne Pruefer: Ein generischer, nachrechenbarer
+Deploy-Begriff existiert nicht (ein neuer Prozess, ein DNS-Eintrag, ein
+Artefakt in einer fremden Registry, eine Nachricht an Dritte), und eine
+Pruefung, die den Deploy nicht wirklich anfasst, waere eine Scheinpruefung.
+`[DEPLOY: ...]` bleibt darum dauerhaft `UNVERIFIABLE` (kein Checker
+registriert); das ehrliche Werkzeug fuer "Deploy erfolgt" ist `[ARTIFACT]`
+samt Digest.
+
 ## Kommandos (Ziel)
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
 | `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
@@ -280,11 +356,15 @@ per `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit). Der
 Bedarf steht am Checker bzw. am `ClaimType.needs_repo` in der Registry, nicht
 als Liste im CLI; HALT/SCORE, SEARCHED, CYCLE, IDENT und COLORING sowie unbekannte
 Typen ohne Checker laufen ohne `--repo` (und bleiben gegebenenfalls
-`UNVERIFIABLE`).
+`UNVERIFIABLE`). MERGE und ARTIFACT deklarieren ebenfalls keinen Bedarf: eine
+Merge-Behauptung bleibt ohne Repository `UNVERIFIABLE` (kein Usage-Fehler),
+und ARTIFACT loest seine Pfade gegen die Artefakt-Wurzel auf
+(`--artifact-root <dir>`, Default das Repository).
 
 ## Harte Regeln
 
 - Nur lesend auf `~/.claude/yesmem`. Keine Schreibzugriffe auf Live-Datenbanken.
+- ARTIFACT liest nur unter der konfigurierten Wurzel: der Pfad wird mit `realpath` aufgeloest, `..`-Bestandteile und Ausbrueche (absoluter Pfad draussen, Symlink nach draussen) werden abgelehnt, gelesen wird eine regulaere Datei und nur einmal (Streaming, Limit 256 MiB).
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
 - Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run` als leeres tmpfs (Socket-Pfade des Rechners fehlen). Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt), ist keine vollstaendige Isolationsgrenze gegen feindlichen Code (sichtbare Dateien bleiben lesbar) und schuetzt nicht gegen Kernel-Exploits.
 - Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT-, SEARCHED- und CYCLE-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
