@@ -50,7 +50,7 @@ _CONTROL_CHARS.update(
 )
 
 
-def _sanitize(value):
+def sanitize(value):
     """Keep hostile bytes from spoofing the verdict display on a terminal."""
     return value.translate(_CONTROL_CHARS)
 
@@ -103,6 +103,10 @@ def build_parser():
     check.add_argument(
         "--allow", action="append", default=[], help="extra allowlisted command prefix (repeatable)"
     )
+    evaluate = sub.add_parser("eval", help="measure the verifier against a labelled message set")
+    evaluate.add_argument("--set", required=True, help="path to the evaluation set (JSON)")
+    evaluate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    evaluate.add_argument("--tmp", help="directory for the throwaway fixture and checkouts")
     return parser
 
 
@@ -263,7 +267,7 @@ def run_check(args):
     if args.json:
         print(json.dumps(_json_payload(report_path, repo, results), indent=2, ensure_ascii=True))
     else:
-        print(_sanitize(render_text(results)))
+        print(sanitize(render_text(results)))
 
     return exit_code(results)
 
@@ -273,5 +277,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.command == "check":
         return run_check(args)
+    if args.command == "eval":
+        # Imported here so the check path does not load the eval harness.
+        from bemyself.eval import run_eval
+
+        return run_eval(args)
     parser.error(f"unknown command: {args.command}")
     return EXIT_ERROR

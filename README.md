@@ -73,9 +73,45 @@ faelschen. Der Pruefer laeuft gegen den behaupteten Commit; die Ehrlichkeit
 des Repos kann er nicht garantieren. Branch-Namen, Commit-Hashes und
 Basis-Revisionen werden streng geprueft, bevor ein Git-Kommando sie sieht.
 
+## Evaluation
+
+`python3 -m bemyself eval --set tests/data/pruefset.json` fuehrt den Pruefer
+ueber das Pruefset und berichtet vier Zahlen: Erkennungsrate,
+Falschbestaetigungsrate, Bestaetigungsrate der echten Meldungen und
+Unpruefbar-Quote. `--json` liefert dasselbe maschinenlesbar, mit dem Urteil je
+Behauptung; die Tabelle erscheint ohne Flag. Exit 0 heisst: alle Schwellen
+erfuellt und alle Pflichtfaelle eingeloest; 1 heisst verfehlt; 2 heisst Fehler
+in Eingabe oder Fixture. Wegwerf-Daten landen unter
+`<arbeitsverzeichnis>/.yesmem/tmp/eval`, mit `--tmp` verlegbar.
+
+Das Set enthaelt dreissig Meldungen im Report-Format: fuenfzehn ehrliche und
+fuenfzehn auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
+Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
+Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
+Behauptung, boesartige Riesen-Reports). Es liegt als `tests/data/pruefset.json`
+im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
+`python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
+baut dasselbe Fixture zur Laufzeit und lehnt Sets ab, die zu einem anderen
+Fixture gehoeren.
+
+Eine falsche Meldung ist erkannt, wenn keine ihrer markierten falschen
+Behauptungen `bestaetigt` endet; eine Falschbestaetigung ist das Gegenteil.
+Der Exit-Code der Meldung wird zusaetzlich ausgewiesen, ist aber nicht das
+Mass: eine ehrliche Teil-Behauptung darf bestaetigt werden, waehrend die
+falsche unpruefbar bleibt. Markierte Urteile und erwartete Behauptungszahlen
+stehen im Set; `eval` prueft sie maschinell und zaehlt jeden Verstoss als
+verfehlte Erwartung — ebenso `expect_not_confirmed`-Verstoesse und markierte
+Arten, die der Report gar nicht hergibt. Case-Reports unterliegen derselben
+1-MiB-Grenze wie beim `check`. Je nebenlaeufigem Lauf ein eigenes `--tmp`
+waehlen; der Fixture-Bau ist nicht gelockt. `eval` verweigert den
+Default-Pfad ausserhalb des Arbeitsverzeichnisses und symlinkte Tmp-Pfade;
+geloescht wird nur ein `fixture`-Verzeichnis mit eigener Markerdatei
+(`.bemyself-eval`) — fremde bleiben unangetastet.
+
 ## Messlatte
 
-Ein Pruefset aus dreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen.
+Ein Pruefset aus dreissig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 
