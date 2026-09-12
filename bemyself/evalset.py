@@ -373,6 +373,36 @@ def standard_set(fixture):
             at="bad",
             expect_verdicts={"diff_scope": "CONFIRMED"},
         ),
+        case(
+            "g16-halt-confirmed",
+            "genuine",
+            "Ehrliche Meldung: die Maschine haelt exakt nach drei Schritten mit einem 1.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[COMMIT: {commits['good']}]",
+                    "[HALT: 1RB1RZ_0LA0LA -> 3]",
+                    "[SCORE: 1RB1RZ_0LA0LA -> 1]",
+                )
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "halt": "CONFIRMED"},
+        ),
+        case(
+            "g17-halt-beyond-verification",
+            "genuine",
+            "Ehrliche Meldung: der BB(6)-Rekordhalter in Up-Arrow-Notation und als "
+            "Integer jenseits des Limits bleibt unpruefbar, ohne falsche Bestaetigung.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[COMMIT: {commits['good']}]",
+                    "[HALT: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 2\u2191\u2191\u21915]",
+                    "[HALT: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> "
+                    + "1" + "0" * 39 + "]",
+                )
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "halt": "UNVERIFIABLE"},
+        ),
         # --- false messages: the known falsity must never be CONFIRMED -------
         case(
             "f01-commit-missing",
@@ -557,6 +587,28 @@ def standard_set(fixture):
             done(payload("[DONE]", f"[COMMIT: {blob}]", "[MERGE: no]")),
             targets=["commit_exists"],
             expect_verdicts={"commit_exists": "REFUTED"},
+        ),
+        case(
+            "f16-halt-wrong-step-count",
+            "false",
+            "Falsch: die Maschine haelt nach drei Schritten, behauptet werden vier.",
+            done(payload("[DONE]", "[HALT: 1RB1RZ_0LA0LA -> 4]")),
+            targets=["halt"],
+            expect_verdicts={"halt": "REFUTED"},
+        ),
+        case(
+            "f17-halt-wrong-score",
+            "false",
+            "Falsch: die Schrittzahl stimmt, der behauptete Score (zwei statt eins) nicht.",
+            done(
+                payload(
+                    "[DONE]",
+                    "[HALT: 1RB1RZ_0LA0LA -> 3]",
+                    "[SCORE: 1RB1RZ_0LA0LA -> 2]",
+                )
+            ),
+            targets=["halt"],
+            expect_verdicts={"halt": "REFUTED"},
         ),
     ]
     return {

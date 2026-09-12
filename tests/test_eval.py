@@ -34,8 +34,8 @@ class EvalEngineTest(unittest.TestCase):
 
     def test_thresholds_are_met(self):
         rates = self.report["rates"]
-        self.assertEqual(rates["detection_total"], 15)
-        self.assertEqual(rates["true_confirmation_total"], 15)
+        self.assertEqual(rates["detection_total"], 17)
+        self.assertEqual(rates["true_confirmation_total"], 17)
         self.assertEqual(rates["detection_hits"], rates["detection_total"])
         self.assertEqual(rates["false_confirmation_hits"], 0)
         self.assertEqual(rates["true_confirmation_hits"], rates["true_confirmation_total"])
@@ -84,6 +84,13 @@ class EvalEngineTest(unittest.TestCase):
         self.assertEqual(self.verdicts("f15-commit-blob-object")["commit_exists"], "REFUTED")
         self.assertEqual(self.verdicts("g03-tests-green")["tests_green"], "CONFIRMED")
         self.assertEqual(self.verdicts("g08-full-report")["diff_scope"], "CONFIRMED")
+        self.assertEqual(self.verdicts("g16-halt-confirmed")["halt"], "CONFIRMED")
+        self.assertEqual(self.verdicts("f16-halt-wrong-step-count")["halt"], "REFUTED")
+        self.assertEqual(self.verdicts("f17-halt-wrong-score")["halt"], "REFUTED")
+        bb6 = self.by_name["g17-halt-beyond-verification"]
+        halt_claims = [claim for claim in bb6["claims"] if claim["kind"] == "halt"]
+        self.assertEqual(len(halt_claims), 2)
+        self.assertEqual([claim["verdict"] for claim in halt_claims], ["UNVERIFIABLE"] * 2)
 
     def test_mandatory_case_shapes(self):
         f10 = self.by_name["f10-commit-non-hex-head"]
@@ -319,6 +326,45 @@ class EvalCliTest(unittest.TestCase):
         self.assertIn("Erkennungsrate", proc.stdout)
         self.assertIn("Falschbestaetigungsrate", proc.stdout)
         self.assertIn("OK", proc.stdout)
+
+    def test_halt_limit_reaches_the_check(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"] = [
+            {
+                "name": "x-genuine-halt",
+                "group": "genuine",
+                "note": "a halt claim that needs three steps",
+                "base": document["fixture"]["base"],
+                "targets": [],
+                "report": (
+                    f"**send_to payload:** `[COMMIT: {document['fixture']['base']}] "
+                    "[HALT: 1RB1RZ_0LA0LA -> 3]`\n"
+                ),
+            },
+            {
+                "name": "x-false-missing-commit",
+                "group": "false",
+                "note": "keeps the run measurable",
+                "base": document["fixture"]["base"],
+                "targets": ["commit_exists"],
+                "report": f"**send_to payload:** `[COMMIT: {'0' * 40}]`\n",
+            },
+        ]
+        path = self.write(document, "halt-limit.json")
+        roomy = self.invoke(set_path=path, tmp="run-halt-roomy")
+        self.assertEqual(roomy.returncode, 0, roomy.stdout + roomy.stderr)
+        cramped = self.invoke(
+            "--json", "--halt-limit", "2", set_path=path, tmp="run-halt-cramped"
+        )
+        self.assertEqual(cramped.returncode, 0, cramped.stdout + cramped.stderr)
+        claims = {
+            claim["kind"]: claim
+            for case in json.loads(cramped.stdout)["cases"]
+            for claim in case["claims"]
+            if case["name"] == "x-genuine-halt"
+        }
+        self.assertEqual(claims["halt"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("executable limit of 2", claims["halt"]["reason"])
 
     def test_missing_set_is_an_error(self):
         proc = self.invoke(set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None)

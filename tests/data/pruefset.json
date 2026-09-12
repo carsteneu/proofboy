@@ -201,6 +201,32 @@
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: cc4967374ffc98984431a301a69af224a049bf0a]`\n**Files in scope:** ./alpha.txt, beta.txt\n"
     },
     {
+      "name": "g16-halt-confirmed",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: die Maschine haelt exakt nach drei Schritten mit einem 1.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "halt": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [HALT: 1RB1RZ_0LA0LA -> 3] [SCORE: 1RB1RZ_0LA0LA -> 1]`\n"
+    },
+    {
+      "name": "g17-halt-beyond-verification",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: der BB(6)-Rekordhalter in Up-Arrow-Notation und als Integer jenseits des Limits bleibt unpruefbar, ohne falsche Bestaetigung.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "halt": "UNVERIFIABLE"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [HALT: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 2\u2191\u2191\u21915] [HALT: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 1000000000000000000000000000000000000000]`\n"
+    },
+    {
       "name": "f01-commit-missing",
       "group": "false",
       "note": "Falsch: der genannte Commit existiert nicht.",
@@ -398,6 +424,34 @@
         "commit_exists": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 12799ccbe7ce445b11b7bd4833bcc2c2ce1b48b7] [MERGE: no]`\n"
+    },
+    {
+      "name": "f16-halt-wrong-step-count",
+      "group": "false",
+      "note": "Falsch: die Maschine haelt nach drei Schritten, behauptet werden vier.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "halt"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "halt": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [HALT: 1RB1RZ_0LA0LA -> 4]`\n"
+    },
+    {
+      "name": "f17-halt-wrong-score",
+      "group": "false",
+      "note": "Falsch: die Schrittzahl stimmt, der behauptete Score (zwei statt eins) nicht.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "halt"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "halt": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [HALT: 1RB1RZ_0LA0LA -> 3] [SCORE: 1RB1RZ_0LA0LA -> 2]`\n"
     }
   ]
 }
