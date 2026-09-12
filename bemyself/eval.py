@@ -18,7 +18,9 @@ detected when it does not exit 0. Cases may pin exact per-claim verdicts
 (``expect_verdicts``), never-confirmed kinds (``expect_not_confirmed``) and a
 claim count; a missed expectation fails the run even when the rates hold, as
 does a marked target kind the report does not even yield. Exit codes: 0 =
-thresholds and expectations met, 1 = missed, 2 = usage, input or fixture error.
+thresholds and expectations met, 1 = missed, 2 = usage, input or fixture
+error, 4 = --strict and at least one claim in the set stayed UNVERIFIABLE
+while the thresholds held (a run that already missed them exits 1).
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ import sys
 
 from bemyself import evalset
 from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, run_claim
-from bemyself.cli import EXIT_ERROR, EXIT_OK, exit_code, sanitize
+from bemyself.cli import EXIT_ERROR, EXIT_OK, EXIT_STRICT, exit_code, sanitize
 from bemyself.model import Verdict
 from bemyself.report import parse_report
 
@@ -204,6 +206,12 @@ def render_text(report):
         f"Unpruefbar-Quote:          {rates['unverifiable_claims']}/"
         f"{rates['claims_total']} = {rates['unverifiable_rate'] * 100:.1f}%"
     )
+    if report.get("strict"):
+        lines.append(
+            f"Strict: unpruefbare Behauptungen nicht erlaubt, "
+            f"{report['strict_violations']} gefunden -> "
+            f"{'ok' if report['strict_violations'] == 0 else 'VERLETZT'}"
+        )
     lines.append(
         "Schwellen: Erkennung >= "
         f"{THRESHOLDS['detection_rate']:.0%}, echte >= {THRESHOLDS['true_confirmation_rate']:.0%}, "
@@ -291,8 +299,24 @@ def run_eval(args):
             "regenerate it with: python3 -m bemyself.evalset <out.json>",
         )
     report = evaluate(document, fixture, tmp_root, set_path)
+    base_ok = report["ok"]
+    strict_violation = False
+    if args.strict:
+        # Opt-in gate: the shipped set contains unverifiable claims by design,
+        # so it fails this mode; it is meant for sets that must be fully
+        # verifiable. The default run is unchanged.
+        strict_violation = report["rates"]["unverifiable_claims"] > 0
+        report["strict"] = True
+        report["strict_violations"] = report["rates"]["unverifiable_claims"]
+        report["ok"] = base_ok and not strict_violation
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=True))
     else:
         print(render_text(report))
-    return EXIT_OK if report["ok"] else EXIT_FAILED
+    if report["ok"]:
+        return EXIT_OK
+    if strict_violation and base_ok:
+        # A strict-only failure gets its own code; a run that already missed
+        # the thresholds keeps the generic failure code.
+        return EXIT_STRICT
+    return EXIT_FAILED

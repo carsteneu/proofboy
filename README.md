@@ -17,9 +17,9 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>]
-python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>]
+python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict]
+python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict]
 ```
 
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
@@ -44,10 +44,21 @@ Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
 | 1 | Mindestens eine Behauptung `widerlegt` |
 | 2 | Fehler (Report fehlt oder zu gross, Repo-Pfad fehlt, Section unbekannt oder nicht lesbar) |
 | 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
+| 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar`, nichts `widerlegt` |
 
 Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
 Fehler, aber auch kein Beweis. Die Zusammenfassung (oder `--json`) zeigt jede
 Behauptung einzeln mit Kommando und roher Ausgabe.
+
+`--strict` schliesst genau diese Luecke: ohne Flag kann eine Meldung Exit 0
+liefern, deren Testbehauptung nie geprueft wurde, solange nur eine andere
+Behauptung bestaetigt ist (etwa ein existierender Commit). Mit `--strict` ist
+Exit 0 die Zusage: mindestens eine Behauptung bestaetigt, keine widerlegt,
+keine unpruefbar. Widerlegte Behauptungen bleiben Exit 1, ein Bericht ohne
+bestaetigte Behauptung bleibt Exit 3; die Codes 0-3 behalten in beiden Modi
+ihre Bedeutung. Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei
+Exit 0 mergen, also `python3 -m bemyself check --strict --report <datei>
+--repo <pfad>`.
 
 ## Grenzen
 
@@ -105,6 +116,14 @@ Behauptung; die Tabelle erscheint ohne Flag. Exit 0 heisst: alle Schwellen
 erfuellt und alle Pflichtfaelle eingeloest; 1 heisst verfehlt; 2 heisst Fehler
 in Eingabe oder Fixture. Wegwerf-Daten landen unter
 `<arbeitsverzeichnis>/.yesmem/tmp/eval`, mit `--tmp` verlegbar.
+
+`eval --strict` ist ein Opt-in: der Lauf schlaegt mit Exit 4 fehl, sobald eine
+Behauptung des Sets unpruefbar bleibt und die Schwellen erfuellt sind; ein
+Lauf, der die Schwellen verfehlt, bleibt Exit 1, und ohne Flag ist alles
+unveraendert 0/1/2. Das
+ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
+Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
+vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
 Das Set enthaelt dreissig Meldungen im Report-Format: fuenfzehn ehrliche und
 fuenfzehn auf bekannte Weise falsche (fehlender Commit, gruen behauptete
