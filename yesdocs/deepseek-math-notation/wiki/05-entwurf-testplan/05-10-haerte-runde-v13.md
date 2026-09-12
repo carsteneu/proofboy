@@ -117,7 +117,7 @@ Beide Reparaturen, die gelangen, sind dokumentierte Lehrfälle des wertfreien R�
 
 ### 5.3 Zyklus ohne Vorgabe: das Modell findet die Zertifikate selbst
 
-Die drei Aufgaben ohne vorgegebene Werte wurden von **allen** vier Armen (R0) gelöst — teils mit *anderen* Zertifikaten als den zur Bauzeit eingefrorenen:
+Die drei Aufgaben ohne vorgegebene Werte wurden in Runde 0 von **mindestens einem** Arm je Aufgabe mit einem maschinenverifizierten Zertifikat gelöst (B3-0005 und B3-0006: alle vier Arme; B3-0008: K in R0, D in der Reparaturrunde) — teils mit *anderen* Zertifikaten als den zur Bauzeit eingefrorenen:
 
 | Aufgabe (Fundmaschine) | Gold (Bauzeit) | Modell-Fund R0 | Tokens (K/B/C/D) |
 |---|---|---|---|
