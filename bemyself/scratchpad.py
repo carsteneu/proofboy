@@ -24,8 +24,12 @@ def default_db_path():
     return os.path.expanduser(DEFAULT_DB)
 
 
-def read_section(db_path, project, section):
+def read_section(db_path, project, section, at_most=None):
     """Return the section text, or None when (project, section) is unknown.
+
+    When ``at_most`` is given, at most that many characters leave the
+    database (SQL ``substr``): a huge section must not be materialized in
+    full just to be rejected for its size afterwards.
 
     Raises :class:`ScratchpadError` when the database cannot be opened or
     queried; a stored empty section is an empty string, not an error.
@@ -40,14 +44,24 @@ def read_section(db_path, project, section):
         raise ScratchpadError(f"cannot open database {path}: {exc}") from None
     try:
         try:
-            row = con.execute(
-                "SELECT content FROM scratchpad_entries WHERE project = ? AND section = ?",
-                (project, section),
-            ).fetchone()
+            if at_most is None:
+                row = con.execute(
+                    "SELECT content FROM scratchpad_entries WHERE project = ? AND section = ?",
+                    (project, section),
+                ).fetchone()
+            else:
+                row = con.execute(
+                    "SELECT substr(content, 1, ?) FROM scratchpad_entries "
+                    "WHERE project = ? AND section = ?",
+                    (at_most, project, section),
+                ).fetchone()
         except sqlite3.Error as exc:
             raise ScratchpadError(f"cannot read database {path}: {exc}") from None
     finally:
         con.close()
     if row is None:
         return None
+    if not isinstance(row[0], str):
+        # The schema stores TEXT; a BLOB or NULL is not a message.
+        raise ScratchpadError(f"section content is not text in {path}")
     return row[0]

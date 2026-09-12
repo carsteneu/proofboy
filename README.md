@@ -18,7 +18,7 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 
 ```
 python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--json] [--tmp <dir>]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>]
 python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>]
 ```
 

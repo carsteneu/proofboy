@@ -194,6 +194,20 @@ class CliTest(unittest.TestCase):
         self.assertIn("tmp", proc.stderr.lower())
         self.assertEqual(os.listdir(outside), [], "scratch files were written outside the repo")
 
+    def test_committed_yesmem_symlink_with_json_reports_an_error(self):
+        link = os.path.join(self.repo.path, ".yesmem")
+        if not os.path.lexists(link):
+            outside = os.path.join(self._tmp.name, "outside-json")
+            os.makedirs(outside, exist_ok=True)
+            os.symlink(outside, link)
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+        )
+        proc = self.invoke("--report", report, "--json", tmp=False)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("tmp", proc.stderr.lower())
+        self.assertIn("tmp", json.loads(proc.stdout)["error"].lower())
+
 
 class CliSectionTest(unittest.TestCase):
     """``check --section`` reads the message from a scratchpad database.

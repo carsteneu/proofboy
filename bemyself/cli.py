@@ -253,7 +253,9 @@ def run_check(args):
         source = f"scratchpad:{args.section}@{args.project}"
         repo_arg = os.path.abspath(args.repo or args.project)
         try:
-            text = read_section(args.db or default_db_path(), args.project, args.section)
+            text = read_section(
+                args.db or default_db_path(), args.project, args.section, MAX_REPORT_BYTES + 1
+            )
         except ScratchpadError as exc:
             return _source_error(args.json, source, repo_arg, f"cannot read scratchpad section: {exc}")
         if text is None:
@@ -309,7 +311,7 @@ def run_check(args):
         )
         print(f"bemyself: {message}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_error(report_path, repo, message), indent=2, ensure_ascii=True))
+            print(json.dumps(_json_error(source, repo, message), indent=2, ensure_ascii=True))
         return EXIT_ERROR
     ctx = Ctx(
         repo=repo,

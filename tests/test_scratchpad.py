@@ -70,8 +70,12 @@ class ReadSectionTest(unittest.TestCase):
         self.assertIsNone(read_section(db, "/proj", "report"))
 
     def test_missing_database_raises(self):
+        path = self.db_path("nope.db")
         with self.assertRaises(ScratchpadError):
-            read_section(self.db_path("nope.db"), "/proj", "report")
+            read_section(path, "/proj", "report")
+        # A read-only open must not create the file it could not find; a
+        # read-write connection would.
+        self.assertFalse(os.path.exists(path))
 
     def test_database_without_the_table_raises(self):
         path = self.db_path("other.db")
@@ -86,6 +90,27 @@ class ReadSectionTest(unittest.TestCase):
         self.addCleanup(os.chmod, db, 0o644)
         self.assertEqual(read_section(db, "/proj", "report"), "x")
         self.assertEqual(os.stat(db).st_mtime_ns, before)
+        # No journal or WAL sibling may appear next to a database that was
+        # opened read-only.
+        self.assertEqual(os.listdir(self._tmp.name), ["scratchpad.db"])
+
+    def test_at_most_caps_the_fetched_text(self):
+        db = self.build([("/proj", "big", "x" * 100)])
+        self.assertEqual(read_section(db, "/proj", "big", at_most=10), "x" * 10)
+        self.assertEqual(read_section(db, "/proj", "big", at_most=1000), "x" * 100)
+
+    def test_non_text_content_raises(self):
+        path = self.db_path("blob.db")
+        con = sqlite3.connect(path)
+        con.executescript(SCHEMA)
+        con.execute(
+            "INSERT INTO scratchpad_entries (project, section, content) VALUES (?, ?, ?)",
+            ("/proj", "blob", sqlite3.Binary(b"AB")),
+        )
+        con.commit()
+        con.close()
+        with self.assertRaises(ScratchpadError):
+            read_section(path, "/proj", "blob")
 
     def test_default_db_path_is_the_yesmem_database(self):
         self.assertEqual(
