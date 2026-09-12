@@ -142,9 +142,12 @@ class CliTest(unittest.TestCase):
         )
         proc = self.invoke("--report", report, "--json")
         self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        # Exact kinds and order: on the old parser the placeholder line added
+        # a second commit claim, which a kind-keyed dict would hide.
         self.assertEqual(
-            self.verdicts(proc.stdout),
-            {"commit_exists": "CONFIRMED", "merge": "UNVERIFIABLE"},
+            [(claim["kind"], claim["verdict"]) for claim in payload["claims"]],
+            [("commit_exists", "CONFIRMED"), ("merge", "UNVERIFIABLE")],
         )
 
     def test_strict_fails_when_any_claim_stays_unverifiable(self):
