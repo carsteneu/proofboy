@@ -372,6 +372,52 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--halt-limit", proc.stderr)
 
+    # --- --search-limit ----------------------------------------------------
+    def searched_report(self, steps=1000):
+        # 1RA1RA never halts: it writes 1 and walks right forever.
+        return self.write_report(
+            "### Phase 6: FINISH\n"
+            "**Status:** COMPLETE\n"
+            "**send_to payload:** `[DONE] "
+            f"[SEARCHED: 1RA1RA -> {steps}]`\n",
+            name="searched-report.txt",
+        )
+
+    def test_searched_claim_confirms_end_to_end(self):
+        proc = self.invoke("--report", self.searched_report(), "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["searched"]["verdict"], "CONFIRMED")
+        self.assertIn("bounded search", claims["searched"]["reason"])
+        self.assertIn("does not prove that the machine never halts", claims["searched"]["reason"])
+
+    def test_search_limit_leaves_larger_claims_unverifiable(self):
+        proc = self.invoke(
+            "--report", self.searched_report(), "--json", "--search-limit", "100"
+        )
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["searched"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("executable limit of 100", claims["searched"]["reason"])
+
+    def test_search_limit_at_the_claim_still_runs(self):
+        proc = self.invoke(
+            "--report", self.searched_report(), "--json", "--search-limit", "1000"
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["searched"]["verdict"], "CONFIRMED")
+
+    def test_negative_search_limit_is_a_usage_error(self):
+        proc = self.invoke("--report", self.searched_report(), "--search-limit=-1")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--search-limit", proc.stderr)
+
+    def test_non_integer_search_limit_is_a_usage_error(self):
+        proc = self.invoke("--report", self.searched_report(), "--search-limit=banana")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--search-limit", proc.stderr)
+
     # --- --repo: required only for claim kinds that need it ----------------
     def invoke_without_repo(self, *args):
         return subprocess.run(
@@ -386,6 +432,12 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
         self.assertEqual(claims["halt"]["verdict"], "CONFIRMED")
+
+    def test_searched_only_report_without_repo_confirms(self):
+        proc = self.invoke_without_repo("--report", self.searched_report(), "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["searched"]["verdict"], "CONFIRMED")
 
     def test_commit_claim_without_repo_is_a_usage_error(self):
         report = self.write_report(
