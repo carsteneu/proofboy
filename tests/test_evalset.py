@@ -12,7 +12,7 @@ from bemyself.report import parse_report
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SET_PATH = os.path.join(REPO_ROOT, "tests", "data", "pruefset.json")
-COMMIT_NAMES = ("base", "good", "bad", "scoped", "unpushed", "fixed", "tool")
+COMMIT_NAMES = ("base", "good", "bad", "scoped", "unpushed", "fixed", "tool", "experiment")
 
 
 def _git(*args):
@@ -121,14 +121,14 @@ class StandardSetTest(unittest.TestCase):
     def by_name(self):
         return {case["name"]: case for case in self.cases()}
 
-    def test_case_count_half_false(self):
+    def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 40)
+        self.assertEqual(len(cases), 41)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 20)
+        self.assertEqual(groups.count("genuine"), 21)
         self.assertEqual(groups.count("false"), 20)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 40)
+        self.assertEqual(len(set(names)), 41)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -167,8 +167,16 @@ class StandardSetTest(unittest.TestCase):
             "g18-searched-bounded",
             "g19-cycle-translated",
             "g20-cycle-unverifiable-certificate",
+            "g21-compute-erdos-straus-stub",
         ):
             self.assertIn(name, present, name)
+
+    def test_experiment_case_pins_its_certificate(self):
+        case = self.by_name()["g21-compute-erdos-straus-stub"]
+        self.assertEqual(case["group"], "genuine")
+        self.assertEqual(case["expect_verdicts"]["compute"], "CONFIRMED")
+        self.assertIn("python3 -m bemyself.experiments.erdos_straus", case["report"])
+        self.assertEqual(case["base"], self.fixture.commits["experiment"])
 
     def test_cycle_cases_pin_their_certificates(self):
         cases = self.by_name()

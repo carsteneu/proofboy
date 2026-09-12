@@ -35,7 +35,7 @@ class EvalEngineTest(unittest.TestCase):
     def test_thresholds_are_met(self):
         rates = self.report["rates"]
         self.assertEqual(rates["detection_total"], 20)
-        self.assertEqual(rates["true_confirmation_total"], 20)
+        self.assertEqual(rates["true_confirmation_total"], 21)
         self.assertEqual(rates["detection_hits"], rates["detection_total"])
         self.assertEqual(rates["false_confirmation_hits"], 0)
         self.assertEqual(rates["true_confirmation_hits"], rates["true_confirmation_total"])

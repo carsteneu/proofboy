@@ -350,16 +350,19 @@ gefundenes Programm (Vorabpruefung vor dem Lauf), abgelehnte Argumente
 `--sandbox=require`, ein Timeout nach 300 s, mehr als 64 MiB stdout (mehr wird
 abgelehnt, nie gekuerzt in ein Urteil) oder ein Exit-Status ungleich 0.
 
-Die COMPUTE-Allowlist ist bewusst minimal: standardmaessig nur
-`python3 -m bemyself.turing` (der Simulator dieses Repos). Weitere Rechnungen
+Die COMPUTE-Allowlist ist bewusst minimal: standardmaessig nur die
+Repo-eigenen Module als literale Eintraege -- `python3 -m bemyself.turing`
+(der Simulator) und `python3 -m bemyself.experiments.erdos_straus` (das
+Erdős-Straus-Experiment, s. u.). Kein Wildcard: ein kuenftiges Modul des
+Experiment-Pakets wird nicht implizit geoeffnet. Weitere Rechnungen
 werden explizit geoeffnet: `--allow "praefix"` (wiederholbar) erweitert die
 Allowlist fuer Testlaeufe und COMPUTE gemeinsam; ein nicht erlaubtes Kommando
 wird nie ausgefuehrt. Fuer COMPUTE laeuft der Abgleich auf den argv-Tokens, die
 wirklich ausgefuehrt werden -- nicht auf normalisiertem Text, damit ein
 allowlist-aehnlich aussehender String nie als etwas anderes laeuft. Das
 Netzwerk ist im Sandkasten aus (bestehende `--unshare-net`-Semantik): ein
-Netzversuch scheitert. Der Default-Eintrag passt zum bemyself-Repo: in einem
-anderen Repo laeuft er nur, wenn der gepinnte Commit das Paket mitbringt
+Netzversuch scheitert. Die Default-Eintraege passen zum bemyself-Repo: in einem
+anderen Repo laufen sie nur, wenn der gepinnte Commit das Paket mitbringt
 (sonst `unpruefbar`, nicht `bestaetigt`).
 
 Ein COMPUTE braucht das Repo (den gepinnten Commit): ohne `--repo` bricht
@@ -385,6 +388,71 @@ kontrolliert, kontrolliert die Ausgabe. Der Sandkasten begrenzt wie bei
 Testlaeufen Schreiben, IP-Netz und Prozesssicht, nicht Lesezugriffe. Die
 Limits (Zeit, Ausgabe) begrenzen einen Lauf, nicht die Meldung: eine Meldung
 kann viele COMPUTE-Behauptungen tragen, jede mit eigenem Lauf.
+
+## Experimente (`bemyself/experiments/`)
+
+Ein Experiment ist ein Modul unter `bemyself/experiments/`, das eine endliche
+Rechnung deterministisch auf stdout ausgibt; ein `[COMPUTE]`-Merkmal macht das
+Ergebnis ueber Kommando, gepinnten Commit und SHA-256 des stdout nachpruefbar
+-- ohne neuen Behauptungstyp.
+
+### Erdős–Straus bis N (`python3 -m bemyself.experiments.erdos_straus <N>`)
+
+Die Vermutung von Erdős–Straus: Fuer jedes `n >= 2` gibt es positive ganze
+Zahlen `a, b, c` mit `4/n = 1/a + 1/b + 1/c`. Die Vermutung ist offen; das
+Experiment beweist sie nicht. Es rechnet ein endliches Fenster durch: fuer
+jedes `n` von 2 bis `N` schreibt es den Zeugen in einer Zeile `n a b c`
+(aufsteigendes `n`), die Schlusszeile ist `ok <N> <count>` mit
+`count = N - 1` Zeugen.
+
+Kanonisch ist das lexikografisch kleinste Tripel `(a, b, c)` in der
+natuerlichen Ordnung der ganzen Zahlen. Die Suche ist pro `n` vollstaendig:
+`a` durchlaeuft `floor(n/4) + 1 .. floor(3n/4)` -- jedes Tripel, sortiert,
+hat seine kleinste Komponente in diesem Fenster, denn `1/a < 4/n` (der Rest
+ist positiv) und `4/n <= 3/a` (die Komponente ist die kleinste) -- und fuer
+festes `a` entscheidet das Divisor-Kriterium vollstaendig, ob sich der Rest
+als `1/b + 1/c` schreiben laesst (`(pb - q)(pc - q) = q^2` nach Kuerzen von
+`(4a - n)/(n a)`; das kleinste passende Divisor-`X` mit
+`X == -q (mod p)` liefert das kleinste `b`). Eine Luecke waere damit kein
+Suchabbruch, sondern ein echter Gegenbeispiel-Kandidat fuer dieses `n`;
+Zeugen werden nie erfunden.
+
+Determinismus: keine Zufallsquellen, kein Netz, kein stdin; zwei Laeufe
+liefern byte-identisches stdout.
+
+**Was die Aussage IST und was nicht:** "fuer jedes `n <= N` steht ein
+expliziter Zeuge in der gepinnten, deterministischen Ausgabe" ist endlich und
+vollstaendig nachrechenbar; der `[COMPUTE]`-Hash bindet genau diese Bytes an
+Kommando und Commit. Das heisst: endlich verifiziert bis `N`, kein Beweis.
+Es ist kein Beweis der Vermutung fuer alle `n` und keiner fuer `n > N`; der
+Hash belegt die Bytes, nicht "die Mathematik" -- die Bedeutung der Bytes
+bleibt die Aussage dieser Doku. Does not prove the conjecture.
+
+Luecken-Semantik: findet die Suche fuer ein `n` keinen Zeugen, erscheint statt
+der Zeugenzeile `gap <n>` an genau der Stelle dieses `n` (kein stilles
+Ueberspringen), die Schlusszeile ist `gaps <N> <found> <missing>`, der
+Exit-Code ist 1. Exit 0 gibt es nur bei vollstaendigem Lauf, Exit 2 bei
+Nutzungsfehlern (fehlendes, nicht-schlichtes, `< 2` oder auf dieser Maschine
+nicht rechenbares Limit).
+
+Laufzeit (diese Maschine, CPython, ein Prozess, stdlib): `N = 100.000`
+schreibt 3,9 MB in etwa 1 s, `N = 1.000.000` schreibt 46,9 MB in etwa 14 s;
+der CHECKER-Gegenlauf (frischer Checkout + bwrap + Lauf) braucht dafuer
+insgesamt etwa 15 s. Die Laufzeit ist empirisch, keine Schranke. Der
+Speicherbedarf waechst linear mit `N`: die Merktabelle der kleinsten
+Primfaktoren hat `2N` Eintraege (gemessen: `N = 1.000.000` etwa 90 MB
+Peak-RSS); ein weit groesseres `N` kann am Speicher scheitern -- der Lauf
+endet dann mit einem Fehl-Exit (Exit 2 aus dem Modul oder vom Kernel
+beendet), nie mit einer erfundenen Aussage.
+
+Artefakt dieses Branches: `python3 -m bemyself.experiments.erdos_straus
+1000000` -> sha256
+`e5b68dd1818d89f2c66d0e7b5a68bf906dbe7adc77c64dba015bf27058a4f89d`.
+Das Paar `[COMMIT: <finaler Branch-HEAD>]` + `[COMPUTE: ... -> <sha256>]`
+steht im Artefakt-Report des Zweigs (ungetrackt unter `.yesmem/tmp/`, wie bei
+den bisherigen Artefakten); nachrechenbar mit
+`python3 -m bemyself check --report <artefakt> --repo . --sandbox require
+--strict`.
 
 ## Neuen Behauptungstyp hinzufuegen
 
@@ -481,8 +549,8 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt vierzig Meldungen im Report-Format: zwanzig ehrliche
-und zwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt einundvierzig Meldungen im Report-Format: einundzwanzig
+ehrliche und zwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
@@ -493,10 +561,13 @@ Maschine, die im Fenster haelt). Dazu kommen
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
 `unpruefbar`, eine ehrliche SEARCHED-Meldung, die fuer denselben
-Rekordhalter nur den begrenzten Lauf ohne Halt belegt, und zwei ehrliche
+Rekordhalter nur den begrenzten Lauf ohne Halt belegt, zwei ehrliche
 CYCLE-Meldungen: eine bestaetigt das Zertifikat der bbchallenge-Wiki-Maschine,
-eine bleibt mit vertauschten Schritten ehrlich `unpruefbar`. Es liegt als
-`tests/data/pruefset.json`
+eine bleibt mit vertauschten Schritten ehrlich `unpruefbar`, und eine ehrliche
+COMPUTE-Meldung auf dem Fixture-Stub des Experiment-Moduls
+(`python3 -m bemyself.experiments.erdos_straus`), die am neuen, literalen
+Default-Allowlist-Eintrag haengt: ohne ihn bliebe sie `unpruefbar` statt
+`bestaetigt`. Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
 baut dasselbe Fixture zur Laufzeit und lehnt Sets ab, die zu einem anderen
@@ -535,7 +606,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus vierzig Meldungen, die Haelfte auf bekannte Weise falsch. Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus einundvierzig Meldungen (einundzwanzig ehrlich, zwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 
