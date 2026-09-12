@@ -7,8 +7,8 @@ status: Entwurf
 last_updated: 2026-09-12
 created_at: 2026-09-12
 sources_count: 52
-citations_count: 73
-images_count: 0
+citations_count: 75
+images_count: 2
 diagrams_count: 1
 related: ["04-01-wahlkriterien", "04-03-rechenfragmente-daten", "05-entwurf-testplan"]
 tags: [offene-probleme, busy-beaver, collatz, goldbach, erdos-probleme, hadwiger-nelson, testfeld]
@@ -28,6 +28,12 @@ Dieser Katalog sammelt komplexe, offene mathematische Probleme, die als Testfeld
 **Prüfbare Fragmente.** Für haltende Maschinen existiert ein trivialer Zeuge: die Schrittfolge bis zum Halt, reproduzierbar durch Simulation. Für nicht haltende Maschinen sind Decider-Protokolle oder formale Beweise (Coq-BB5) der Prüfanker; für Antihydra liegt eine Lean-Formalisierung der Regeln vor [Antihydra – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/Antihydra, accessed 2026-09-12). Die Iterationsfolgen selbst sind in OEIS gelistet [Hydra function values (A386792), OEIS](https://oeis.org/A386792, accessed 2026-09-12).
 
 **Quellenlage-Risiko.** Zahlreiche Angaben leben in Discord, Spreadsheets und Foren und ändern sich wöchentlich; die Schranke 2↑↑↑5 und die genauere Schätzung Σ ≈ 10↑↑10↑↑10↑↑8.10237 (Oktober 2025) stehen nebeneinander [1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE, accessed 2026-09-12).
+
+![bbchallenge-Dashboard](assets/04-02-bbchallenge-dashboard.png)
+*Abbildung 1: bbchallenge-Dashboard: „There remain 0 machines with 5 states to decide" und Zugang zur Seed-Datenbank (Quelle: [bbchallenge.org](https://bbchallenge.org/, accessed 2026-09-12); Screenshot vom 2026-09-12).*
+
+![BB(6)-Holdouts über die Zeit](assets/04-02-bb6-holdouts-chart.png)
+*Abbildung 2: Rückgang der offenen BB(6)-Maschinen über die Zeit (Quelle: [BB(6) – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/BB(6), accessed 2026-09-12); Bild von der Wiki-Seite, abgerufen 2026-09-12).*
 
 ## Collatz-Vermutung
 
