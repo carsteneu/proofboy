@@ -545,6 +545,32 @@
         "compute": "CONFIRMED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: ca16045ba1cd8ca1313d5e667c08e5a14130b12c]`\n[COMPUTE: python3 -m bemyself.experiments.erdos_straus 8 -> 4754fa6e7c4ae0b2e22171b0b16bddf6b9dad14b2293342675a782e18f76a52e]\n"
+    },
+    {
+      "name": "g22-ident-affine-progression",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: parameterisierte Identitaet fuer die Progression n=3t (1/t + 1/(4t) + 1/(12t) = 4/(3t)) -- exakt als rationale Funktion in t geprueft, repo-frei: ohne --repo lauffaehig.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "ident": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[IDENT: n=3t ; a=t, b=4t, c=12t]\n"
+    },
+    {
+      "name": "f21-ident-falsified-coefficient",
+      "group": "false",
+      "note": "Falsch: dieselbe Identitaet mit verfaelschtem Koeffizienten (b=4t+1 statt 4t) -- die beiden Seiten unterscheiden sich als rationale Funktionen (Zaehler -9t^2), die Meldung wird REFUTED.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "ident"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "ident": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[IDENT: n=3t ; a=t, b=4t+1, c=12t]\n"
     }
   ]
 }

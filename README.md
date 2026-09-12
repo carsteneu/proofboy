@@ -320,6 +320,68 @@ Eine Behauptung darueber wird gar nicht erst ausgefuehrt und bleibt
 "Translated cycler", die dort abgebildete Maschine 44394115); das Zertifikat
 `(6,16,2)` ist mit dem Simulator dieses Repos nachgerechnet.
 
+## Parameterisierte Identitaeten (`[IDENT]`)
+
+Ein IDENT-Marker behauptet eine Identitaet, die fuer **alle** Parameterwerte
+gilt: fuer affine Funktionen `n(t)`, `a(t)`, `b(t)`, `c(t)` in der
+ganzzahligen Variablen `t` soll
+
+    4/n(t) = 1/a(t) + 1/b(t) + 1/c(t)
+
+fuer jedes ganze `t >= <Schranke>` exakt gelten (Default `t >= 1`):
+
+```
+[IDENT: n=3t ; a=t, b=4t, c=12t]
+[IDENT: n=3t+3 ; a=t+1, b=4t+4, c=12t+12 ; t >= 0]
+```
+
+Der Rumpf hat die Form `n=<affine> ; a=<affine>, b=<affine>, c=<affine>`
+(optional `; t >= <nichtnegative Ganzzahl>`); affin heisst: ganzzahliger
+Koeffizient von `t` (Default 1) plus ganzzahliger Summand, ohne
+Leerzeichen im Ausdruck, ohne andere Buchstaben als `t`, ohne quadratische
+oder gebrochene Terme. Die Probe sind zwei Bedingungen zugleich: die
+rationale Identitaet und der Bereich, in dem sie gelten soll.
+
+Der Pruefer rechnet exakt, ohne Gleitkomma: beide Seiten werden als
+rationale Funktionen in `t` dargestellt, ihre Differenz gebildet, und der
+Zaehler -- ein Polynom in `t` -- muss identisch null sein. Zusaetzlich
+muessen die Bereichsbedingungen fuer jedes `t >= <Schranke>` beweisbar
+gelten: `a`, `b`, `c` positiv und `n >= 2`. Ein Bereich, der das nicht
+absichert (eine Nullstelle im Parameterbereich, eine fallende Gerade, eine
+Schranke, die `n < 2` zulaesst), bleibt `unpruefbar` -- der Pruefer nimmt
+keine Bedingung an, die er nicht zeigen kann.
+
+Urteile: `bestaetigt` nur, wenn der Zaehler identisch null ist **und** alle
+Bereichsbedingungen fuer alle `t >= <Schranke>` gelten; `widerlegt`, wenn
+sich die beiden Seiten als rationale Funktionen unterscheiden (der Zaehler
+der Differenz steht als Zeuge im Urteil, etwa `numerator=-9t^2` fuer
+`b=4t+1` statt `b=4t`); `unpruefbar` bei falscher Rumpfform, nicht-affinen
+Ausdruecken, einem anderen Parameter als `t`, zu grossen Zahlen oder nicht
+sauber abgesichertem Bereich.
+
+Was das heisst -- und was nicht: Ein `bestaetigt` ist eine Aussage ueber
+unendlich viele Parameterwerte -- die Progression `n(t)` ist fuer alle
+Parameter durch den expliziten Zeugen abgedeckt. Eine verifizierte
+Identitaet deckt eine Progression fuer alle Parameter ab; sie ist kein
+Beweis der Vermutung, solange nicht alle Restklassen abgedeckt sind. Der
+Beweistext sagt das ausdruecklich ("holds as a rational identity in t for
+every t >= ...", "this is not a proof of the conjecture") und nennt die
+Progression. Die Bewertung fuer Erdos-Straus -- welche Progressionsklassen
+heute parametrisch abgedeckt sind, aus Quellen belegt und mit dem Werkzeug
+nachgerechnet -- steht unter [yesdocs/erdos-straus/](yesdocs/erdos-straus/).
+
+Der Typ ist repo-frei (wie `[SEARCHED]` und `[CYCLE]`): `check --report`
+laeuft ohne `--repo`. Die Pruefung ist eine Handvoll Polynommultiplikationen
+kleinen Grades im selben Prozess -- kein Subprozess, kein Netz, nichts zu
+sanden; kein neues Limit, kein CLI-Schalter.
+
+```
+$ python3 -m bemyself check --report ident-report.md
+ident  CONFIRMED     4/n(t) = 1/a(t) + 1/b(t) + 1/c(t) holds as a rational identity in t for every t >= 1 with n = 3t, a = t, b = 4t, c = 12t; ...
+    cmd: expand 1/(t) + 1/(4t) + 1/(12t) - 4/(3t) as one rational function in t
+    out: numerator=0
+```
+
 ## Rechenzertifikate (`[COMPUTE]`)
 
 Jede endliche Rechnung wird pruefbar, ohne neuen Code pro Problem: Ein
@@ -530,6 +592,22 @@ Kommando ausserhalb der Allowlist bleibt `unpruefbar` (der Standard-Eintrag
 ist `python3 -m bemyself.turing`, `--allow` erweitert); ein falscher Hash ist
 `widerlegt`.
 
+Durchgerechnetes IDENT-Mini-Beispiel (ein weiterer Typ ohne Repo-Bedarf,
+wie `[HALT]`, `[SEARCHED]` und `[CYCLE]`):
+
+```python
+# bemyself/claimtypes/ident.py (Auszug)
+IDENT = ClaimType(kind="ident",
+                  pattern=re.compile(r"\[IDENT:(?P<body>[^\]\[]*?)\]"),
+                  parse=parse, check=check)
+```
+
+Die Probe der Identitaet `[IDENT: n=3t ; a=t, b=4t, c=12t]` laeuft ohne
+`--repo` und endet `bestaetigt`; ein verfaelschter Koeffizient ist
+`widerlegt` (der Zaehler der Differenz steht als Zeuge im Urteil), ein
+nicht-affiner Ausdruck bleibt `unpruefbar`. Details: Abschnitt
+"Parameterisierte Identitaeten".
+
 ## Evaluation
 
 `python3 -m bemyself eval --set tests/data/pruefset.json` fuehrt den Pruefer
@@ -549,15 +627,16 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt einundvierzig Meldungen im Report-Format: einundzwanzig
-ehrliche und zwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt dreiundvierzig Meldungen im Report-Format: zweiundzwanzig
+ehrliche und einundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
 Behauptung, boesartige Riesen-Reports, falsche Turingmaschinen-Schrittzahlen
 und -Scores, ein COMPUTE-Zertifikat mit falschem stdout-Hash, ein
-CYCLE-Zertifikat mit falschem Versatz und ein CYCLE-Zertifikat fuer eine
-Maschine, die im Fenster haelt). Dazu kommen
+CYCLE-Zertifikat mit falschem Versatz, ein CYCLE-Zertifikat fuer eine
+Maschine, die im Fenster haelt, und eine parameterisierte Identitaet mit
+verfaelschtem Koeffizienten). Dazu kommen
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
 `unpruefbar`, eine ehrliche SEARCHED-Meldung, die fuer denselben
@@ -567,7 +646,8 @@ eine bleibt mit vertauschten Schritten ehrlich `unpruefbar`, und eine ehrliche
 COMPUTE-Meldung auf dem Fixture-Stub des Experiment-Moduls
 (`python3 -m bemyself.experiments.erdos_straus`), die am neuen, literalen
 Default-Allowlist-Eintrag haengt: ohne ihn bliebe sie `unpruefbar` statt
-`bestaetigt`. Es liegt als `tests/data/pruefset.json`
+`bestaetigt`, und eine ehrliche IDENT-Meldung, die die Identitaet fuer die
+Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig). Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
 baut dasselbe Fixture zur Laufzeit und lehnt Sets ab, die zu einem anderen
@@ -606,7 +686,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus einundvierzig Meldungen (einundzwanzig ehrlich, zwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus dreiundvierzig Meldungen (zweiundzwanzig ehrlich, einundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of forty-one messages live in the
+hashes. That is what lets the standard set of forty-three messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -208,7 +208,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard forty-one-message set (21 honest, 20 false).
+    """Return the standard forty-three-message set (22 honest, 21 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -760,6 +760,32 @@ def standard_set(fixture):
             ),
             at="experiment",
             expect_verdicts={"compute": "CONFIRMED"},
+        ),
+        # --- parameterized identities ([IDENT], repo-free) -------------------
+        case(
+            "g22-ident-affine-progression",
+            "genuine",
+            "Ehrliche Meldung: parameterisierte Identitaet fuer die Progression "
+            "n=3t (1/t + 1/(4t) + 1/(12t) = 4/(3t)) -- exakt als rationale "
+            "Funktion in t geprueft, repo-frei: ohne --repo lauffaehig.",
+            done(
+                payload("[DONE]"),
+                "[IDENT: n=3t ; a=t, b=4t, c=12t]",
+            ),
+            expect_verdicts={"ident": "CONFIRMED"},
+        ),
+        case(
+            "f21-ident-falsified-coefficient",
+            "false",
+            "Falsch: dieselbe Identitaet mit verfaelschtem Koeffizienten "
+            "(b=4t+1 statt 4t) -- die beiden Seiten unterscheiden sich als "
+            "rationale Funktionen (Zaehler -9t^2), die Meldung wird REFUTED.",
+            done(
+                payload("[DONE]"),
+                "[IDENT: n=3t ; a=t, b=4t+1, c=12t]",
+            ),
+            targets=["ident"],
+            expect_verdicts={"ident": "REFUTED"},
         ),
     ]
     return {
