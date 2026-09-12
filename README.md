@@ -377,7 +377,7 @@ sanden; kein neues Limit, kein CLI-Schalter.
 
 ```
 $ python3 -m bemyself check --report ident-report.md
-ident  CONFIRMED  4/n(t) = 1/a(t) + 1/b(t) + 1/c(t) holds as a rational identity in t for every t >= 1 with n = 3t, a = t, b = 4t, c = 12t; ...
+ident  CONFIRMED     4/n(t) = 1/a(t) + 1/b(t) + 1/c(t) holds as a rational identity in t for every t >= 1 with n = 3t, a = t, b = 4t, c = 12t; ...
     cmd: expand 1/(t) + 1/(4t) + 1/(12t) - 4/(3t) as one rational function in t
     out: numerator=0
 ```
@@ -592,8 +592,8 @@ Kommando ausserhalb der Allowlist bleibt `unpruefbar` (der Standard-Eintrag
 ist `python3 -m bemyself.turing`, `--allow` erweitert); ein falscher Hash ist
 `widerlegt`.
 
-Durchgerechnetes IDENT-Mini-Beispiel (der dritte Typ ohne Repo-Bedarf, wie
-`[HALT]` und `[CYCLE]`):
+Durchgerechnetes IDENT-Mini-Beispiel (ein weiterer Typ ohne Repo-Bedarf,
+wie `[HALT]`, `[SEARCHED]` und `[CYCLE]`):
 
 ```python
 # bemyself/claimtypes/ident.py (Auszug)

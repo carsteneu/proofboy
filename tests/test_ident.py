@@ -193,6 +193,51 @@ class IdentCheckTest(unittest.TestCase):
         result = self.check_report("[IDENT: n=3t ; a=t, b=4t+1, c=12t ; t >= 0]")
         self.assertIs(result.verdict, Verdict.REFUTED)
 
+    def test_a_positive_slope_witness_is_the_first_violating_t(self):
+        # slope > 0 violates on a prefix of the range: the first witness is
+        # the bound itself, never the crossing (which lies above it).
+        self.assertEqual(ident._first_violation(2, -3, 1, 0), (1, -1))
+        result = self.check_report("[IDENT: n=4t-10 ; a=4t-10, b=4t-10, c=2t-5 ; t >= 1]")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("at t = 1 it is -6", result.reason)
+
+    def test_the_witness_matches_a_brute_force_scan(self):
+        for slope in range(-4, 5):
+            for offset in range(-5, 6):
+                for bound in range(0, 4):
+                    for threshold in (0, 1):
+                        with self.subTest(
+                            slope=slope, offset=offset, bound=bound, threshold=threshold
+                        ):
+                            expected = next(
+                                (
+                                    (t, slope * t + offset)
+                                    for t in range(bound, bound + 30)
+                                    if slope * t + offset <= threshold
+                                ),
+                                None,
+                            )
+                            self.assertEqual(
+                                ident._first_violation(slope, offset, bound, threshold),
+                                expected,
+                            )
+
+    def test_a_huge_falsified_coefficient_still_refutes(self):
+        # A product beyond the interpreter's int-to-str cap must still yield
+        # REFUTED with a readable (truncated) witness, not a generic failure.
+        result = self.check_report(
+            "[IDENT: n=3t ; a=" + "9" * 2200 + "t, b=" + "8" * 2200 + "t, c=12t]"
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+        self.assertTrue(result.output.startswith("numerator="))
+        self.assertIn("...", result.output)
+
+    def test_a_marker_with_inner_brackets_is_no_marker(self):
+        # A deliberate boundary, like the halt.py pattern: the marker regex
+        # excludes brackets to stay linear, so a bracket inside the body
+        # makes the text no marker at all (nothing is silently half-parsed).
+        self.assertEqual(parse_report("[IDENT: n=3t ; a=[t], b=4t, c=12t]\n"), [])
+
     def test_a_zero_in_the_range_is_unverifiable(self):
         result = self.check_report(ZERO_RANGE)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)

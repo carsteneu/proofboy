@@ -63,6 +63,12 @@ _SHAPE = (
     "c=<affine> (optionally ; t >= <bound>)"
 )
 
+# A witness coefficient beyond this size (in bits; 4096 bits ~ 1233 decimal
+# digits, comfortably below the interpreter's conversion cap) is shown with
+# its leading digits only -- see _digits.
+_DISPLAY_BITS = 4096
+_DISPLAY_DIGITS = 120
+
 
 def _int_or_none(text):
     """A plain integer, or None when the conversion is refused.
@@ -145,18 +151,32 @@ def _difference_numerator(n, a, b, c):
     return _poly_add(_poly_mul(n, pair_sum), _poly_scale(_poly_mul(_poly_mul(a, b), c), -4))
 
 
+def _digits(value):
+    """Decimal digits of a non-negative int, truncated past a display bound.
+
+    CPython refuses an int-to-string conversion beyond a few thousand digits;
+    a witness beyond that is shown as its leading digits plus ``...``. The
+    verdict only needs the coefficient to be visibly non-zero.
+    """
+    if value.bit_length() <= _DISPLAY_BITS:
+        return str(value)
+    head = value // 10 ** ((value.bit_length() - _DISPLAY_BITS) * 30103 // 100000)
+    return str(head)[:_DISPLAY_DIGITS] + "..."
+
+
 def _format_poly(coeffs):
     terms = []
     for power in range(len(coeffs) - 1, -1, -1):
         coef = coeffs[power]
         if coef == 0:
             continue
+        digits = _digits(abs(coef))
         if power == 0:
-            body = str(abs(coef))
+            body = digits
         elif power == 1:
-            body = "t" if abs(coef) == 1 else f"{abs(coef)}t"
+            body = "t" if digits == "1" else f"{digits}t"
         else:
-            body = f"t^{power}" if abs(coef) == 1 else f"{abs(coef)}t^{power}"
+            body = f"t^{power}" if digits == "1" else f"{digits}t^{power}"
         if not terms:
             terms.append(("-" if coef < 0 else "") + body)
         else:
@@ -168,17 +188,18 @@ def _first_violation(slope, offset, bound, threshold):
     """The first integer ``t >= bound`` with ``slope*t + offset <= threshold``.
 
     None when no such t exists. An affine function is monotone: a positive
-    slope fails from its crossing on, a negative slope from its crossing on,
-    a zero slope everywhere or nowhere.
+    slope violates on a prefix of the range, so the bound itself is the first
+    witness whenever it violates at all; a negative slope violates on a
+    suffix, and the crossing decides; a zero slope violates everywhere or
+    nowhere.
     """
     if slope == 0:
         return (bound, offset) if offset <= threshold else None
     if slope > 0:
         if slope * bound + offset > threshold:
             return None
-        crossing = Fraction(threshold - offset, slope)
-    else:
-        crossing = Fraction(offset - threshold, -slope)
+        return bound, slope * bound + offset
+    crossing = Fraction(offset - threshold, -slope)
     first = max(bound, -(-crossing.numerator // crossing.denominator))
     return first, slope * first + offset
 
@@ -281,6 +302,11 @@ def check(claim, ctx):
             )
     violation = _first_violation(n[0], n[1], bound, 1)
     if violation is not None:
+        # Subsumed by the checks above: a zero numerator gives
+        # n = 4abc/(ab+ac+bc), and positive a, b, c give ab+ac+bc <= 3abc,
+        # so n >= 4/3, hence n >= 2. The guard stays as a cheap invariant on
+        # the CONFIRMED path -- a future loosening of the denominator checks
+        # must not silently lose it.
         t, value = violation
         return Result(
             Verdict.UNVERIFIABLE,
