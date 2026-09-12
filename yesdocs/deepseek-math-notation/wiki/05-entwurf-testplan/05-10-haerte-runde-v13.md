@@ -54,7 +54,7 @@ Kernfragen: **Bricht die Härte die Decke?** Genauer: (a) Überlebt das Modell d
 | Sanitizer: Default-Deny-Allowlist | `tooling/harness.py` (`_sanitize_reason`) | Nur die geprüften Beleg-Arten (`auto`, `ref`, `sim`, `cyc`, `py`) dürfen ihre Befunde durchreichen (ihre nicht-REFUTED-Texte wurden auf Referenzwerte geprüft); `sim`/`cyc`-Refutungen bleiben immer gesanitisiert; **unbekannte Arten werden per Default zurückgehalten** (Marker ohne Werte). |
 | Runden-Auswertung v0.3 | `tooling/evaluate.py` | Aggregat um `triggered_runs` ergänzt; V11-Läufe (flaches Layout) bleiben auswertbar. |
 | Nebenbefund (Fix) | `tooling/harness.py` (CLI-Ende) | `harness.py dry` stürzte ab (`max_repairs` fehlt im `dry`-Namespace) — beim Benutzen gefunden, mit einer Zeile behoben (`getattr`). Kein Test hing daran. |
-| Tests | `tests/test_v13_harness.py` (neu, 32), v11/v12 unverändert | Set-Form/Determinismus (inkl. Rebuild-Beweis: v0.2 byte-identisch, v0.3 reproduzierbar), Prompt-Leck-Freiheit inkl. Reparaturpfad, maschinenverifiziertes Scoring (auch: falsches Zertifikat zählt nicht, anderes gültiges zählt), Allowlist-Verhalten, Trigger-Semantik (Erfolg ≠ Trigger, Formfehler kein Trigger), `triggered_runs`. Gesamt: **739 Tests grün**. |
+| Tests | `tests/test_v13_harness.py` (neu, 33), v11/v12 unverändert | Set-Form/Determinismus (inkl. Rebuild-Beweis: v0.2 byte-identisch, v0.3 reproduzierbar), Prompt-Leck-Freiheit inkl. Reparaturpfad, maschinenverifiziertes Scoring (auch: falsches Zertifikat zählt nicht, anderes gültiges zählt), Allowlist-Verhalten, Trigger-Semantik (Erfolg ≠ Trigger, Formfehler kein Trigger), `triggered_runs`. Gesamt: **740 Tests grün**. |
 
 Engine unverändert (`bemyself/msheet/`, `bemyself/claimtypes/`, `bemyself/turing.py`); die Runde ändert Tooling, Sets, Tests und Wiki.
 
@@ -194,5 +194,5 @@ Gegenüber v0.2 (kleine Zahlen) stiegen die Tokens je Lauf: K ×4,5 (802 → 3 6
 4. [05-07-denksprache-v1.1.md](05-07-denksprache-v1.1.md) — Denk-Sprache V1.1 (Tags, Status, Zeugenformen).
 5. [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, Metriken, Multiplizitätsregel.
 6. [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln).
-7. `tests/test_v13_harness.py`, `tooling/{harness,prompts,build_sets,evaluate}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (739 Tests grün).
+7. `tests/test_v13_harness.py`, `tooling/{harness,prompts,build_sets,evaluate}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (740 Tests grün).
 8. [../01-modellprofil/01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme.
