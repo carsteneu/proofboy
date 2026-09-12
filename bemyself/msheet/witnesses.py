@@ -395,6 +395,17 @@ def _machine_for(target_body, ctx):
     return None, "multiple machine bindings but none referenced in the target"
 
 
+def _tape_key(tape):
+    """The tape up to its leading and trailing zeros.
+
+    A model may count a written zero cell at either end of the window or may
+    omit it; both describe the same tape state (the value is zero there in
+    every reading). The comparison is on the essential content, not on window
+    bookkeeping (documented precision, pilot smoke of 2026-09-12).
+    """
+    return tape.strip("0")
+
+
 def _run_sim(spec, target_body, ctx):
     machine, error = _machine_for(target_body, ctx)
     if machine is None:
@@ -437,7 +448,7 @@ def _run_sim(spec, target_body, ctx):
                 f"sim: at step {step} the head is at {snapshot.head}, not {want_head}",
             )
         window = "".join(str(cell) for cell in snapshot.left[::-1] + snapshot.right)
-        if window != want_tape:
+        if _tape_key(window) != _tape_key(want_tape):
             return WitnessResult(
                 Verdict.REFUTED,
                 f"sim: at step {step} the written window is {window!r}, not {want_tape!r}",

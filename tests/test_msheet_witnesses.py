@@ -205,6 +205,12 @@ class SimTest(unittest.TestCase):
             result = run("sim(0..2)", body, machines=self.machines())
             self.assertEqual(result.verdict, Verdict.REFUTED, body)
 
+    def test_trailing_zero_cell_is_value_equal(self):
+        # The pilot smoke of 2026-09-12: models count a written zero cell at
+        # the end of the window; the tape value is identical.
+        result = run("sim(0..2)", "cp 1: (B,1,10)", machines=self.machines())
+        self.assertEqual(result.verdict, Verdict.CONFIRMED)
+
     def test_checkpoint_outside_segment(self):
         result = run("sim(0..1)", "cp 2: (A,0,1)", machines=self.machines())
         self.assertEqual(result.verdict, Verdict.UNVERIFIABLE)

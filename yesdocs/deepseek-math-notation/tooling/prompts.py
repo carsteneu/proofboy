@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Prompt-Builder der Pilot-Arme K/B/C/D (05-05 Nachtrag, Leiter).
+
+Die Arme unterscheiden sich nur in Präambel und Antwortkonvention:
+
+- K  Kontrolle: uebliche Mathe-Schreibweise, kanonische Endantwort.
+- B  V1: zwei Zonen, ``S``-Denkzeilen, CLAIM/WITNESS/[HALT], Langnamen.
+- C  V1.1: Tag-Kopfzeilen, Status-Register, Kuerzel, kompakter Stil,
+      v-Zeugen (auto/py/range/ref/sim/cyc).
+- D  C + Zeugenpflicht fuer jede =-Konsequenz + Verdikt-Rueckkanal.
+
+Der Aufgabenkern bleibt arm-unabhaengig (task['prompt']); die Antwort-
+konvention pro Arm und Tier steht in ``answer_instruction``. Fuer
+Trace-Aufgaben ist das Checkpoint-Format ``cp t: (Q,p,T)`` in allen Armen
+dasselbe (kanonische Extraktion; die Behandlungsarme koennen es zusaetzlich
+verifizieren -- dokumentierte Praezisierung, siehe Pilotbericht).
+"""
+
+from __future__ import annotations
+
+COMMON_RULES = (
+    "Antworte AUSSCHLIESSLICH mit dem geforderten Format. Keine Erklaerung, "
+    "kein Markdown, keine Code-Zaeune."
+)
+
+LEGEND_K = """Du bist ein Mathematiker und antwortest in ueblicher mathematischer \
+Schreibweise mit kurzen Zwischenschritten (Prosa-Notation).
+
+Zahlenaufgaben: Die letzte Zeile ist "Endantwort: <zahl>".
+Trace-Aufgaben: Gib fuer jeden geforderten Schritt genau eine Zeile an:
+  cp <t>: (<Zustand>,<Kopfposition>,<Bandfenster>)
+  Zustand = Buchstabe (A, B, ...), Kopfposition = ganze Zahl ab Startposition 0,
+  Bandfenster = die beschriebenen Bandzellen von der ersten links bis zur
+  letzten rechts beschriebenen Zelle (nie beschriebene Zellen sind 0).
+Zyklus-Aufgaben: Die letzte Zeile ist
+  "Endantwort: NICHT-HALTEND (t1=<t1>,t2=<t2>,d=<d>)".
+
+""" + COMMON_RULES
+
+LEGEND_B = """Du arbeitest in einer zweizonigen formalen Notation (V1).
+
+Denkzone: Zeilen mit dem Praefix S<n>: (ein Schritt pro Zeile; kurze Prosa
+mit "?" ist erlaubt).
+Behauptungszone (Pflicht, am Ende): CLAIM <id>: <formel> und
+WITNESS <id>: auto (oder py: <python-ausdruck>, oder range n in a..b: <formel>),
+abgeschlossen mit [HALT] <ids>.
+
+Bibliothek: isprime(n), powmod(a,b,m), gcd(a,b), divisors(n), divides(a,b),
+factorial(n), choose(n,k), fib(n), collatz_steps(n), collatz_max(n).
+Formeln sind ASCII, voll geklammert und exakt, z.B. (collatz_steps(27) = 111),
+((2 ^ 10) % 1000 = 24), (forall n in 1..1000: (n < 1001)), sum(k=1..n, k).
+
+Beispiel:
+goal: collatz_steps(27)?
+S1: ? Kandidat 111 pruefen
+S2: 27 -> 82 -> 41 -> 124 -> 62 -> 31 -> ... (Zwischenschritte)
+CLAIM c1: (collatz_steps(27) = 111)
+WITNESS c1: auto
+[HALT] c1
+
+""" + COMMON_RULES
+
+LEGEND_C = """Du arbeitest in einer formalen Denk-Sprache (V1.1).
+
+Denkzone: eine Zeile pro Zug mit Kopf <tag><n>: und kurzem Inhalt.
+Tags: g Ziel, d Definition, a Annahme/Fakt, c Rechenzeile, h Hypothese
+(pruefbar formuliert), v Verifikation mit Zeuge, q offene Frage, = Ergebnis.
+Status-Mini-Zeilen (nur anfuegen, nie aendern): <id>+ bestaetigt, <id>- verworfen,
+<id>? offen, <id>! Widerspruch.
+
+Kuerzel (je 1 Token): st=collatz_steps, ip=isprime, mx=collatz_max, pm=powmod,
+gc=gcd, dv=divisors, di=divides, fc=factorial, ch=choose, fb=fib.
+Formeln sind voll geklammert und exakt: (st(27) = 111), ((2 ^ 10) % 1000 = 24),
+(forall n in 1..1000: (n < 1001)), sum(k=1..n, k). Kompakt: keine Leerzeichen
+um Operatoren.
+
+Zeugen in v-Zeilen: auto | py: <python-ausdruck> | range n in a..b: <formel> |
+ref <id> (nur auf eine bestaetigte Zeile mit + und ok) | sim(0..t) zu einer
+Zeile h: cp t: (Q,p,T) | cyc(t1,t2,d).
+Maschinen bindest du mit a: M = <bbchallenge-string>.
+Der Runner schreibt die Verdikte (#ok / #xx / #?) - nicht du.
+
+Beispiel Zahlenaufgabe:
+g: st(27)?
+h1: (st(27) = 111)
+v h1: auto
+h1+
+CLAIM c1: (st(27) = 111)
+WITNESS c1: ref h1
+[HALT] c1
+
+Beispiel Trace:
+g: Lauf von M bis Schritt 5?
+a: M = 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA
+h1: cp 5: (C,1,1111)
+v h1: sim(0..5)
+h1+
+CLAIM c1: cp 5: (C,1,1111)
+WITNESS c1: ref h1
+[HALT] c1
+
+""" + COMMON_RULES
+
+LEGEND_D = LEGEND_C.replace(
+    "Der Runner schreibt die Verdikte (#ok / #xx / #?) - nicht du.",
+    "Der Runner schreibt die Verdikte (#ok / #xx / #?) - nicht du.\n"
+    "Zeugenpflicht: Jede =-Konsequenz traegt ein v; h-Zeilen ohne Zeugen gelten als offen.",
+)
+
+LEGENDS = {"K": LEGEND_K, "B": LEGEND_B, "C": LEGEND_C, "D": LEGEND_D}
+
+
+def _answer_instruction(arm, task):
+    tier = task.get("tier")
+    kind = task.get("tier_b_kind")
+    if tier == "A":
+        if arm == "K":
+            return "Antworte mit genau einer Zeile: Endantwort: <zahl>"
+        if arm == "B":
+            return (
+                "Belege das Ergebnis im Behauptungsformat: "
+                "CLAIM c1: (<rechnung> = <ergebnis>), WITNESS c1: auto, [HALT] c1."
+            )
+        return (
+            "Belege das Ergebnis: Zeile h1: (<rechnung> = <ergebnis>), v h1: auto, h1+, "
+            "dann CLAIM c1: (<rechnung> = <ergebnis>), WITNESS c1: ref h1, [HALT] c1."
+        )
+    if tier == "B" and kind == "trace":
+        steps = ", ".join(str(t) for t in task.get("checkpoints_t", []))
+        if arm == "K":
+            return f"Gib fuer die Schritte {steps} je eine Zeile cp <t>: (<Zustand>,<Kopf>,<Band>) an."
+        if arm == "B":
+            return (
+                f"Schreibe fuer die Schritte {steps} je eine S-Zeile "
+                "\"cp <t>: (<Zustand>,<Kopf>,<Band>)\"; beende mit [HALT]."
+            )
+        return (
+            f"Lege fuer jeden Schritt aus {steps} eine h-Zeile \"h<k>: cp <t>: (<Zustand>,<Kopf>,<Band>)\" "
+            "an, verifiziere jede mit \"v h<k>: sim(0..t)\", setze \"h<k>+\", wiederhole den "
+            "Gegenstand als CLAIM c<k> und belege ihn mit WITNESS c<k>: ref h<k>; Ende: [HALT] mit allen c-ids."
+        )
+    if tier == "B" and kind == "cyc":
+        t1, t2, d = task.get("certificate", ["?", "?", "?"])
+        if arm in ("K", "B"):
+            return (
+                f"Fasse den Nachweis in wenigen Zeilen zusammen und beende mit genau "
+                f"einer Zeile: Endantwort: NICHT-HALTEND (t1={t1},t2={t2},d={d})"
+            )
+        return (
+            f"Formuliere h1: M zyklisch (Translation), verifiziere mit v h1: cyc({t1},{t2},{d}), "
+            "setze h1+, wiederhole den Gegenstand als CLAIM c1: M zyklisch (Translation) und "
+            "belege ihn mit WITNESS c1: ref h1; Ende: [HALT] c1."
+        )
+    raise ValueError(f"no answer instruction for arm {arm!r} and task {task.get('id')!r}")
+
+
+def build_messages(arm, task):
+    """(system, user) messages of one run: legend vs task core + convention."""
+    if arm not in LEGENDS:
+        raise ValueError(f"unknown arm {arm!r}")
+    user = "\n".join(
+        [
+            "### AUFGABE",
+            task["prompt"].strip(),
+            _answer_instruction(arm, task),
+        ]
+    )
+    return LEGENDS[arm].strip(), user
+
+
+def build_prompt(arm, task):
+    """The full prompt as one text (dry-run view; the API run is split)."""
+    system, user = build_messages(arm, task)
+    return f"{system}\n\n{user}\n"

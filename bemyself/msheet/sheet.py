@@ -147,7 +147,6 @@ def _split_claim(line):
 def parse_sheet(text):
     """Parse one sheet; never raises, collects :class:`SheetError` entries."""
     sheet = Sheet()
-    claim_zone = False
     calc_block = False
     auto_vindex = 0
     seen_vids = set()
@@ -162,19 +161,18 @@ def parse_sheet(text):
         line = raw_line.strip()
         if not line:
             continue
-        # The HALT marker.
+        # The HALT marker (ids separated by spaces and/or commas).
         if line == _HALT_PREFIX or line.startswith(_HALT_PREFIX + " "):
             if sheet.halt is not None:
                 error(lineno, "a second [HALT] marker; one sheet declares its result once")
                 continue
-            ids = line[len(_HALT_PREFIX) :].split()
-            sheet.halt = ids
-            claim_zone = True
+            sheet.halt = [part for part in re.split(r"[,\s]+", line[len(_HALT_PREFIX) :]) if part]
             calc_block = False
             continue
-        # The claim zone.
+        # The claim zone. Lines of every kind may interleave with the claim
+        # zone (a style choice of the model, not a format error; the smoke run
+        # of the pilot showed it), the claim lines themselves stay strict.
         if line.startswith("CLAIM "):
-            claim_zone = True
             calc_block = False
             parsed = _split_claim(line)
             if parsed is None:
@@ -191,7 +189,6 @@ def parse_sheet(text):
             raw_claims.append((cid, body, lineno))
             continue
         if line.startswith("WITNESS "):
-            claim_zone = True
             calc_block = False
             parsed = _split_claim(line)
             if parsed is None:
@@ -205,9 +202,6 @@ def parse_sheet(text):
             sheet.think.append(ThinkLine("c", None, line, lineno))
             continue
         calc_block = False
-        if claim_zone:
-            error(lineno, "a thinking line after the claim zone began")
-            continue
         status = _STATUS_RE.match(line)
         if status:
             sheet.statuses.append(StatusLine(status.group(1), status.group(2), lineno))

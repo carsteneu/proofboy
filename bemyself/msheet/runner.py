@@ -139,18 +139,19 @@ def run_sheet(sheet, *, sandbox="auto", timeout=10.0, halt_limit=None, cycle_lim
         )
 
     for claim in sheet.claims:
-        if claim.formula is None:
+        witness = sheet.witness_for(claim.cid)
+        if witness is None:
+            outcome = WitnessResult(Verdict.UNVERIFIABLE, "witness: the claim has no witness")
+        elif witness.spec is None:
+            outcome = WitnessResult(Verdict.UNVERIFIABLE, f"witness: {witness.error}")
+        elif witness.spec.kind in ("auto", "range") and claim.formula is None:
+            # auto/range compile the claim text itself: without a parsed V1
+            # formula there is nothing to execute. A py/ref/sim/cyc witness
+            # stands on its own and does not need a V1 formula as claim text
+            # (trace and cycle answers reuse the checkpoint/cycle text).
             outcome = WitnessResult(Verdict.UNVERIFIABLE, f"formula: {claim.error}")
         else:
-            witness = sheet.witness_for(claim.cid)
-            if witness is None:
-                outcome = WitnessResult(Verdict.UNVERIFIABLE, "witness: the claim has no witness")
-            elif witness.spec is None:
-                outcome = WitnessResult(
-                    Verdict.UNVERIFIABLE, f"witness: {witness.error}"
-                )
-            else:
-                outcome = witnesses.execute(witness.spec, claim.text, context, tolerant=False)
+            outcome = witnesses.execute(witness.spec, claim.text, context, tolerant=False)
         result.claim_results.append(
             ClaimResult(claim.cid, outcome.verdict, outcome.reason, claim.line, outcome.sandboxed)
         )

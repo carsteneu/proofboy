@@ -119,10 +119,21 @@ WITNESS c1: auto
                 any(wanted in m for m in messages), f"{wanted!r} not in {messages!r} for {text!r}"
             )
 
-    def test_thinking_line_after_claim_zone(self):
-        sheet = parse_sheet("CLAIM c1: (1 = 1)\nh9: late thought\n")
+    def test_interleaved_thinking_lines_are_accepted(self):
+        # The smoke run of 2026-09-12: the model interleaves h/v/CLAIM blocks.
+        # Interleaving is a style choice, not a format error (documented
+        # implementation precision of the pilot).
+        sheet = parse_sheet(
+            "h1: (1 = 1)\nv h1: auto\nCLAIM c1: (1 = 1)\nWITNESS c1: ref h1\nh2: (2 = 2)\nv h2: auto\n[HALT] c1\n"
+        )
         messages = [e.message for e in sheet.errors]
-        self.assertTrue(any("after the claim zone" in m for m in messages))
+        self.assertFalse(any("after the claim zone" in m for m in messages), messages)
+        self.assertEqual([v.vid for v in sheet.vlines], ["v1", "v2"])
+
+    def test_halt_ids_may_be_comma_separated(self):
+        sheet = parse_sheet("CLAIM c1: (1 = 1)\nWITNESS c1: auto\nCLAIM c2: (2 = 2)\nWITNESS c2: auto\n[HALT] c1,c2\n")
+        self.assertEqual(sheet.halt, ["c1", "c2"])
+        self.assertEqual([e.message for e in sheet.errors], [])
 
     def test_hostile_whitespace_is_bounded(self):
         text = "h1: " + " " * 5000 + "\n[HALT]" + " " * 3000 + "\n"
@@ -183,6 +194,21 @@ WITNESS c1: auto
         result = run_sheet(parse_sheet(text), sandbox="off")
         self.assertEqual(result.v_results[0].verdict, Verdict.CONFIRMED)
         self.assertEqual(result.claim_results[0].verdict, Verdict.REFUTED)
+
+    def test_non_formula_claim_with_ref_witness(self):
+        # Trace answers reuse the checkpoint text as claim and verify it via
+        # the confirmed h-line: the claim text needs no V1 formula then.
+        text = f"""g: Lauf?
+a: M = {SMALL_HALTER}
+h1: cp 1: (B,1,1)
+v h1: sim(0..2)
+h1+
+CLAIM c1: cp 1: (B,1,1)
+WITNESS c1: ref h1
+[HALT] c1
+"""
+        result = run_sheet(parse_sheet(text), sandbox="off")
+        self.assertEqual(result.claim_results[0].verdict, Verdict.CONFIRMED)
 
     def test_claim_with_bad_formula(self):
         text = """CLAIM c1: keine formel
