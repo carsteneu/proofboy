@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import unittest
 from tests.fixtures import make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_BWRAP = shutil.which("bwrap")
 
 
 class CliTest(unittest.TestCase):
@@ -27,7 +29,7 @@ class CliTest(unittest.TestCase):
             handle.write(text)
         return path
 
-    def invoke(self, *args, repo=None, tmp=True):
+    def invoke(self, *args, repo=None, tmp=True, env=None):
         command = [
             sys.executable,
             "-m",
@@ -43,6 +45,7 @@ class CliTest(unittest.TestCase):
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
+            env=env,
         )
 
     def verdicts(self, stdout):
@@ -252,6 +255,73 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("tmp", proc.stderr.lower())
         self.assertIn("tmp", json.loads(proc.stdout)["error"].lower())
+
+    # --- --sandbox ---------------------------------------------------------
+    def env_without_bwrap(self):
+        """A PATH that has git but no bwrap, like a host without bubblewrap."""
+        shim = os.path.join(self._tmp.name, "bin-nobwrap")
+        os.makedirs(shim, exist_ok=True)
+        link = os.path.join(shim, "git")
+        if not os.path.lexists(link):
+            os.symlink(shutil.which("git"), link)
+        return {**os.environ, "PATH": shim}
+
+    def sandbox_report(self):
+        return self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+            "Tests run: python3 -m unittest test_ok -> exit 0\n"
+        )
+
+    def test_require_without_bwrap_leaves_the_test_claim_unverifiable(self):
+        proc = self.invoke(
+            "--report",
+            self.sandbox_report(),
+            "--json",
+            "--strict",
+            "--sandbox=require",
+            env=self.env_without_bwrap(),
+        )
+        self.assertEqual(proc.returncode, 4, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["commit_exists"]["verdict"], "CONFIRMED")
+        self.assertEqual(claims["tests_green"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("bwrap is not available", claims["tests_green"]["reason"])
+        self.assertIn("refusing to run the command unsandboxed", claims["tests_green"]["reason"])
+
+    def test_require_without_bwrap_never_confirms_the_test_claim(self):
+        proc = self.invoke(
+            "--report",
+            self.sandbox_report(),
+            "--json",
+            "--sandbox=require",
+            env=self.env_without_bwrap(),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["tests_green"]["verdict"], "UNVERIFIABLE")
+
+    def test_sandbox_off_runs_unsandboxed_and_names_it(self):
+        proc = self.invoke("--report", self.sandbox_report(), "--json", "--sandbox=off")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        tests = [c for c in json.loads(proc.stdout)["claims"] if c["kind"] == "tests_green"]
+        self.assertEqual(len(tests), 1)
+        self.assertEqual(tests[0]["verdict"], "CONFIRMED")
+        self.assertIn("not sandboxed: --sandbox=off", tests[0]["reason"])
+        self.assertNotIn("bwrap", tests[0]["command"])
+
+    @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
+    def test_default_auto_sandboxes_when_bwrap_is_available(self):
+        proc = self.invoke("--report", self.sandbox_report(), "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        tests = [c for c in json.loads(proc.stdout)["claims"] if c["kind"] == "tests_green"]
+        self.assertEqual(tests[0]["verdict"], "CONFIRMED")
+        self.assertIn("sandboxed with bwrap", tests[0]["reason"])
+        self.assertIn("bwrap", tests[0]["command"])
+
+    def test_unknown_sandbox_mode_is_a_usage_error(self):
+        proc = self.invoke("--report", self.sandbox_report(), "--sandbox=banana")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--sandbox", proc.stderr)
 
 
 class CliSectionTest(unittest.TestCase):

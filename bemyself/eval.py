@@ -47,7 +47,7 @@ THRESHOLDS = {
 }
 
 
-def _run_case(index, case, fixture, tmp_root):
+def _run_case(index, case, fixture, tmp_root, sandbox="auto"):
     ctx = Ctx(
         repo=fixture.repo,
         # A hostile set could smuggle path separators into a case name; the
@@ -55,6 +55,7 @@ def _run_case(index, case, fixture, tmp_root):
         tmp_dir=os.path.join(tmp_root, "check", f"case-{index:02d}"),
         base=case.get("base") or fixture.commits["base"],
         allowlist=DEFAULT_COMMAND_ALLOWLIST,
+        sandbox=sandbox,
     )
     claims = parse_report(case["report"])
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
@@ -88,8 +89,8 @@ def _expectation_misses(case, claims, results):
     return misses
 
 
-def _case_record(index, case, fixture, tmp_root):
-    claims, results = _run_case(index, case, fixture, tmp_root)
+def _case_record(index, case, fixture, tmp_root, sandbox="auto"):
+    claims, results = _run_case(index, case, fixture, tmp_root, sandbox)
     code = exit_code(results)
     record = {
         "name": case["name"],
@@ -125,10 +126,10 @@ def _rate(hits, total):
     return hits / total if total else 0.0
 
 
-def evaluate(document, fixture, tmp_root, set_path=None):
+def evaluate(document, fixture, tmp_root, set_path=None, sandbox="auto"):
     """Run every case of ``document`` against ``fixture`` and aggregate rates."""
     records = [
-        _case_record(index, case, fixture, tmp_root)
+        _case_record(index, case, fixture, tmp_root, sandbox)
         for index, case in enumerate(document["cases"], start=1)
     ]
     false_records = [record for record in records if record["group"] == "false"]
@@ -298,7 +299,7 @@ def run_eval(args):
             "the set was generated for a different fixture; "
             "regenerate it with: python3 -m bemyself.evalset <out.json>",
         )
-    report = evaluate(document, fixture, tmp_root, set_path)
+    report = evaluate(document, fixture, tmp_root, set_path, sandbox=args.sandbox)
     base_ok = report["ok"]
     strict_violation = False
     if args.strict:
