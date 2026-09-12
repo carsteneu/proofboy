@@ -382,6 +382,58 @@ ident  CONFIRMED     4/n(t) = 1/a(t) + 1/b(t) + 1/c(t) holds as a rational ident
     out: numerator=0
 ```
 
+## Schur-Faerbungen (`[COLORING]`)
+
+Ein COLORING-Marker behauptet, dass eine explizite Faerbung der Zahlen
+`1..N` mit `k` Farben keine monochromatische Loesung von `x + y = z`
+enthaelt:
+
+```
+[COLORING: k=2 ; 1221]
+[COLORING: k=4 ; 12131322444434141213233231214343444422313121]
+```
+
+Der Rumpf ist `k=<Farben> ; <Farbziffern>`: eine Ziffer pro Zahl, die
+Ziffer an Position `i` ist die Farbe der Zahl `i`, die Laenge der
+Ziffernfolge ist `N`. `k` ist eine einzelne Ziffer `1..9` (die Farben
+selbst sind die Ziffern `1..9`); jede Ziffer der Folge muss eine Farbe
+der Behauptung sein (`1..k`). Der Pruefer zaehlt ALLE Tripel `x <= y`
+mit `x + y <= N` nach (`x == y` eingeschlossen) und prueft jedes auf
+Monochromie -- im selben Prozess, ohne Repository, Subprozess oder Netz.
+
+Urteile: `bestaetigt`, wenn kein Tripel monochromatisch ist; `widerlegt`,
+wenn eines gefunden wird -- der ERSTE Verstoss in kanonischer Reihenfolge
+(x aufsteigend, dann y aufsteigend) steht als Zeuge im Urteil, z. B.
+`first violation: 1 + 1 = 2 with 1, 1, 2 all in color 1`; `unpruefbar`
+bei falscher Rumpfform, einer Farbanzahl ausserhalb `1..9`, einer Ziffer
+ausserhalb `1..k`, einer leeren Folge oder einem Zertifikat laenger als
+das ausfuehrbare Limit.
+
+Was das heisst -- und was nicht: Ein `bestaetigt` belegt die untere
+Schranke `S(k) >= N` -- und sonst nichts. Es beweist keine Gleichheit
+(`S(k) = N` braucht zusaetzlich, dass es keine gueltige k-Faerbung von
+`1..N+1` gibt) und sagt nichts ueber die obere Schranke. Diese Asymmetrie
+ist der Kern des Typs: eine Faerbung ist ein endliches, vollstaendig
+nachpruefbares Zeugnis; die obere Seite hat kein kompaktes Zertifikat
+(der Beweis `S(5) = 160` ist eine SAT-Refutation ueber Petabytes). Der
+englische Urteilstext traegt die Grenze ausdruecklich: "this
+certificates the lower bound ... only -- it does not prove equality and
+says nothing about the upper bound".
+
+Das ausfuehrbare Limit ist die groesste Laenge `N`, die ein COLORING
+nachrechnen darf: Default 4096 (die Tripelaufzaehlung ist quadratisch,
+etwa `N^2/4` Paare), konfigurierbar mit `--coloring-limit N` (auch fuer
+`eval`); eine laengere Behauptung wird nicht ausgefuehrt und bleibt
+`unpruefbar`. Der Typ ist repo-frei (wie `[SEARCHED]`, `[CYCLE]`,
+`[IDENT]`): `check --report` laeuft ohne `--repo`.
+
+Die Landkarte der belegten Schranken -- pro `k` die untere Schranke mit
+Zertifikat und Pruefbefehl, der obere Rand mit Quelle, und was dieses
+Werkzeug davon kann und nicht kann -- steht unter
+[yesdocs/schur/](yesdocs/schur/); die Zertifikate dort sind
+`[COLORING]`-Marker, die Dokumentation verifiziert sich selbst
+(`check --report yesdocs/schur/README.md --strict`).
+
 ## Rechenzertifikate (`[COMPUTE]`)
 
 Jede endliche Rechnung wird pruefbar, ohne neuen Code pro Problem: Ein

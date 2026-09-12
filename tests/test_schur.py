@@ -10,6 +10,7 @@ own-search certificate, not a literature value.
 """
 
 import io
+import os
 import re
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -18,6 +19,8 @@ from bemyself.checks import Ctx, run_claim
 from bemyself.experiments import schur
 from bemyself.model import Verdict
 from bemyself.report import parse_report
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # The small Schur numbers the search must reproduce on its own: S(1)=1,
 # S(2)=4, S(3)=13, S(4)=44.
@@ -71,6 +74,20 @@ class SchurSearchTest(unittest.TestCase):
             self.assertEqual(len(claims), 1)
             result = run_claim(claims[0], Ctx(repo=None, tmp_dir=None))
             self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+
+    def test_the_documented_own_search_certificates_are_reproduced(self):
+        # The evaluation yesdocs/schur/ carries the own-search certificates
+        # of S(3) = 13 and S(4) = 44; the search must still produce exactly
+        # those certificates -- the documentation and the search cannot drift
+        # apart silently.
+        path = os.path.join(REPO_ROOT, "yesdocs", "schur", "README.md")
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        for k, n in ((3, 13), (4, 44)):
+            with self.subTest(k=k, n=n):
+                digits = schur.search(k, n)
+                self.assertIsNotNone(digits)
+                self.assertIn(f"[COLORING: k={k} ; {digits}]", text)
 
     def test_an_exhausted_budget_is_deterministic_and_honest(self):
         # A tiny budget cannot find a 160/5 coloring; the outcome is None,

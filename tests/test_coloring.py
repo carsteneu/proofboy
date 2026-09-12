@@ -320,5 +320,45 @@ class ColoringRobustnessTest(unittest.TestCase):
         self.assertIn("NUL", result.reason)
 
 
+class ColoringBoundaryTest(unittest.TestCase):
+    """[COLORING] proves a lower bound -- S(k) >= N -- and nothing else. The
+    docs carry that boundary; this test keeps it from being edited away."""
+
+    def docs(self):
+        for name in ("README.md", "SPEC.md"):
+            with open(os.path.join(REPO_ROOT, name), encoding="utf-8") as handle:
+                yield name, handle.read()
+
+    def test_the_docs_pin_the_lower_bound(self):
+        for name, text in self.docs():
+            with self.subTest(doc=name):
+                self.assertIn("untere Schranke", text)
+
+    def test_the_docs_pin_the_equality_boundary(self):
+        for name, text in self.docs():
+            with self.subTest(doc=name):
+                self.assertIn("keine Gleichheit", text)
+
+    def test_the_docs_pin_the_upper_bound(self):
+        for name, text in self.docs():
+            with self.subTest(doc=name):
+                self.assertIn("obere Schranke", text)
+
+    def test_the_schur_evaluation_verifies_its_own_claims(self):
+        # The evaluation under yesdocs/schur/ carries COLORING markers as its
+        # machine-checked evidence: every claim there must verify, and nothing
+        # but coloring claims may sneak in.
+        path = os.path.join(REPO_ROOT, "yesdocs", "schur", "README.md")
+        with open(path, encoding="utf-8") as handle:
+            claims = parse_report(handle.read())
+        self.assertGreaterEqual(len(claims), 6)
+        for claim in claims:
+            with self.subTest(line=claim.line):
+                self.assertEqual(claim.kind, "coloring")
+                result = run_claim(claim, Ctx(repo=None, tmp_dir=None))
+                self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+                self.assertIn("nothing about the upper bound", result.reason)
+
+
 if __name__ == "__main__":
     unittest.main()
