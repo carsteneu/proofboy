@@ -1,4 +1,5 @@
 import re
+import time
 import unittest
 from unittest import mock
 
@@ -188,6 +189,165 @@ class ClaimTypeCommitBindingTest(unittest.TestCase):
         bound = [claim for claim in claims if claim.kind == "dummy"]
         self.assertEqual(len(bound), 1)
         self.assertEqual(bound[0].fields["commit"], "aaaa1111")
+
+
+class PlaceholderReportTest(unittest.TestCase):
+    """A marker body that reads as a placeholder is a template, not an
+    assertion: the claim is skipped like a line without the marker, never
+    reported UNVERIFIABLE."""
+
+    def test_every_marker_type_ignores_its_placeholder(self):
+        placeholders = (
+            "[COMMIT: <hash>]",
+            "[BRANCH: <name>]",
+            "[MERGE: <branch>]",
+            "[DEPLOY: ...]",
+            "[HALT: <machine> -> <steps>]",
+            "[SEARCHED: <machine> -> <n>]",
+            "[COMPUTE: <cmd> -> <sha256>]",
+            "[CYCLE: <machine> -> <t1>,<t2>,<d>]",
+            "[IDENT: n=<affine> ; a=<affine>, b=<affine>, c=<affine>]",
+            "[COLORING: k=<k> ; <digits>]",
+            "[ARTIFACT: <pfad> -> <sha256>]",
+        )
+        for line in placeholders:
+            with self.subTest(line=line):
+                self.assertEqual(parse_report(line + "\n"), [])
+
+    def test_todo_value_is_a_placeholder(self):
+        for line in ("[COMMIT: TODO]", "[COMMIT: todo]", "[DEPLOY: TODO]"):
+            with self.subTest(line=line):
+                self.assertEqual(parse_report(line + "\n"), [])
+
+    def test_truncated_digest_ellipsis_is_a_placeholder(self):
+        for line in (
+            "[COMMIT: e5b68dd1\u2026]",
+            "[COMMIT: e5b68dd1...]",
+            "[COMPUTE: python3 emit.py -> e5b68dd1\u2026]",
+            "[COMPUTE: python3 emit.py -> `e5b68dd1\u2026`]",
+            "[COMPUTE: python3 emit.py -> docs/\u2026]",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(parse_report(line + "\n"), [])
+
+    def test_path_pattern_ellipses_are_not_placeholders(self):
+        for line, kind in (
+            ("Tests run: go test ./... -> exit 0\n", "tests_green"),
+            ("Tests run: python3 -m pytest src/... -> exit 0\n", "tests_green"),
+        ):
+            with self.subTest(line=line):
+                self.assertEqual([claim.kind for claim in parse_report(line)], [kind])
+
+    def test_tests_claim_with_a_placeholder_command(self):
+        self.assertEqual(parse_report("Tests run: <cmd> -> exit 0\n"), [])
+
+    def test_diff_scope_with_placeholder_paths(self):
+        for line in (
+            "**Files in scope:** <pfad1>, <pfad2>\n",
+            "**Files in scope:** good.txt, <pfad2>\n",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(parse_report(line), [])
+
+    def test_a_placeholder_score_makes_the_whole_claim_a_template(self):
+        # The attached score is part of the HALT claim's fields: a placeholder
+        # anywhere in them marks the line as a template (the uniform rule,
+        # documented in README and SPEC).
+        self.assertEqual(
+            parse_report("[HALT: 1RB1RZ_0LA0LA -> 3] [SCORE: 1RB1RZ_0LA0LA -> <ones>]\n"),
+            [],
+        )
+
+    def test_placeholder_markers_do_not_hide_literal_markers_on_the_same_line(self):
+        claims = parse_report("[COMMIT: <hash>] [MERGE: no]\n")
+        self.assertEqual([claim.kind for claim in claims], ["merge"])
+
+    def test_a_placeholder_commit_does_not_bind_dependent_claims(self):
+        claims = parse_report(
+            "**send_to payload:** `[DONE] [COMMIT: <hash>]`\n"
+            "**send_to payload:** `[COMMIT: aaaa1111]`\n"
+            "Tests run: python3 -m unittest x -> exit 0\n"
+        )
+        self.assertEqual([claim.kind for claim in claims], ["commit_exists", "tests_green"])
+        self.assertEqual(claims[0].fields["commit"], "aaaa1111")
+        self.assertEqual(claims[1].fields["commit"], "aaaa1111")
+
+    def test_go_package_patterns_are_not_placeholders(self):
+        # "./..." is the tail of a Go package pattern, not a truncated token.
+        claims = parse_report("Tests run: go test ./... -> exit 0\n")
+        self.assertEqual([claim.kind for claim in claims], ["tests_green"])
+
+    def test_real_values_are_not_placeholders(self):
+        # The conservative side: values that merely look unusual stay claims
+        # and keep their old verdicts.
+        text = (
+            "[COMMIT: e5b68dd1]\n"  # short, but hash-shaped
+            "[COMMIT: HEAD]\n"  # no hash, still an assertion
+            "[HALT: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC -> 16]\n"
+            "[HALT: M -> 3]\n"  # a machine name, not a placeholder
+            "[MERGE: no]\n"
+            "[DEPLOY: none]\n"
+            "[BRANCH: yesloop/x]\n"
+            "**Files in scope:** a<b.txt, c.txt\n"  # '<' without a closing '>'
+            "[DEPLOY: <>]\n"  # an empty token is no template slot
+        )
+        kinds = [claim.kind for claim in parse_report(text)]
+        self.assertEqual(
+            kinds,
+            [
+                "commit_exists",
+                "commit_exists",
+                "halt",
+                "halt",
+                "merge",
+                "deploy",
+                "branch_pushed",
+                "diff_scope",
+                "deploy",
+            ],
+        )
+
+    def test_angle_tokens_inside_real_values_are_the_documented_boundary(self):
+        # Accepted loss (README, "Grenzen"): a value whose text contains an
+        # angle token is indistinguishable from a template slot, so a real
+        # command with one is skipped like a template.
+        self.assertEqual(
+            parse_report("Tests run: sed 's/<[^>]*>//g' data.html -> exit 0\n"), []
+        )
+
+    def test_exact_placeholder_words_are_the_documented_boundary(self):
+        # Accepted loss (README, "Grenzen"): a branch or file literally named
+        # TODO is indistinguishable from the template word.
+        self.assertEqual(parse_report("[BRANCH: todo]\n"), [])
+        self.assertEqual(parse_report("**Files in scope:** TODO\n"), [])
+
+
+class PlaceholderCaptureCostTest(unittest.TestCase):
+    """The placeholder scan must stay linear on hostile input: the angle
+    token excludes brackets and whitespace, so a run of '<' cannot send the
+    engine into backtracking."""
+
+    BUDGET = 0.5
+    RUN = 2000
+
+    def parsed_within_budget(self, line):
+        start = time.perf_counter()
+        claims = parse_report(line + "\n")
+        elapsed = time.perf_counter() - start
+        self.assertLess(elapsed, self.BUDGET, f"{elapsed:.3f}s for a {len(line)}-char line")
+        return claims
+
+    def test_angle_runs_without_a_closing_bracket_stay_a_claim(self):
+        # "<" without ">" is no template slot: the conservative side keeps the
+        # claim, so a hostile run must not make the parser drop it for free.
+        claims = self.parsed_within_budget("[COMMIT: " + "<" * 4000 + "]")
+        self.assertEqual(len(claims), 1)
+
+    def test_many_angle_tokens(self):
+        self.assertEqual(self.parsed_within_budget("[COMMIT: " + "<x>" * self.RUN + "]"), [])
+
+    def test_truncation_ellipsis_behind_a_long_body(self):
+        self.assertEqual(self.parsed_within_budget("[COMMIT: " + "a" * 4000 + "...]"), [])
 
 
 if __name__ == "__main__":

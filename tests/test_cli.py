@@ -109,12 +109,61 @@ class CliTest(unittest.TestCase):
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["diff_scope"], "REFUTED")
 
+    def test_files_override_binds_the_real_commit_beside_a_placeholder(self):
+        # A placeholder COMMIT marker names no commit (P15), so it must not
+        # keep the diff scope from binding to the one real hash: before, the
+        # placeholder counted as a second, unresolvable commit and the scope
+        # ended UNVERIFIABLE instead of being checked.
+        report = self.write_report(
+            "**send_to payload:** `[DONE] [COMMIT: <hash>] "
+            f"[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+        )
+        proc = self.invoke("--report", report, "--files", "good.txt", "--base", self.repo["base"], "--json")
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        verdicts = self.verdicts(proc.stdout)
+        self.assertEqual(verdicts["diff_scope"], "REFUTED")
+        self.assertEqual(verdicts["branch_pushed"], "CONFIRMED")
+
     def test_nothing_verified_is_not_success(self):
         report = self.write_report("**send_to payload:** `[MERGE: no]`\n")
         proc = self.invoke("--report", report, "--json")
         self.assertEqual(proc.returncode, 3, proc.stdout)
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["merge"], "UNVERIFIABLE")
+
+    def test_placeholder_report_parses_to_no_claims(self):
+        # The template lines of a yesloop briefing are not assertions: the
+        # report yields no claim at all and the run exits 3, without a single
+        # UNVERIFIABLE verdict for a placeholder.
+        report = self.write_report(
+            "### Phase 6: FINISH\n"
+            "**send_to payload:** `[DONE] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>]`\n"
+            "[HALT: <machine> -> <steps>]\n"
+            "**Files in scope:** <pfad1>, <pfad2>\n"
+            "Tests run: <cmd> -> exit 0\n"
+        )
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 3, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload["claims"], [])
+        self.assertEqual(payload["summary"]["UNVERIFIABLE"], 0)
+        self.assertIn("no verifiable claims found", proc.stderr)
+
+    def test_placeholder_markers_do_not_hide_real_claims(self):
+        report = self.write_report(
+            "### Phase 6: FINISH\n"
+            "**send_to payload:** `[DONE] [COMMIT: <hash>] "
+            f"[COMMIT: {self.repo['good']}] [MERGE: no]`\n"
+        )
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        # Exact kinds and order: on the old parser the placeholder line added
+        # a second commit claim, which a kind-keyed dict would hide.
+        self.assertEqual(
+            [(claim["kind"], claim["verdict"]) for claim in payload["claims"]],
+            [("commit_exists", "CONFIRMED"), ("merge", "UNVERIFIABLE")],
+        )
 
     def test_strict_fails_when_any_claim_stays_unverifiable(self):
         report = self.write_report(

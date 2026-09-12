@@ -69,6 +69,14 @@ ihre Bedeutung. Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei
 Exit 0 mergen, also `python3 -m bemyself check --strict --report <datei>
 --repo <pfad>`.
 
+Die Zusage gilt den Behauptungen, die die Meldung aufstellt: eine Zeile, die
+als Vorlage gelesen wird (siehe "Grenzen"), stellt keine auf und erscheint in
+keiner Ausgabe -- weder im JSON noch im Exit-Code ist unterscheidbar, ob sie
+fehlte oder als Platzhalter dastand. Ein Gate darf das Fehlen einer Zeile
+deshalb nicht als Nachweis lesen; wo eine Zeile Pflicht ist, muss das Gate sie
+fordern (etwa als Pflichtzeile im Report-Template), nicht ihre Abwesenheit
+messen.
+
 ## Grenzen
 
 Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
@@ -110,6 +118,34 @@ URL-spezifischen HTTP-Proxy setzt, wird beim Branch-Check nicht angefasst
 Der Diff-Scope vergleicht die Dateiliste der Meldung mit dem Diff; ohne
 `--files` stammt die Planliste aus der Meldung selbst, das Urteil bindet sie
 also nicht unabhaengig.
+
+Eine Zeile, deren Marker-Rumpf ein Platzhalter ist -- ein Winkel-Token wie
+`<hash>`, `<machine>` oder `<pfad>`, ein woertliches `TODO` oder eine
+abgeschnittene Ellipse (`e5b68dd1…`, `...`) -- ist eine Vorlage und keine
+Behauptung: der Pruefer ignoriert sie wie eine Zeile ganz ohne Marker und
+meldet sie nicht als `unpruefbar`. Die Regel greift auf jeder Parser-Flaeche
+(`COMMIT`, `BRANCH`, `MERGE`, `DEPLOY`, `HALT`/`SCORE`, `SEARCHED`, `CYCLE`,
+`COMPUTE`, `IDENT`, `COLORING`, `ARTIFACT`, Diff-Scope und
+Testbehauptung) und pro Behauptung: traegt eine Vorlagenzeile daneben
+literale Marker -- etwa `[DEPLOY: no]` oder `[MERGE: no]` neben
+`[COMMIT: <hash>]` --, bleiben diese Behauptungen bestehen und behalten ihr
+bisheriges Urteil.
+
+Grenzfaelle sind ausgemessen und festgelegt. Erhalten bleiben: `go test ./...`
+und `src/...` (die ASCII-Ellipse ist das Ende eines Pfadmusters), ein leeres
+`<>` (etwa die Shell-Umleitung `3<>file`) und ein `<` ohne schliessendes `>`
+(etwa ein Dateiname `a<b.txt`), sowie jeder ausgeschriebene Wert (`e5b68dd1`,
+`HEAD`, die Beispielmaschine `M`). Bewusst ignoriert wird dagegen ein Wert,
+dessen Text einen Winkel-Token enthaelt -- auch wenn er echt ist, etwa das
+Kommando `sed 's/<[^>]*>//g' data.html` --, ein Wert, der mit einer
+abschneidenden Ellipse endet (`weird...`, `docs/…`, `pkg/...` als Pfadmuster
+ausgenommen), und ein Wert, der genau `TODO` lautet (auch ein Branch oder
+eine Datei dieses Namens): diese Formen sind von einer Vorlage nicht zu
+unterscheiden, und die Form allein entscheidet. Traegt eine Behauptung den
+Platzhalter in einem Feld, entfaellt die ganze Behauptung -- auch ein `[HALT]`
+mit echter Maschine und echtem Schrittzahl-Wert, wenn das angehaengte
+`[SCORE]` einen Platzhalter traegt. Umschliessende Backticks aendern die
+Erkennung nicht.
 
 Der Sandkasten (siehe unten) haertet den Lauf, aendert aber nichts an der
 Grundregel: wer das erlaubte Testkommando kontrolliert, kontrolliert den
@@ -813,7 +849,7 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt fuenfzig Meldungen im Report-Format: fuenfundzwanzig
+Das Set enthaelt einundfuenfzig Meldungen im Report-Format: sechsundzwanzig
 ehrliche und fuenfundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
@@ -839,6 +875,11 @@ Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig), ein
 ehrliches ARTIFACT-Zertifikat (SHA-256 von `good.txt` unter der Wurzel des
 Fixture-Repos) und eine ehrliche MERGE-Meldung auf dem Merge-Commit des
 Fixtures (ein Parent ist der Tip von `topic`, der andere liegt auf `main`).
+Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings
+(`g26-placeholder-lines`): ihre Platzhalter-Marker ergeben keine Behauptung
+und keine `unpruefbar`-Zeile -- auch die gemischte Scope-Zeile
+(`bemyself/model.py, <pfad2>`) entfaellt als Ganzes --, nur der echte Commit
+und das literale `[MERGE: no]` zaehlen; `expect_claim_count` pinnt das.
 Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
@@ -878,7 +919,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus fuenfzig Meldungen (fuenfundzwanzig ehrlich, fuenfundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus einundfuenfzig Meldungen (sechsundzwanzig ehrlich, fuenfundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

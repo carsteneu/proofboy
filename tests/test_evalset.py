@@ -135,12 +135,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 50)
+        self.assertEqual(len(cases), 51)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 25)
+        self.assertEqual(groups.count("genuine"), 26)
         self.assertEqual(groups.count("false"), 25)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 50)
+        self.assertEqual(len(set(names)), 51)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -232,6 +232,17 @@ class StandardSetTest(unittest.TestCase):
         self.assertEqual(parse_report(case["report"]), [])
         self.assertEqual(case["expect_claim_count"], 0)
         self.assertEqual(case["targets"], [])
+
+    def test_placeholder_case_counts_only_the_real_claims(self):
+        case = self.by_name()["g26-placeholder-lines"]
+        self.assertEqual(case["group"], "genuine")
+        self.assertEqual(case["expect_claim_count"], 2)
+        self.assertEqual(
+            [claim.kind for claim in parse_report(case["report"])],
+            ["commit_exists", "merge"],
+        )
+        self.assertEqual(case["expect_verdicts"]["commit_exists"], "CONFIRMED")
+        self.assertEqual(case["expect_verdicts"]["merge"], "UNVERIFIABLE")
 
     def test_diff_cases_demand_refutation(self):
         cases = self.by_name()
