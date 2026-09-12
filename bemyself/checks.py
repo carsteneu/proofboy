@@ -896,12 +896,13 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 preexec_fn=_child_preexec,
             )
         except FileNotFoundError as exc:
+            # Only bwrap itself can be missing here (the probe ran the same
+            # binary path moments ago); the command never executed.
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
                 f"command not found: {exc}" + note_suffix,
-                sandboxed=sandboxed,
             )
         try:
             returncode = proc.wait(timeout=TEST_TIMEOUT)

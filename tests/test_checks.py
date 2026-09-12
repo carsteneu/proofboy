@@ -1585,6 +1585,20 @@ class SandboxTest(unittest.TestCase):
         self.assertIn("make test sandboxed with bwrap", result.reason)
         self.assertIn("not sandboxed", result.reason)
 
+    def test_a_bwrap_vanishing_after_the_probe_leaves_no_run_claimed(self):
+        # Race between probe and start: the command never executed, so the
+        # structured flag must stay None instead of claiming a sandboxed run.
+        repo, commit = self.probe_repo("vanished", _ESCAPE_PROBE)
+        ctx = self.ctx(repo.path, sandbox="require")
+        vanished = os.path.join(ctx.tmp_dir, "vanished-bwrap")
+        with mock.patch("bemyself.checks.find_bwrap", return_value=vanished), mock.patch(
+            "bemyself.checks._sandbox_probe", return_value=None
+        ):
+            result = run_claim(self.probe_claim(commit), ctx)
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("command not found", result.reason)
+        self.assertIsNone(result.sandboxed)
+
 
 if __name__ == "__main__":
     unittest.main()

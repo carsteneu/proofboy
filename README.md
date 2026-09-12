@@ -117,7 +117,9 @@ PID- und UTS-Namensraum, und `/run` wird durch ein leeres tmpfs maskiert.
 Damit ist kein IP-Netzwerk und kein Host-Prozess erreichbar, und die
 Socket-Pfade des Rechners (D-Bus, systemd, docker.sock unter `/run` und
 `/var/run`) fehlen im Sandkasten; ein Schreibversuch ausserhalb des
-Checkouts scheitert mit `Read-only file system`. Unix-Sockets an anderen
+Checkouts scheitert mit `Read-only file system` (ausser auf den frisch
+eingehaengten privaten tmpfs unter `/run` und `/dev`, die nichts mit dem
+Rechner teilen). Unix-Sockets an anderen
 sichtbaren Pfaden (etwa unter `/tmp`) bleiben erreichbar, und die Wurzel
 ist lesbar: der Sandkasten begrenzt Schreiben, IP-Netz und Prozesssicht,
 nicht Lesezugriffe.
@@ -144,8 +146,11 @@ Argumentpruefung, reduzierte Umgebung, Ausgabegrenze) gelten unveraendert.
 bwrap ist eine Abschottung gegen Fehler und Neugier des getesteten Codes,
 keine Grenze gegen Kernel-Exploits und keine vollstaendige Isolationsgrenze
 fuer feindlichen Code: Luecken im Kernel oder in bwrap selbst faengt er
-nicht ab, und sichtbare Dateien bleiben lesbar. `eval` nimmt dieselbe Option
-und reicht sie an jeden Testlauf des Sets weiter.
+nicht ab, und sichtbare Dateien bleiben lesbar. `bwrap` selbst wird per
+`PATH` gefunden und gehoert wie `git` und `python3` zur vertrauenswuerdigen
+Umgebung des Aufrufers; wer diesen `PATH` kontrolliert, kontrolliert den
+Pruefer. `eval` nimmt dieselbe Option und reicht sie an jeden Testlauf des
+Sets weiter.
 
 ## Evaluation
 
