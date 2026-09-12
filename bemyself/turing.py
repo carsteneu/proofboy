@@ -70,13 +70,18 @@ class Snapshot(NamedTuple):
     ``len(right) - 1`` and ``left`` the cells at ``-1`` to ``-len(left)``,
     both trimmed to the furthest cell ever written: every cell beyond them is
     zero by construction. ``state`` is the state index and ``head`` the
-    absolute head position.
+    absolute head position. ``min_head`` and ``max_head`` are the lowest and
+    highest head position of the interval ending at this checkpoint (the
+    start of the run for the first one): the excursion the head made while
+    reaching it.
     """
 
     state: int
     head: int
     right: bytes
     left: bytes
+    min_head: int
+    max_head: int
 
 
 @dataclass(frozen=True)
@@ -183,8 +188,12 @@ def _execute(
     step = 0
     snapshots: dict[int, Snapshot | None] = {checkpoint: None for checkpoint in checkpoints}
     pending = 0
+    # The head excursion of the interval that ends at the next checkpoint:
+    # seeded with the current position, reset after every capture.
+    low = 0
+    high = 0
     if checkpoints and checkpoints[0] == 0:
-        snapshots[0] = Snapshot(0, 0, b"", b"")
+        snapshots[0] = Snapshot(0, 0, b"", b"", 0, 0)
         pending = 1
     # The budget is checked after the transition lookup: a pair without a
     # transition halts the machine before executing, even when the budget is
@@ -226,11 +235,18 @@ def _execute(
             return RunResult(True, step, ones), snapshots
         position += move
         state = target
-        if pending < len(checkpoints) and step == checkpoints[pending]:
-            snapshots[step] = _materialize(
-                state, position, right, right_written, left, left_written, max_cells
-            )
-            pending += 1
+        if pending < len(checkpoints):
+            if position < low:
+                low = position
+            if position > high:
+                high = position
+            if step == checkpoints[pending]:
+                snapshots[step] = _materialize(
+                    state, position, right, right_written, left, left_written, max_cells, low, high
+                )
+                pending += 1
+                low = position
+                high = position
     return RunResult(False, step, ones), snapshots
 
 
@@ -242,6 +258,8 @@ def _materialize(
     left: bytearray,
     left_written: int,
     max_cells: int | None,
+    low: int,
+    high: int,
 ) -> Snapshot | None:
     """The snapshot for one checkpoint, None when the tape exceeds the bound.
 
@@ -252,7 +270,7 @@ def _materialize(
     if max_cells is not None and right_written + left_written > max_cells:
         return None
     return Snapshot(
-        state, head, bytes(right[:right_written]), bytes(left[:left_written])
+        state, head, bytes(right[:right_written]), bytes(left[:left_written]), low, high
     )
 
 

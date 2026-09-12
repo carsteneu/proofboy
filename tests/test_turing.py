@@ -292,6 +292,18 @@ class CheckpointTest(unittest.TestCase):
         _, snapshots = run_checkpoints(parse(WALKER), 5, (3,))
         self.assertIsNotNone(snapshots[3])
 
+    def test_the_interval_head_range_is_reported(self):
+        # Every checkpoint carries the lowest and highest head position of
+        # the interval that ends at it (start of the run for the first one).
+        _, snapshots = run_checkpoints(parse(WALKER), 5, (2, 4))
+        self.assertEqual((snapshots[2].min_head, snapshots[2].max_head), (0, 2))
+        self.assertEqual((snapshots[4].min_head, snapshots[4].max_head), (2, 4))
+
+    def test_the_first_checkpoint_range_starts_at_the_origin(self):
+        # LEFT_HALF_MACHINE dips to -1 before step 2: the range includes it.
+        _, snapshots = run_checkpoints(parse(LEFT_HALF_MACHINE), 10, (2,))
+        self.assertEqual((snapshots[2].min_head, snapshots[2].max_head), (-1, 0))
+
     def test_negative_checkpoints_are_rejected(self):
         with self.assertRaises(ValueError):
             run_checkpoints(parse(WALKER), 5, (-1,))
