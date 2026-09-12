@@ -187,6 +187,11 @@ class SetLoadingTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             evalset.load_set(path)
 
+    def test_load_set_rejects_oversized_files(self):
+        path = self.write("huge.json", b"x" * ((4 << 20) + 1))
+        with self.assertRaises(ValueError):
+            evalset.load_set(path)
+
     def test_load_set_rejects_cases_without_reports(self):
         document = evalset.load_set(SET_PATH)
         del document["cases"][0]["report"]
