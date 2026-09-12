@@ -69,13 +69,17 @@ maschinell geprueft.
 
 Allgemeiner: fuer jedes `d >= 2`, fuer das ein Zeuge `(x, y, z)` von `4/d`
 bekannt ist, deckt `(xt, yt, zt)` die ganze Progression `n = d*t` ab, also
-alle positiven Vielfachen von `d`. Mit der rechnerischen Verifikation der
-Vermutung bis `N = 10^17` (Salez 2014, s. Quellen) folgt daraus als
-Folgerung dieser beiden Zutaten: Jedes `n`, das einen Teiler `d` mit
-`2 <= d <= 10^17` besitzt, ist parametrisch abgedeckt. Offen bleiben damit
-nur `n`, deren saemtliche Primfaktoren groesser als `10^17` sind (darunter
-alle Primzahlen groesser als `10^17`). Das ist eine Folgerung aus Skalierung
-plus Rechenstand, kein eigenes Theorem, und ebenfalls kein Beweis.
+alle positiven Vielfachen von `d`. Maschinell verifiziert sind hier die
+kleinen Faelle oben (`d = 2, 3, 5, 7, 11, 13`); fuer ein groesseres `d` ist
+die jeweilige Identitaet **nicht** einzeln nachgerechnet -- die Existenz
+eines Zeugen folgt dann aus der Rechenverifikation der Vermutung bis
+`N = 10^17` (Salez 2014, s. Quellen) plus der Skalierung. In diesem Sinne ist
+jedes `n`, das einen Teiler `d` mit `2 <= d <= 10^17` besitzt, durch eine
+skalierte Identitaet abgedeckt (aber nicht durch dieses Werkzeug
+nachgerechnet); offen bleiben nur `n`, deren saemtliche Primfaktoren groesser
+als `10^17` sind (darunter alle Primzahlen groesser als `10^17`). Das ist
+eine Folgerung aus Skalierung plus Rechenstand, kein eigenes Theorem, und
+ebenfalls kein Beweis.
 
 ## 2. Parametrisch abgedeckt in der Literatur, aber nicht affin
 
