@@ -182,8 +182,8 @@ def evaluate_run(arm, task, payload, duration, error, args):
         "usage": payload.get("usage") if payload else {},
         "finish_reason": payload.get("finish_reason") if payload else None,
     }
-    answer = payload["content"] if payload else ""
-    reasoning = payload["reasoning"] if payload else ""
+    answer = payload.get("content", "") if payload else ""
+    reasoning = payload.get("reasoning", "") if payload else ""
     record["answer"] = answer[:20000]
     record["reasoning_chars"] = len(reasoning)
     record["reasoning"] = reasoning[:20000]
@@ -254,8 +254,18 @@ def evaluate_run(arm, task, payload, duration, error, args):
                 {"id": v.vid, "target": v.target, "verdict": v.verdict.value}
                 for v in result.v_results
             ]
-            record["solved"] = bool(result.claim_results) and all(
-                c.verdict.value == "CONFIRMED" for c in result.claim_results
+            # The sheet must reason about the task's machine: a self-consistent
+            # sheet about another machine must not count as an answer.
+            task_machine = task["machine"].replace(" ", "").replace("_", "").upper()
+            bound = {
+                machine.source.replace(" ", "").replace("_", "").upper()
+                for machine in sheet.machines.values()
+            }
+            record["machine_bound"] = task_machine in bound
+            record["solved"] = (
+                bool(result.claim_results)
+                and all(c.verdict.value == "CONFIRMED" for c in result.claim_results)
+                and record["machine_bound"]
             )
     return record
 

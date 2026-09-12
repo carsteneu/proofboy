@@ -23,8 +23,8 @@ Instanz unter Test: `deepseek/deepseek-flash` (Provider `deepseek`; Kontext 1.00
 interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Dies ist die
 **Lern- und Entwurfsphase**; Werkzeugbau und A/B-Tests folgen als separate Phase (Testplan: 05-04/05-05).
 
-**Umfang:** 31 Dateien in 5 Clustern · 70329 Wörter ·
-696 Quellenangaben (Datei-Summen) · 1065 Inline-Zitate · Visuals in `assets/` je Cluster.
+**Umfang:** 32 Dateien in 5 Clustern · 72020 Wörter ·
+702 Quellenangaben (Datei-Summen) · 1071 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 
@@ -69,6 +69,7 @@ graph LR
     F0505[05-ablation-protokoll]
     F0506[06-erfolgskriterien-risiken]
     F0507[07-denksprache-v1.1]
+    F0508[08-pilotbericht-v1.1]
   end
   F0102 --> F0204
   F0103 --> F0201
@@ -111,6 +112,11 @@ graph LR
   F0507 --> F0405
   F0103B --> F0103
   F0103B --> F0507
+  F0508 --> F0507
+  F0508 --> F0505
+  F0508 --> F0504
+  F0508 --> F0502
+  F0508 --> F0103B
   classDef C01 fill:#1f77b422,stroke:#1f77b4,stroke-width:1px
   classDef C02 fill:#2ca02c22,stroke:#2ca02c,stroke-width:1px
   classDef C03 fill:#d6272822,stroke:#d62728,stroke-width:1px
@@ -120,7 +126,7 @@ graph LR
   class F0201,F0202,F0203,F0204,F0205,F0206 C02
   class F0301,F0302,F0303,F0304,F0305 C03
   class F0401,F0402,F0403,F0404,F0405 C04
-  class F0501,F0502,F0503,F0504,F0505,F0506,F0507 C05
+  class F0501,F0502,F0503,F0504,F0505,F0506,F0507,F0508 C05
 ```
 *Eigene Darstellung: Kanten abgeleitet aus den `related:`-Feldern der Datei-Frontmatter (39 clustergrenzenüberschreitende Verweise).*
 
@@ -186,6 +192,7 @@ Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/
 | [05-05-ablation-protokoll.md](05-entwurf-testplan/05-05-ablation-protokoll.md) | Ablations- und A/B-Protokoll | Verifiziert | 13 | 19 | 1 Img / 0 Diagr |
 | [05-06-erfolgskriterien-risiken.md](05-entwurf-testplan/05-06-erfolgskriterien-risiken.md) | Erfolgskriterien, Risiken und die Grenze der Hypothese | Verifiziert | 13 | 18 | 0 Img / 1 Diagr |
 | [05-07-denksprache-v1.1.md](05-entwurf-testplan/05-07-denksprache-v1.1.md) | Denk-Sprache V1.1 (Entwurf) — Tags, epistemische Status, Kürzel, Trace-Formen | Entwurf (V1.1) | 15 | 43 | 0 Img / 1 Diagr |
+| [05-08-pilotbericht-v1.1.md](05-entwurf-testplan/05-08-pilotbericht-v1.1.md) | Pilotlauf V1.1: Werkzeuge, Arme K/B/C, erste Messung der Denk-Sprache | Verifiziert | 6 | 6 | 0 Img / 0 Diagr |
 
 Querverweise: [01-modellprofil/01-03-tokenizer-zahlen.md](01-modellprofil/01-03-tokenizer-zahlen.md), [01-modellprofil/01-06-betrieb-umgebung.md](01-modellprofil/01-06-betrieb-umgebung.md), [02-wirksame-formate/02-01-tokenisierung-arithmetik.md](02-wirksame-formate/02-01-tokenisierung-arithmetik.md), [02-wirksame-formate/02-02-embedding-position.md](02-wirksame-formate/02-02-embedding-position.md), [02-wirksame-formate/02-03-format-sensitivitaet.md](02-wirksame-formate/02-03-format-sensitivitaet.md), [02-wirksame-formate/02-04-lokalitaet-struktur.md](02-wirksame-formate/02-04-lokalitaet-struktur.md), [02-wirksame-formate/02-05-latentes-denken.md](02-wirksame-formate/02-05-latentes-denken.md), [03-formale-bruecke/03-01-formale-systeme.md](03-formale-bruecke/03-01-formale-systeme.md), [03-formale-bruecke/03-04-zeugen-zertifikate.md](03-formale-bruecke/03-04-zeugen-zertifikate.md), [03-formale-bruecke/03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md), [04-offene-probleme/04-01-wahlkriterien.md](04-offene-probleme/04-01-wahlkriterien.md), [04-offene-probleme/04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md), [04-offene-probleme/04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md), [04-offene-probleme/04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md)
 
