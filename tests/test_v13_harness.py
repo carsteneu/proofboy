@@ -344,6 +344,18 @@ class SanitizerV13Test(unittest.TestCase):
         text = harness._sanitize_reason(None, "REFUTED", "raw text with 999")
         self.assertNotIn("999", text)
 
+    def test_range_witness_reasons_pass_the_allowlist(self):
+        # ``range`` baut seine Formel in witnesses._execute_range und laeuft
+        # durch denselben _run_formula-Pfad wie ``auto``: die nicht-REFUTED-
+        # Texte sind strukturell identisch und wertfrei (Audit 5.2/2).
+        cases = [
+            ("range", "REFUTED", "range: the evaluated formula is false"),
+            ("range", "UNVERIFIABLE", "range: guard: factorial: n must be in 0..10^4"),
+            ("range", "UNVERIFIABLE", "range: formula: expected ')', found '='"),
+        ]
+        for kind, verdict, reason in cases:
+            self.assertEqual(harness._sanitize_reason(kind, verdict, reason), reason)
+
     def test_reviewed_kinds_keep_their_safe_reasons(self):
         cases = [
             ("auto", "REFUTED", "auto: the evaluated formula is false"),
@@ -441,6 +453,46 @@ _SHEET_OK = (
     "a: M = 0LA0LA\nh1: M zyklisch (Translation)\nv h1: cyc(0,1,-1)\nh1+\n"
     "CLAIM c1: M zyklisch (Translation)\nWITNESS c1: ref h1\n[HALT] c1"
 )
+
+
+class ScoringRobustnessV13Test(unittest.TestCase):
+    """Review-Fixes 5.2/1 + 5.4 (MEDIUM): modell-kontrollierte Zahlen duerfen
+    einen Lauf nie abbrechen. CPython begrenzt int(str) auf 4300 Stellen und
+    wirft darueber ValueError -- der Regex faengt beliebig lange Ziffernfolgen,
+    die Konvertierung muss also fail-closed sein (wie in cycle.py)."""
+
+    TASK = {
+        "id": "B-9003",
+        "tier": "B",
+        "tier_b_kind": "cyc",
+        "machine": "0LA0LA",
+        "certificate": [0, 1, -1],
+        "certificate_given": False,
+        "prompt": "Untersuche den Lauf.",
+    }
+
+    def test_huge_certificate_digits_do_not_crash(self):
+        huge = "9" * 5000
+        answer = f"Endantwort: NICHT-HALTEND (t1=1,t2={huge},d=1)"
+        record = harness.evaluate_answer("K", self.TASK, answer)  # darf nicht werfen
+        self.assertFalse(record["solved"])
+        self.assertIsNone(record["certificate_claimed"])
+
+    def test_huge_head_position_in_checkpoint_line_does_not_crash(self):
+        huge = "7" * 5000
+        answer = f"cp 1: (A,{huge},1)"
+        matched, first_deviation, pairs = harness._checkpoint_score(
+            answer, [[1, "B", 1, "1"]]
+        )
+        self.assertEqual(matched, 0)
+        self.assertEqual(pairs, {})
+
+    def test_huge_step_number_in_checkpoint_line_does_not_crash(self):
+        huge = "7" * 5000
+        answer = f"cp {huge}: (A,0,1)"
+        matched, _first, pairs = harness._checkpoint_score(answer, [[1, "B", 1, "1"]])
+        self.assertEqual(matched, 0)
+        self.assertEqual(pairs, {})
 
 
 class TriggerV13Test(unittest.TestCase):

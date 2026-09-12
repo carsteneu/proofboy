@@ -34,8 +34,12 @@ Runde 3 (V13, Haerte): zwei Begriffe, getrennt gefuehrt --
   Zyklus-Zertifikat maschinenverifiziert (cyc, auch ohne Vorgabe).
 - **Trigger** ist das Ereignis, das die *naechste* Runde ausloest:
   ``end_state_not_confirmed`` (siehe :data:`TRIGGER_NOT_CONFIRMED`). Er steht
-  als Feld ``trigger`` in jeder Rundenzeile; Form- und Transportfehler sind
-  kein Trigger (Transportfehler bekommen den einen Retry der 05-05-Stopregel).
+  als Feld ``trigger`` in jeder Rundenzeile. Formfehler sind kein *eigener*
+  Trigger (05-09 section 7.1 bleibt offener Kandidat fuer eine reine
+  Blattqualitaets-Metrik): eine formfehlerhafte Runde traegt den Trigger nur,
+  wenn ihr typisierter Endzustand unbestaetigt bleibt. Transportfehler
+  bekommen den einen Retry der 05-05-Stopregel; ein Lauf ohne auswertbare
+  Modellausgabe endet.
 
 Dazu: das Zyklus-Scoring prueft die vom Modell genannten Werte gegen die
 Maschine (``claimtypes.cycle``) statt gegen den Goldstring, und die
@@ -45,9 +49,13 @@ Befunde durchreichen.
 
 Aufrufe::
 
-    python3 harness.py batch --arms K,B,C,D --reps 2 --tier-a 16 --tier-b 12
-    python3 harness.py one --arm C --task A-0006 --rep 1
-    python3 harness.py dry --arm C --task A-0001
+    python3 harness.py batch --arms K,B,C,D --reps 2 --tier-a 16 --tier-b 8
+    python3 harness.py one --arm C --task A3-0008 --rep 1
+    python3 harness.py dry --arm C --task B3-0005
+
+Die Sets kommen aus ``_TIER_A_SET``/``_TIER_B_SET`` (Default: v0.3); fuer eine
+Reproduktion alter Runden muessen diese Konstanten bewusst umgestellt werden
+(die v0.2-Dateien liegen unveraendert im Sets-Ordner).
 """
 
 from __future__ import annotations
@@ -182,11 +190,27 @@ def _contains_token(text, expected):
     return re.search(r"(?<![0-9])" + re.escape(expected) + r"(?![0-9])", text) is not None
 
 
+def _to_int(text):
+    """A model-supplied integer, or None when it is not convertible.
+
+    CPython caps ``int(str)`` at 4300 digits and raises ValueError beyond it;
+    such a token is no configuration/certificate value, and it must never end
+    the run (review 5.2/1, 5.4 NEW). Fail-closed like ``claimtypes.cycle``.
+    """
+    try:
+        return int(text)
+    except ValueError:
+        return None
+
+
 def _checkpoint_pairs(text):
     pairs = {}
     for match in _CP_RE.findall(text):
-        step = int(match[0])
-        pairs[step] = (match[1], int(match[2]), match[3])
+        step = _to_int(match[0])
+        head = _to_int(match[2])
+        if step is None or head is None:
+            continue
+        pairs[step] = (match[1], head, match[3])
     return pairs
 
 
@@ -332,9 +356,16 @@ def evaluate_answer(arm, task, answer, evidence_out=None):
         if arm in ("K", "B"):
             # Maschinenverifiziert statt Goldstring-Vergleich: das Modell darf
             # jedes gueltige Zertifikat nennen (die Nicht-Vorgabe-Variante
-            # findet regelmaessig ein anderes als das eingefrorene).
+            # findet regelmaessig ein anderes als das eingefrorene). Der Regex
+            # ist bewusst nachsichtig (letzter Treffer, auch ueber Zeilen);
+            # ein maschinenverifiziertes Zertifikat beweist die NICHT-HALTEND-
+            # Aussage selbst, ein nicht konvertierbares zaehlt nicht.
             matches = _CERT_RE.findall(answer)
-            certificate = tuple(int(match) for match in matches[-1]) if matches else None
+            certificate = None
+            if matches:
+                values = tuple(_to_int(value) for value in matches[-1])
+                if all(value is not None for value in values):
+                    certificate = values
             fragment["certificate_claimed"] = list(certificate) if certificate else None
             fragment["solved"] = (
                 "NICHT-HALTEND" in answer
@@ -399,7 +430,11 @@ _SIM_STEP_RE = re.compile(r"sim: at step ([0-9]+)")
 # bewusst aufgenommen *und* geprueft werden; ohne Eintrag kommt sie nur als
 # Marker zurueck -- ein kuenftiger Beleg-Typ kann die Referenzwerte damit
 # nicht versehentlich durchlassen.
-_ALLOWED_REASON_KINDS = frozenset({"auto", "ref", "sim", "cyc", "py"})
+_ALLOWED_REASON_KINDS = frozenset({"auto", "ref", "sim", "cyc", "py", "range"})
+# ``range`` gehoert dazu, weil witnesses._execute_range seine Formel baut und
+# durch denselben _run_formula-Pfad schickt wie ``auto`` -- die nicht-REFUTED-
+# Texte sind strukturell identisch und wertfrei (Audit 5.2/2; vorher
+# ueberblockiert).
 # Refutations-Texte, die die Referenz selbst benennen (Zustand/Kopf/Band bzw.
 # Zertifikat-Groessen), bleiben immer gesanitisiert -- auch fuer erlaubte Arten.
 _WITHHELD_VERDICTS = frozenset({("sim", "REFUTED"), ("cyc", "REFUTED")})

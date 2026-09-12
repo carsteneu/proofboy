@@ -52,9 +52,10 @@ Kernfragen: **Bricht die Härte die Decke?** Genauer: (a) Überlebt das Modell d
 | Zyklus-Scoring maschinenverifiziert | `tooling/harness.py` (`_certificate_holds`, `_CERT_RE`) | K/B-Zyklusantworten werden über die Maschine geprüft (`claimtypes.cycle` auf den vom Modell genannten Werten), nicht per Gold-Stringvergleich. Ein gültiges *anderes* Zertifikat ist gelöst; ein erfundenes nie. |
 | Erfolg vs. Trigger | `tooling/harness.py` (`TRIGGER_NOT_CONFIRMED`, `run_rounds`), `tooling/evaluate.py` | Der Erfolg ist der tier-typisierte Endzustand je Runde; der Trigger ist das Ereignis, das die nächste Runde auslöst, und steht als Feld `trigger` in jeder Rundenzeile, als `triggered_rounds` in `summary.json` und als `triggered_runs` im Aggregat. Definition im Modulkopf. |
 | Sanitizer: Default-Deny-Allowlist | `tooling/harness.py` (`_sanitize_reason`) | Nur die geprüften Beleg-Arten (`auto`, `ref`, `sim`, `cyc`, `py`) dürfen ihre Befunde durchreichen (ihre nicht-REFUTED-Texte wurden auf Referenzwerte geprüft); `sim`/`cyc`-Refutungen bleiben immer gesanitisiert; **unbekannte Arten werden per Default zurückgehalten** (Marker ohne Werte). |
-| Runden-Auswertung v0.3 | `tooling/evaluate.py` | Aggregat um `triggered_runs` ergänzt; V11-Läufe (flaches Layout) bleiben auswertbar. |
+| Runden-Auswertung v0.3 | `tooling/evaluate.py` | Aggregat um `triggered_runs` und die Markdown-Spalte „Trigger-Läufe“ ergänzt (der Renderer-Titel wird dabei versionsneutral); V11-Läufe (flaches Layout) und V12-Bäume bleiben auswertbar (Läufe ohne Trigger-Feld zählen 0). |
+| Robustheit (Review-Fix) | `tooling/harness.py` (`_to_int`) | Modell-kontrollierte Zahlen jenseits des CPython-int-Stellenlimits (4300) werden fail-closed verworfen statt den Lauf abzubrechen — im Zyklus-Scoring und in der Checkpoint-Extraktion (Review 5.2/1 + 5.4 NEW; die Klasse war in `_checkpoint_pairs` vorbestehend und ist hier mitgehärtet). |
 | Nebenbefund (Fix) | `tooling/harness.py` (CLI-Ende) | `harness.py dry` stürzte ab (`max_repairs` fehlt im `dry`-Namespace) — beim Benutzen gefunden, mit einer Zeile behoben (`getattr`). Kein Test hing daran. |
-| Tests | `tests/test_v13_harness.py` (neu, 33), v11/v12 unverändert | Set-Form/Determinismus (inkl. Rebuild-Beweis: v0.2 byte-identisch, v0.3 reproduzierbar), Prompt-Leck-Freiheit inkl. Reparaturpfad, maschinenverifiziertes Scoring (auch: falsches Zertifikat zählt nicht, anderes gültiges zählt), Allowlist-Verhalten, Trigger-Semantik (Erfolg ≠ Trigger, Formfehler kein Trigger), `triggered_runs`. Gesamt: **740 Tests grün**. |
+| Tests | `tests/test_v13_harness.py` (neu, 37), v11/v12 unverändert | Set-Form/Determinismus (inkl. Rebuild-Beweis: v0.2 byte-identisch, v0.3 reproduzierbar), Prompt-Leck-Freiheit inkl. Reparaturpfad, maschinenverifiziertes Scoring (auch: falsches Zertifikat zählt nicht, anderes gültiges zählt), Allowlist-Verhalten, Trigger-Semantik (Erfolg ≠ Trigger, Formfehler kein Trigger), `triggered_runs`. Gesamt: **744 Tests grün**. |
 
 Engine unverändert (`bemyself/msheet/`, `bemyself/claimtypes/`, `bemyself/turing.py`); die Runde ändert Tooling, Sets, Tests und Wiki.
 
@@ -75,7 +76,7 @@ Engine unverändert (`bemyself/msheet/`, `bemyself/claimtypes/`, `bemyself/turin
 - Tier A-hard: 16 Aufgaben × 3 Arme (K/B/C) × 2 Wiederholungen = 96 Läufe, 20:46:13–21:10:00 (**~24 min**). Tier B-hard: 8 Aufgaben × 4 Arme (K/B/C/D) × **1 Wiederholung** = 32 Läufe, 21:29:54–22:49:23 (**~80 min**). Zusammen **~1 h 43 min** Wall-Clock (Budget ≤ 2,5 h eingehalten); Modellzeit ~93 min.
 - Sets (im `manifest.json` beider Läufe): v11-a-0.3 sha256 `eb294ea93235e19c…`, v11-b-0.3 sha256 `a1fcac5e4c6ae568…`. v0.1/v0.2 unverändert (Rebuild-Test: byte-identisch).
 - 135 Runden insgesamt (Tier A 96, Tier B 39); 5 Läufe mit mindestens einem Trigger, 2 davon repariert; 3 Läufe enden ungelöst; **1 Lauf mit Transport-Timeouts** (B3-0008/B: beide Runden liefen in den 300-s-Call-Cap, 2 Retries nach der 05-05-Stopregel; der Lauf endet ohne Modellausgabe). Keine abgebrochenen Läufe, keine Truncation (`finish_reason != length` in allen Runden).
-- Offengelegte Abweichungen: (a) Tier B-hard mit **einer** Wiederholung statt zwei — wie in V12 (05-09 §4) und zur Budgetsicherung; die Entscheidung fiel während des Laufs, nachdem die Zeitprojektion mit zwei Wiederholungen die 2,5-h-Grenze touchierte. (b) Zwei Vorläufe wurden verworfen und sind **nicht** Teil der Wertung: `runs/20260912-211049` (erste Fassung mit zwei Wiederholungen; enthält u. a. den 300-s-Timeout von B3-0007/K im ersten Anlauf) und `runs/20260912-212821` (unvollständiger Neustart). Gewertet werden ausschließlich `runs/20260912-204613` (Tier A-hard) und `runs/20260912-212954` (Tier B-hard).
+- Offengelegte Abweichungen: (a) Tier B-hard mit **einer** Wiederholung statt zwei — wie in V12 (05-09 §4) und zur Budgetsicherung; die Entscheidung fiel während des Laufs, nachdem die Zeitprojektion mit zwei Wiederholungen die 2,5-h-Grenze touchierte. (b) Zwei Vorläufe wurden verworfen und sind **nicht** Teil der Wertung: `runs/20260912-211049` (erste Fassung mit zwei Wiederholungen; enthält u. a. den 300-s-Timeout von B3-0007/K im ersten Anlauf) und `runs/20260912-212821` (unvollständiger Neustart). Gewertet werden ausschließlich `runs/20260912-204613` (Tier A-hard) und `runs/20260912-212954` (Tier B-hard). (c) Der Harness liest die Sets jetzt standardmäßig aus **v0.3** (Konstanten `_TIER_A_SET`/`_TIER_B_SET`; es gibt keinen CLI-Schalter). Eine Reproduktion der v0.2-Runden erfordert das bewusste Umstellen dieser Konstanten — die v0.2-Dateien selbst bleiben unverändert (Hash-Test), und `one`/`dry` scheitern mit v0.2-IDs laut (KeyError) statt still eine andere Aufgabe zu fahren.
 - Rohdaten: `.yesmem/tmp/runs-v13-20260912/{tier-a-hard,tier-b-hard}/` (Kopien; Auswertungs-Assets [05-10-eval-tierA.md](assets/05-10-eval-tierA.md), [05-10-eval-tierB.md](assets/05-10-eval-tierB.md)); Vorlauf-Verzeichnisse sind im Worktree erhalten.
 
 ## 5. Ergebnisse
@@ -106,8 +107,8 @@ Trace-Ebene (Tier B-hard, exakt getroffene Gold-Checkpoints, 21 Prüfpunkte übe
 ### 5.2 Die Decke bricht — an genau drei Stellen
 
 1. **B3-0002/K (Marxen & Buntrock, tiefe Prüfpunkte): 0/5 über drei Runden.** R0 hielt die Maschine ab Schritt 25 für angehalten (`Z`) und verfehlte schon t=10 (`(C,2,…)` statt `(A,0,11111)`); R1 und R2 drifteten weiter (u. a. `(C,-6,…)`, `(D,0,…)`). Ks Rückkanal ist die neutrale Selbstprüfung — sie sagt nicht, *wo* es falsch ist. Der Fall zeigt die Grenze des Loops für den Prosa-Arm: Ohne maschinelle Verdikte hilft „noch einmal prüfen“ nur, wenn das Modell die Simulation tatsächlich korrigiert.
-2. **B3-0008/B (Zyklus ohne Vorgabe, härtere Maschine): R0 falsch (`cyc(3,3,1)`), R1 leer.** Der zweite Anlauf lief in den 300-s-Call-Cap (Timeout, leerer Inhalt) — der Lauf endet. Zwei Formfehler desselben Zyklus: B schrieb im Trace R0 viermal ohne Behauptungszone (4 Formfehler-Läufe; in Bs Trace-Antworten fehlten `CLAIM`/`[HALT]`).
-3. **B3-0008/C: drei Runden, alle Zertifikate falsch** (`(5,8,-1)`, `(5,9,2)`, `(6,10,2)` — jedesmal `cycle.check: REFUTED`), 218 075 Tokens. Der sanitisierte Befund („das Zertifikat trägt für diese Maschine nicht“) sagt dem Blatt nicht, *welcher* Teil nicht trägt.
+2. **B3-0008/B (Zyklus ohne Vorgabe, härtere Maschine): R0 falsch (`cyc(3,3,1)`), R1 leer.** Der zweite Anlauf lief in den 300-s-Call-Cap (Timeout, leerer Inhalt) — der Lauf endet. Dazu: B verletzte im Trace R0 viermal die Zonenkonvention (4 Formfehler-Läufe; es fehlten `CLAIM`/`[HALT]`).
+3. **B3-0008/C: ein gültiges Zertifikat ging im Reparaturlauf verloren** (218 075 Tokens). R0 schrieb `cyc(5,8,-1)` — **gültig** (nachträglich per `cycle.check` bestätigt), aber ohne Maschinenbindung `a: M = …`, also `UNVERIFIABLE`; der Rückkanal meldete die Bindung, keinen Wert. R1 ergänzte die Bindung, ersetzte das Zertifikat aber durch `(5,9,2)` (`REFUTED`), R2 durch `(6,10,2)` (`REFUTED`). Der wertfreie Hinweis war korrekt — und trotzdem schädlich: Er adressierte die Form, und beim Neuformulieren verlor das Blatt seinen richtigen Wert. Genau deshalb ist dieser Fall der stärkste Beleg für die Maschinenprüfung (§5.3).
 
 Beide Reparaturen, die gelangen, sind dokumentierte Lehrfälle des wertfreien Rückkanals:
 
@@ -121,8 +122,10 @@ Die drei Aufgaben ohne vorgegebene Werte wurden von **allen** vier Armen (R0) ge
 | Aufgabe (Fundmaschine) | Gold (Bauzeit) | Modell-Fund R0 | Tokens (K/B/C/D) |
 |---|---|---|---|
 | B3-0005 `0LA0LA` (Anker) | (0,1,-1) | (0,1,-1) | 8 909 / 11 624 / 15 123 / 6 506 |
-| B3-0006 `0RB1RB_0RA0LZ` | (1,3,2) | **(0,2,2)** (K und B) | 6 701 / 13 066 / 3 399 / 5 318 |
-| B3-0008 `1LB1LB_1RA0LB` (hart) | (34,37,-1) | **(4,7,-1)** (K; B/C falsch, D nach Reparatur mit (3,6,-1)) | 80 312 / — / — / 106 994 |
+| B3-0006 `0RB1RB_0RA0LZ` | (1,3,2) | **(0,2,2)** (alle vier Arme) | 6 701 / 13 066 / 3 399 / 5 318 |
+| B3-0008 `1LB1LB_1RA0LB` (hart) | (34,37,-1) | **(4,7,-1)** (K) | 80 312 / — / — / 106 994 |
+
+Zu B3-0008: B scheiterte in R0 mit erfundenem `(3,3,1)`; C schrieb in R0 das gültige `(5,8,-1)`, verlor es aber im Reparaturlauf (ohne Maschinenbindung nicht gewertet, §5.2); D löste nach Reparatur mit `(3,6,-1)`.
 
 Zwei Punkte: (a) **Die Maschinenprüfung war nötig** — mit dem Gold-Stringvergleich der V12-Fassung wären die gültigen Funde `(0,2,2)` und `(4,7,-1)` als falsch gewertet worden; und ohne Prüfung wäre B3-0008/Bs erfundenes `(3,3,1)` nicht als falsch aufgefallen. (b) Die Fundkosten sind real: Der Anker kostet ~6,5–15k Tokens (das Modell simuliert von Hand), der harte Fall 80k (K) bis 218k (C, drei Runden).
 
@@ -164,7 +167,7 @@ Gegenüber v0.2 (kleine Zahlen) stiegen die Tokens je Lauf: K ×4,5 (802 → 3 6
 
 1. **Tier A-hard ist bei v0.3 kein Diskriminator**: 96/96 exakt in allen drei Armen, kein Formfehler, keine Reparatur; der Unterschied liegt im Preis (Token-Tabelle 5.5).
 2. **Tier B-hard bricht die Decke**: 29/32 final gelöst; die drei offenen Läufe sind zwei Zyklus-Zellen und eine Trace-Zelle des schwierigsten Falls (5.2).
-3. **Der wertfreie Rückkanal trägt**: beide Reparaturläufe gelangen; der eine brauchte nur die erlaubte Binding-Meldung, der andere nur Formfehlertexte (5.2). Die Sanitizer-Allowlist (Default-Deny) hat im Lauf nie Referenzwerte durchgelassen — die Befundtexte in den Läufen sind auf die geprüften Formen beschränkt.
+3. **Der wertfreie Rückkanal trägt — mit einer Nebenwirkung**: beide Reparaturläufe gelangen (B3-0008/D und B3-0002/B; §5.2); der eine brauchte nur die erlaubte Binding-Meldung, der andere nur Formfehlertexte. Gleichzeitig zeigt B3-0008/C die Grenze: Der wertfreie Hinweis adressierte die Form, das Blatt ersetzte dabei ein *gültiges* Zertifikat durch falsche. Die Sanitizer-Allowlist (Default-Deny) hat im Lauf nie Referenzwerte durchgelassen — die Befundtexte in den Läufen sind auf die geprüften Formen beschränkt.
 4. **Das Modell findet Translations-Zyklus-Zertifikate selbst** — auch wenn sie vom eingefrorenen Gold abweichen; die Maschinenprüfung ist dafür die richtige Wertung (5.3).
 5. **Erfolg und Trigger sind getrennt und sichtbar**: 135 Runden, 5 Läufe mit Trigger, 2 repariert, 3 offen; Formfehler haben nicht getriggert (4 Formfehler-Läufe, davon einer über eine Reparatur gelöst, weil der Endzustand fehlte) — die Zählung steht in `summary.json`/Aggregat (`triggered_runs`).
 6. **0 Falschbestätigungen** über 135 Runden.
@@ -185,6 +188,7 @@ Gegenüber v0.2 (kleine Zahlen) stiegen die Tokens je Lauf: K ×4,5 (802 → 3 6
 4. **K ohne Verdikte im Trace:** Ks 0/5 (B3-0002) und sein 300-s-Cap-Vorfall im Zyklus sind die zwei Stellen, an denen der Kontrollarm strukturell benachteiligt sein *könnte*; für die Fairness-Aussage der nächsten Runde wäre ein „K mit Wiederholungsbudget statt Selfcheck“ sauber abzugrenzen.
 5. **Tier A-hard als Kosten-Messinstrument ausbauen:** Statt noch längerer Ziffernketten (Kosten steigen, Treffer bleiben 100 %) wären Aufgaben mit *zusätzlicher* Struktur (verschachtelte Reste über mehrere Schritte, große Kombinatorik-Folgen) der nächste Hebel — und eine feste Kosten-Statistik je Familie im Bericht.
 6. **Testdaten-Hygiene der Sets:** Die Zufalls-Maschinen der Zyklus-Aufgaben tragen ihre Suchsaat in `source`; für Nachvollziehbarkeit wäre ein kleines Suchskript (`tooling/`) besser als die Prosa-Angabe.
+7. **Der Reparatur-Rückkanal schützt Werte nicht (neu, aus dem korrigierten B3-0008/C-Fall):** Ein korrektes Zertifikat ging verloren, weil der Hinweis die *Form* adressierte und das Blatt beim Neuformulieren den Wert änderte. Kandidaten: eine Rückmeldung, die „Form unvollständig“ von „Aussage widerlegt“ unterscheidet (der Runner kennt den Unterschied: `UNVERIFIABLE` vs. `REFUTED`, und die Meldung trägt ihn), oder die ausdrückliche Anweisung, bestätigte Werte beim Neuformulieren zu erhalten.
 
 ## Quellen
 
@@ -194,5 +198,5 @@ Gegenüber v0.2 (kleine Zahlen) stiegen die Tokens je Lauf: K ×4,5 (802 → 3 6
 4. [05-07-denksprache-v1.1.md](05-07-denksprache-v1.1.md) — Denk-Sprache V1.1 (Tags, Status, Zeugenformen).
 5. [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, Metriken, Multiplizitätsregel.
 6. [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln).
-7. `tests/test_v13_harness.py`, `tooling/{harness,prompts,build_sets,evaluate}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (740 Tests grün).
+7. `tests/test_v13_harness.py`, `tooling/{harness,prompts,build_sets,evaluate}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (744 Tests grün).
 8. [../01-modellprofil/01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme.

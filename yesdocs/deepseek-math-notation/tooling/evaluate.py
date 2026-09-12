@@ -114,8 +114,8 @@ def summarize_runs(runs):
         )
         final_solved = sum(1 for run in rows if run["summary"]["final_solved"])
         # Trigger = das Ereignis, das eine weitere Runde ausgeloest hat
-        # (Erfolg und Trigger sind getrennte Begriffe, V13). Laeufe im flachen
-        # V11-Layout kennen kein Trigger-Feld und zaehlen nicht mit.
+        # (Erfolg und Trigger sind getrennte Begriffe, V13). Laeufe ohne
+        # Trigger-Feld (V11-Flachlayout, V12-Baeume) zaehlen nicht mit.
         triggered = sum(
             1 for run in rows if run["summary"].get("triggered_rounds")
         )
@@ -242,7 +242,7 @@ def render_round_markdown(summary, manifest):
     lines.append(
         "Hinweise: `repariert` = R0 nicht gelöst, final gelöst; `Trigger-Läufe` = Läufe, in "
         "denen mindestens eine Runde den Trigger `end_state_not_confirmed` trug (Erfolg und "
-        "Trigger sind getrennte Begriffe; V11-Läufe ohne Trigger-Feld zählen 0); "
+        "Trigger sind getrennte Begriffe; Läufe ohne Trigger-Feld — V11 und V12 — zählen 0); "
         "`Reparaturgewinn` = Differenz "
         "in Prozentpunkten über n; `Runden bis ok` zählt die Buckets 0..max in Ordnung, dann "
         "die offenen Läufe; `#xx-Auflösung` = Anteil der in Runde r refutierten ids, "
