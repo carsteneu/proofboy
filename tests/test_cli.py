@@ -325,6 +325,47 @@ class CliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--sandbox", proc.stderr)
 
+    # --- --halt-limit ------------------------------------------------------
+    def halt_report(self, steps=3):
+        # 1RB1RZ_0LA0LA halts after three steps (see tests/test_turing.py).
+        return self.write_report(
+            "### Phase 6: FINISH\n"
+            "**Status:** COMPLETE\n"
+            "**send_to payload:** `[DONE] "
+            f"[HALT: 1RB1RZ_0LA0LA -> {steps}]`\n",
+            name="halt-report.txt",
+        )
+
+    def test_halt_claim_confirms_end_to_end(self):
+        proc = self.invoke("--report", self.halt_report(), "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["halt"]["verdict"], "CONFIRMED")
+        self.assertIn("simulate 1RB1RZ_0LA0LA", claims["halt"]["command"])
+
+    def test_halt_limit_leaves_larger_claims_unverifiable(self):
+        proc = self.invoke("--report", self.halt_report(), "--json", "--halt-limit", "2")
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["halt"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("executable limit of 2", claims["halt"]["reason"])
+
+    def test_halt_limit_at_the_claim_still_runs(self):
+        proc = self.invoke("--report", self.halt_report(), "--json", "--halt-limit", "3")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["halt"]["verdict"], "CONFIRMED")
+
+    def test_negative_halt_limit_is_a_usage_error(self):
+        proc = self.invoke("--report", self.halt_report(), "--halt-limit=-1")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--halt-limit", proc.stderr)
+
+    def test_non_integer_halt_limit_is_a_usage_error(self):
+        proc = self.invoke("--report", self.halt_report(), "--halt-limit=banana")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--halt-limit", proc.stderr)
+
 
 class CliSectionTest(unittest.TestCase):
     """``check --section`` reads the message from a scratchpad database.

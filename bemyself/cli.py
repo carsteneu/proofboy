@@ -15,6 +15,7 @@ from bemyself.checks import (
     git_env,
     run_claim,
 )
+from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.model import Claim, Verdict
 from bemyself.report import parse_report
 from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
@@ -86,6 +87,13 @@ def _json_error(source, repo, message):
     }
 
 
+def _non_negative_int(value):
+    """argparse type for --halt-limit: plain decimal digits, non-negative."""
+    if not (value.isascii() and value.isdigit()):
+        raise argparse.ArgumentTypeError(f"not a non-negative integer: {value!r}")
+    return int(value)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="python3 -m bemyself",
@@ -145,6 +153,17 @@ def build_parser():
             "off runs unsandboxed"
         ),
     )
+    check.add_argument(
+        "--halt-limit",
+        type=_non_negative_int,
+        default=DEFAULT_HALT_LIMIT,
+        metavar="N",
+        help=(
+            "largest step count a [HALT] claim may ask the simulator to "
+            f"execute (default {DEFAULT_HALT_LIMIT}); a claim beyond it stays "
+            "unverifiable"
+        ),
+    )
     evaluate = sub.add_parser("eval", help="measure the verifier against a labelled message set")
     evaluate.add_argument("--set", required=True, help="path to the evaluation set (JSON)")
     evaluate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
@@ -157,6 +176,17 @@ def build_parser():
             "how test commands run: auto sandboxes with bwrap when available "
             "(the default), require refuses to run without a working sandbox, "
             "off runs unsandboxed"
+        ),
+    )
+    evaluate.add_argument(
+        "--halt-limit",
+        type=_non_negative_int,
+        default=DEFAULT_HALT_LIMIT,
+        metavar="N",
+        help=(
+            "largest step count a [HALT] claim may ask the simulator to "
+            f"execute (default {DEFAULT_HALT_LIMIT}); a claim beyond it stays "
+            "unverifiable"
         ),
     )
     evaluate.add_argument(
@@ -368,6 +398,7 @@ def run_check(args):
         base=args.base,
         allowlist=DEFAULT_COMMAND_ALLOWLIST + tuple(args.allow),
         sandbox=args.sandbox,
+        halt_limit=args.halt_limit,
     )
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 
