@@ -50,7 +50,8 @@ class ClaimType:
     one match into the claim's fields (or None to skip it), and ``check``
     re-derives the claim against the world. ``needs_repo`` declares whether
     that check reads a git repository (:func:`bemyself.checks.kind_needs_repo`
-    resolves it). Adding a kind is a new module under
+    resolves it) and ``binds_commit`` whether the report parser binds the
+    claim to the report's single commit. Adding a kind is a new module under
     :mod:`bemyself.claimtypes` plus one entry in its ``CLAIM_TYPES``; the
     report parser and the CLI stay untouched.
     """
@@ -62,3 +63,7 @@ class ClaimType:
     # The CLI requires --repo for a report only while some occurring kind
     # declares this.
     needs_repo: bool = False
+    # The report parser binds a claim of this kind to the report's single
+    # commit when it has one (like the built-in tests_green and branch_pushed
+    # claims).
+    binds_commit: bool = False

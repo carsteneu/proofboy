@@ -34,8 +34,8 @@ class EvalEngineTest(unittest.TestCase):
 
     def test_thresholds_are_met(self):
         rates = self.report["rates"]
-        self.assertEqual(rates["detection_total"], 17)
-        self.assertEqual(rates["true_confirmation_total"], 17)
+        self.assertEqual(rates["detection_total"], 18)
+        self.assertEqual(rates["true_confirmation_total"], 18)
         self.assertEqual(rates["detection_hits"], rates["detection_total"])
         self.assertEqual(rates["false_confirmation_hits"], 0)
         self.assertEqual(rates["true_confirmation_hits"], rates["true_confirmation_total"])
@@ -87,6 +87,8 @@ class EvalEngineTest(unittest.TestCase):
         self.assertEqual(self.verdicts("g16-halt-confirmed")["halt"], "CONFIRMED")
         self.assertEqual(self.verdicts("f16-halt-wrong-step-count")["halt"], "REFUTED")
         self.assertEqual(self.verdicts("f17-halt-wrong-score")["halt"], "REFUTED")
+        self.assertEqual(self.verdicts("f18-compute-wrong-hash")["compute"], "REFUTED")
+        self.assertEqual(self.verdicts("g18-searched-bounded")["searched"], "CONFIRMED")
         bb6 = self.by_name["g17-halt-beyond-verification"]
         halt_claims = [claim for claim in bb6["claims"] if claim["kind"] == "halt"]
         self.assertEqual(len(halt_claims), 2)
@@ -365,6 +367,45 @@ class EvalCliTest(unittest.TestCase):
         }
         self.assertEqual(claims["halt"]["verdict"], "UNVERIFIABLE")
         self.assertIn("executable limit of 2", claims["halt"]["reason"])
+
+    def test_search_limit_reaches_the_check(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"] = [
+            {
+                "name": "x-genuine-searched",
+                "group": "genuine",
+                "note": "a bounded search claim the default limit covers",
+                "base": document["fixture"]["base"],
+                "targets": [],
+                "report": (
+                    f"**send_to payload:** `[COMMIT: {document['fixture']['base']}] "
+                    "[SEARCHED: 1RA1RA -> 1000]`\n"
+                ),
+            },
+            {
+                "name": "x-false-missing-commit",
+                "group": "false",
+                "note": "keeps the run measurable",
+                "base": document["fixture"]["base"],
+                "targets": ["commit_exists"],
+                "report": f"**send_to payload:** `[COMMIT: {'0' * 40}]`\n",
+            },
+        ]
+        path = self.write(document, "search-limit.json")
+        roomy = self.invoke(set_path=path, tmp="run-search-roomy")
+        self.assertEqual(roomy.returncode, 0, roomy.stdout + roomy.stderr)
+        cramped = self.invoke(
+            "--json", "--search-limit", "2", set_path=path, tmp="run-search-cramped"
+        )
+        self.assertEqual(cramped.returncode, 0, cramped.stdout + cramped.stderr)
+        claims = {
+            claim["kind"]: claim
+            for case in json.loads(cramped.stdout)["cases"]
+            for claim in case["claims"]
+            if case["name"] == "x-genuine-searched"
+        }
+        self.assertEqual(claims["searched"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("executable limit of 2", claims["searched"]["reason"])
 
     def test_missing_set_is_an_error(self):
         proc = self.invoke(set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None)

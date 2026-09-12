@@ -5,7 +5,10 @@ A machine string is a sequence of state blocks separated by ``_``, for example
 ``1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA``. Block *i* belongs to state ``A + i``;
 each block holds two transitions of the form ``<write><move><next>``, the
 first for the symbol read as 0, the second for 1. ``Z`` means halt, ``L`` and
-``R`` move the head left and right.
+``R`` move the head left and right. A triple may also be ``---``: that pair
+has no transition, and the machine halts when the head reads it -- before
+executing anything, so that attempt is not counted as a step (an explicit
+``Z`` transition is executed and counted, as above).
 
 The simulator starts in state A on a blank (all-zero) tape with the head at
 position 0. It is a reimplementation from the notation itself, not a port of
@@ -21,17 +24,26 @@ The tape is two bytearrays growing outward from position 0 (one for positions
 >= 0, one for positions < 0). A run of ``n`` steps writes at most ``n + 1``
 cells, so memory stays proportional to the executed steps rather than to the
 (unbounded) position index.
+
+Run as a command, it prints one result line::
+
+    python3 -m bemyself.turing <machine> <steps>   ->  halts=<b> steps=<n> score=<n>
 """
 
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
 from typing import NamedTuple
 
 MAX_STATES = 25
 _TAPE_CHUNK = 1024
-_BLOCK_RE = re.compile(r"\A[01][LR][A-Z][01][LR][A-Z]\Z")
+_TRIPLE = r"(?:[01][LR][A-Z]|---)"
+_BLOCK_RE = re.compile(r"\A" + _TRIPLE + _TRIPLE + r"\Z")
+_UNDEFINED_TRIPLE = "---"
+# Table sentinel for an undefined transition; -1 is the explicit halt Z.
+_UNDEFINED = -2
 
 
 class MachineError(ValueError):
@@ -72,9 +84,13 @@ def parse(machine: str) -> Machine:
         if not _BLOCK_RE.match(block):
             raise MachineError(f"bad block {block!r} for state {letters[index]}")
         for symbol in (0, 1):
-            write = int(block[symbol * 3])
-            move = 1 if block[symbol * 3 + 1] == "R" else -1
-            target = block[symbol * 3 + 2]
+            triple = block[symbol * 3 : symbol * 3 + 3]
+            if triple == _UNDEFINED_TRIPLE:
+                table.append((0, 0, _UNDEFINED))
+                continue
+            write = int(triple[0])
+            move = 1 if triple[1] == "R" else -1
+            target = triple[2]
             if target == "Z":
                 next_state = -1
             elif target in letters:
@@ -91,8 +107,9 @@ def run(machine: Machine, max_steps: int) -> RunResult:
     """Run the machine for at most ``max_steps`` transitions.
 
     Returns a :class:`RunResult`: ``halts`` is True when the run ended in the
-    halt state (with ``steps`` counting that final transition), False when the
-    limit was reached first.
+    halt state (with ``steps`` counting that final transition; an undefined
+    pair halts without counting a step), False when the limit was reached
+    first.
     """
     if max_steps < 0:
         raise ValueError("max_steps must be non-negative")
@@ -105,13 +122,22 @@ def run(machine: Machine, max_steps: int) -> RunResult:
     state = 0
     ones = 0
     step = 0
-    while step < max_steps:
+    # The budget is checked after the transition lookup: a pair without a
+    # transition halts the machine before executing, even when the budget is
+    # already exhausted (max_steps=0).
+    while True:
         if position >= 0:
             symbol = right[position] if position < right_len else 0
         else:
             index = -position - 1
             symbol = left[index] if index < left_len else 0
         write, move, target = table[state * 2 + symbol]
+        if target == _UNDEFINED:
+            # No transition for this pair: the machine halts before executing,
+            # so the attempt is not a step.
+            return RunResult(True, step, ones)
+        if step >= max_steps:
+            return RunResult(False, step, ones)
         step += 1
         if write != symbol:
             if position >= 0:
@@ -133,3 +159,33 @@ def run(machine: Machine, max_steps: int) -> RunResult:
         position += move
         state = target
     return RunResult(False, step, ones)
+
+
+def _main(argv):
+    """One result line for one bounded run; the command form COMPUTE uses."""
+    if len(argv) != 3:
+        print("usage: python3 -m bemyself.turing <machine> <steps>", file=sys.stderr)
+        return 2
+    try:
+        machine = parse(argv[1])
+    except MachineError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    steps_text = argv[2]
+    if not (steps_text.isascii() and steps_text.isdigit()):
+        print(f"error: not a non-negative step count: {steps_text!r}", file=sys.stderr)
+        return 2
+    try:
+        steps = int(steps_text)
+    except ValueError:
+        # CPython caps int(text) at a few thousand digits; such a run could
+        # never finish anyway.
+        print(f"error: step count too large: {len(steps_text)} digits", file=sys.stderr)
+        return 2
+    result = run(machine, steps)
+    print(f"halts={result.halts} steps={result.steps} score={result.score}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main(sys.argv))

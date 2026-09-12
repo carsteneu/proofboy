@@ -10,6 +10,8 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 
 - `[COMMIT: <hash>]`, `[BRANCH: <name>]`, `[MERGE: ...]`, `[DEPLOY: ...]`
 - `[HALT: <machine> -> <steps>]` und optional `[SCORE: <machine> -> <ones>]`
+- `[SEARCHED: <machine> -> <n>]` (begrenzter Suchlauf ohne Halt, kein Nicht-Halte-Beweis)
+- `[COMPUTE: <kommando> -> <sha256 des stdout>]` (Rechenzertifikat, gepinnter Commit)
 - "Tests run: <command> -> exit 0"
 - "Regression baseline: ..."
 - "send_to orchestrator: yes"
@@ -24,6 +26,8 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 | Diff-Scope | `git diff --stat <base>..<head>` gegen die im Plan genannten Dateien |
 | Tests gruen | sauberer Checkout des Commits, Testkommando ausfuehren, Exitcode und letzte Zeilen |
 | HALT/SCORE | Turingmaschine der bbchallenge-Notation mit eigenem Simulator neu ausfuehren (in-process); CONFIRMED nur bei exakt der behaupteten Schrittzahl und, wenn behauptet, exakt dem Score |
+| SEARCHED | Maschine n Schritte neu ausfuehren (in-process); CONFIRMED nur fuer den begrenzten Lauf ohne Halt, ausdruecklich kein Nicht-Halte-Beweis |
+| COMPUTE | Kommando im Wegwerf-Checkout des gepinnten Commits im bwrap-Sandkasten ausfuehren, sha256(stdout) streamen und vergleichen |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
 | Deploy erfolgt | Artefakt-Metadaten (mtime, Version) gegen den behaupteten Stand |
 
@@ -68,19 +72,80 @@ summieren sich.
 
 Erweiterbarkeit: Behauptungstypen liegen als Registry vor
 (`bemyself/claimtypes/`): ein neuer Typ ist ein Modul plus ein Eintrag in
-`CLAIM_TYPES` samt `needs_repo`, das den Repository-Bedarf deklariert, ohne
-Aenderung an Parser (`bemyself/report.py`) oder CLI (`bemyself/cli.py`) --
+`CLAIM_TYPES` samt `needs_repo`, das den Repository-Bedarf deklariert, und
+`binds_commit`, das die Bindung an den `[COMMIT]`-Marker der Meldung
+deklariert, ohne Aenderung an Parser (`bemyself/report.py`) oder CLI
+(`bemyself/cli.py`) --
 `check --report` verlangt `--repo` nur, wenn ein vorkommender Typ ihn
-deklariert. Rezept mit durchgerechnetem Mini-Beispiel: README,
-Abschnitt "Neuen Behauptungstyp hinzufuegen".
+deklariert. Rezept mit durchgerechnetem Mini-Beispielen (`[EVEN]`,
+`[COMPUTE]`): README, Abschnitt "Neuen Behauptungstyp hinzufuegen".
+
+## Begrenzter Suchlauf (`SEARCHED`)
+
+`[SEARCHED: <machine> -> <n>]` behauptet eine endliche Beobachtung: die
+Maschine wurde neu ausgefuehrt und hielt innerhalb von `<n>` Schritten nicht.
+Die Simulation laeuft in-process im selben Simulator wie HALT (kein
+Subprozess, kein Netz, kein Repo-, kein Sandkastenbezug). Urteile:
+`CONFIRMED` nur fuer genau diesen begrenzten Lauf ohne Halt; `REFUTED`, wenn
+die Maschine frueher haelt (der Halt ist der Beleg); `UNVERIFIABLE` bei
+unparsebarer Maschine, ungueltiger Schrittzahl, einem Wert von 0 (ein
+Nullschritt-Lauf beobachtet nichts) oder einem Wert ueber dem ausfuehrbaren
+Limit.
+
+Die Grenze ist Doktrin-Kern: Eine endliche Suche kann Nicht-Halten nicht
+beweisen. Der Urteilstext sagt das ausdruecklich ("a bounded search of N
+steps found no halt; this does not prove that the machine never halts"),
+README und SPEC dokumentieren es, und ein Test fixiert die Formulierung; der
+Typ darf nie als Nicht-Halte-Beweis lesbar sein.
+
+Das ausfuehrbare Limit ist Default 10.000.000 Schritte (bewusst begrenzt,
+nicht das HALT-Limit), konfigurierbar mit `--search-limit N` bei `check` und
+`eval`; eine Behauptung ueber dem Limit wird nicht ausgefuehrt und bleibt
+`UNVERIFIABLE`.
+
+## Rechenzertifikate (`COMPUTE`)
+
+`[COMPUTE: <kommando> -> <sha256>]` behauptet, dass das Kommando auf stdout
+genau die Bytes ausgibt, deren SHA-256 behauptet wird. Der Pruefer checkt den
+Commit der Meldung (genau ein hash-foermiger `[COMMIT]`-Marker -- Platzhalter
+wie `<hash>` zaehlen nicht; die Bindung deklariert der Typ mit
+`binds_commit=True`) in einen Wegwerf-Checkout aus
+(`git clone --no-hardlinks` + `git checkout`) und fuehrt das Kommando dort im
+Sandkasten aus (dieselbe bwrap-Semantik wie bei Testkommandos: read-only
+Wurzel, beschreibbarer Checkout, eigener Netz-/PID-/UTS-Namensraum,
+`--die-with-parent`). stdout wird beim Lesen gehasht (Streaming), der
+SHA-256 mit dem behaupteten verglichen.
+
+Urteile: `CONFIRMED` nur, wenn der Lauf mit Exit 0 abgeschlossen wurde UND der
+Hash exakt stimmt -- ein fehlgeschlagenes Kommando wird nie zertifiziert
+(Exit-Code als Abschluss-Gate, nicht als Hash-Kriterium); `REFUTED` bei
+abweichendem Hash nach sauberem Abschluss; `UNVERIFIABLE` bei Kommando
+ausserhalb der COMPUTE-Allowlist (Abgleich auf den ausgefuehrten
+argv-Tokens), fehlendem/nicht aufloesbarem Commit, nicht gefundenem Programm
+(Vorabpruefung), abgelehnten Argumenten (dieselben Escape-Regeln), nicht
+nutzbarem Sandkasten bei `--sandbox=require`, Timeout (300 s), stdout ueber
+64 MiB (mehr wird abgelehnt, nie gekuerzt) oder Exit-Status ungleich 0. Kein
+Kommando laeuft je ohne Allowlist, ohne Shell-Interpretation und ohne
+Sandkastenpfad. Die Limits begrenzen einen Lauf, nicht die Meldung.
+
+Die COMPUTE-Allowlist ist getrennt und minimal: Default
+`python3 -m bemyself.turing` (der Simulator dieses Repos; in einem anderen
+Repo laeuft er nur, wenn der gepinnte Commit das Paket mitbringt);
+`--allow <prefix>` (wiederholbar) erweitert sie zusammen mit der
+Test-Allowlist. Das Netzwerk ist im Sandkasten aus (bestehende
+`--unshare-net`-Semantik).
+
+Grenze: Der Hash belegt die Ausgabe des Kommandos auf dem gepinnten Commit,
+nicht die Bedeutung der Rechnung; der Checkout bringt seinen eigenen Code
+mit, wer den Commit kontrolliert, kontrolliert die Ausgabe.
 
 ## Kommandos (Ziel)
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
-| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
 `--repo` verlangt `check --report` nur, wenn mindestens eine vorkommende
@@ -95,8 +160,8 @@ als Liste im CLI; HALT/SCORE und unbekannte Typen ohne Checker laufen ohne
 - Nur lesend auf `~/.claude/yesmem`. Keine Schreibzugriffe auf Live-Datenbanken.
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
 - Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run` als leeres tmpfs (Socket-Pfade des Rechners fehlen). Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt), ist keine vollstaendige Isolationsgrenze gegen feindlichen Code (sichtbare Dateien bleiben lesbar) und schuetzt nicht gegen Kernel-Exploits.
-- Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT-Pruefung laeuft in-process im Simulator und braucht weder Netz noch Sandkasten.
-- Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`.
+- Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT- und SEARCHED-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
+- Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`. Fuer COMPUTE heisst das: kein Lauf ohne Allowlist, kein Lauf ohne aufloesbaren Commit, ausdrueckliche Vorabpruefung des Programms, Ausgabe- und Zeitlimits statt Kuerzung, und ein Urteil nur ueber den Hash des stdout.
 
 ## Strict-Modus
 

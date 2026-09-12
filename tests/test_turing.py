@@ -5,9 +5,14 @@ are the published Busy Beaver halters from the bbchallenge wiki (BB(5) and the
 historical records), with their documented step counts and scores.
 """
 
+import os
+import subprocess
+import sys
 import unittest
 
 from bemyself.turing import MachineError, parse, run
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Hand trace (blank tape, head on 0, state A):
 #   step 1: A reads 0, writes 1, moves right -> B
@@ -42,6 +47,10 @@ UHING_1984 = "1RB1LC_0LA0LD_1LA1RZ_1LB1RE_0RD0RB"  # 2133492 steps, 1915 ones
 # BB(6) record holder (mxdys, June 2025); S(6) exceeds 2 arrow-up 5, far
 # beyond any executable limit.
 BB6_RECORD = "1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE"
+
+# The BB(6) Cryptid "Antihydra" in the canonical notation of the bbchallenge
+# wiki, including the undefined F0 transition (`---`); believed to never halt.
+ANTIHYDRA = "1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA"
 
 
 class ParseTest(unittest.TestCase):
@@ -79,6 +88,8 @@ class ParseTest(unittest.TestCase):
             "1RB1LC__1RC1RB",  # empty block
             "1RB1LC 1RC1RB",  # internal whitespace
             "1RZ0LB",  # halts on 0, but B is undefined in a one-state machine
+            "1RB1LC_1RC1R-",  # a triple is three characters or ---
+            "1RB1LC_1RC-1RB",  # mixed dash garbage
         ):
             with self.subTest(text=text):
                 with self.assertRaises(MachineError):
@@ -150,6 +161,97 @@ class BusyBeaverTest(unittest.TestCase):
         result = run(parse(BB6_RECORD), 1000)
         self.assertFalse(result.halts)
         self.assertEqual(result.steps, 1000)
+
+
+class UndefinedTransitionTest(unittest.TestCase):
+    """The `---` triple of the notation: the machine halts when the head reads
+    that pair, and the attempted transition is not counted as a step."""
+
+    # Hand trace (blank tape, head on 0, state A):
+    #   step 1: A reads 0, writes 1, moves right -> B
+    #   B reads 0: undefined transition -> halt, before executing anything
+    # One step, score 1.
+    UNDEFINED_HALT = "1RB1RZ_---0LA"
+
+    def test_undefined_transition_halts_before_executing(self):
+        self.assertEqual(run(parse(self.UNDEFINED_HALT), 10), (True, 1, 1))
+
+    def test_undefined_transition_at_the_start_halts_at_zero_steps(self):
+        self.assertEqual(run(parse("---1RA"), 10), (True, 0, 0))
+
+    def test_the_budget_is_checked_after_the_lookup(self):
+        # The pair is read before the step budget: a machine whose start pair
+        # is undefined halts at 0 steps even with max_steps=0, and one with a
+        # defined start pair runs out of budget at 0.
+        self.assertEqual(run(parse("---1RA"), 0), (True, 0, 0))
+        self.assertEqual(run(parse("1RA1RA"), 0), (False, 0, 0))
+        self.assertEqual(run(parse("1RB1RZ_0LA0LA"), 0), (False, 0, 0))
+
+    def test_whole_block_may_be_undefined(self):
+        machine = parse("------")
+        self.assertEqual(machine.states, 1)
+        self.assertEqual(run(machine, 10), (True, 0, 0))
+
+    def test_undefined_transition_only_halts_when_reached(self):
+        # Reads 0 forever and walks right: the undefined read-1 pair is never
+        # taken, so the limit stops the run.
+        self.assertEqual(run(parse("1RA---"), 4), (False, 4, 4))
+
+    def test_explicit_halt_still_counts_its_transition(self):
+        # The two halt flavours of the notation: Z counts its transition,
+        # `---` halts without executing. Both machines read 0 first.
+        self.assertEqual(run(parse("1RZ1RZ"), 10), (True, 1, 1))
+        self.assertEqual(run(parse("---1RZ"), 10), (True, 0, 0))
+
+    def test_antihydra_parses_and_survives_a_bounded_run(self):
+        # Source: wiki.bbchallenge.org/wiki/Antihydra (rev 7477), the BB(6)
+        # Cryptid; the undefined F0 transition is never reached in a bounded
+        # run, so the simulation reports exactly the executed steps.
+        machine = parse(ANTIHYDRA)
+        self.assertEqual(machine.states, 6)
+        result = run(machine, 1000)
+        self.assertFalse(result.halts)
+        self.assertEqual(result.steps, 1000)
+
+
+class TuringCliTest(unittest.TestCase):
+    """``python3 -m bemyself.turing <maschine> <schritte>`` prints one result
+    line: the command form the COMPUTE claim type runs in the sandbox."""
+
+    def invoke(self, *args):
+        return subprocess.run(
+            [sys.executable, "-m", "bemyself.turing", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_prints_the_run_result(self):
+        proc = self.invoke("1RB1RZ_0LA0LA", "3")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout, "halts=True steps=3 score=1\n")
+
+    def test_prints_a_bounded_run_without_halt(self):
+        proc = self.invoke(ANTIHYDRA, "100")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertRegex(proc.stdout, r"\Ahalts=False steps=100 score=\d+\n\Z")
+
+    def test_usage_without_arguments(self):
+        proc = self.invoke()
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("usage", proc.stderr)
+
+    def test_bad_machine_is_an_error(self):
+        proc = self.invoke("1RB", "3")
+        self.assertEqual(proc.returncode, 2)
+        self.assertTrue(proc.stderr.strip())
+
+    def test_bad_step_count_is_an_error(self):
+        for steps in ("three", "-1", "3.0", ""):
+            with self.subTest(steps=steps):
+                proc = self.invoke("1RB1RZ_0LA0LA", steps)
+                self.assertEqual(proc.returncode, 2)
+                self.assertTrue(proc.stderr.strip())
 
 
 if __name__ == "__main__":

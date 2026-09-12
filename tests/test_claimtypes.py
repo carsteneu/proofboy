@@ -205,6 +205,13 @@ class HaltCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.CONFIRMED)
         self.assertIn("score 1", result.reason)
 
+    def test_zero_step_halt_via_undefined_start_pair_confirms(self):
+        # `---` for the pair the head starts on: the machine halts before
+        # executing anything, so a claim of exactly 0 steps is true.
+        result = self.check_report("[HALT: ---1RA -> 0]")
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+        self.assertIn("halts=True steps=0 score=0", result.output)
+
     def test_wrong_step_count_refutes(self):
         result = self.check_report(f"[HALT: {SMALL} -> 5]")
         self.assertIs(result.verdict, Verdict.REFUTED)

@@ -25,6 +25,11 @@ from bemyself import claimtypes
 from bemyself.model import Claim
 
 _MAX_LINE = 8192
+# The shape of a commit hash; bemyself/checks.py validates the same shape.
+# The templates of a yesloop section carry placeholder markers like
+# "[COMMIT: <hash>]" next to the real hash: a placeholder is not a commit and
+# must not block the binding of the one real hash.
+_COMMIT_SHAPE_RE = re.compile(r"\A[0-9a-fA-F]{4,64}\Z")
 
 # One lazy "anything but a bracket" capture, stripped in Python: overlapping
 # whitespace runs around the capture would let the engine backtrack cubically
@@ -92,12 +97,17 @@ def parse_report(text: str) -> list[Claim]:
 
     # Dependent claims bind to the report's commit only when the report names
     # exactly one; several distinct commits make the binding a guess, and a
-    # guess must never confirm anything.
-    bound_commit = commit_values[0] if len(set(commit_values)) == 1 else None
+    # guess must never confirm anything. Only hash-shaped values count.
+    candidates = {value for value in commit_values if _COMMIT_SHAPE_RE.match(value)}
+    bound_commit = candidates.pop() if len(candidates) == 1 else None
     if bound_commit is not None:
+        # A claim kind declares this at its registry entry (binds_commit), so
+        # the parser stays free of per-kind branches.
+        binders = {claim_type.kind for claim_type in claimtypes.CLAIM_TYPES if claim_type.binds_commit}
         for claim in claims:
-            if claim.kind == "branch_pushed" and claim.fields["commit"] is None:
-                claim.fields["commit"] = bound_commit
+            if claim.kind == "branch_pushed" or claim.kind in binders:
+                if claim.fields.get("commit") is None:
+                    claim.fields["commit"] = bound_commit
 
     for lineno, raw, command, code in tests_lines:
         kind = "tests_green" if code == 0 else "tests_exit"

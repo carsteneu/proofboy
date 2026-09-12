@@ -227,6 +227,19 @@
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [HALT: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 2\u2191\u2191\u21915] [HALT: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 1000000000000000000000000000000000000000]`\n"
     },
     {
+      "name": "g18-searched-bounded",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: der begrenzte Suchlauf ueber die BB(6)-Rekordmaschine bleibt nach 1000 Schritten ohne Halt; der Typ belegt nur den begrenzten Lauf, nie das Nicht-Halten.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "searched": "CONFIRMED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [SEARCHED: 1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE -> 1000]`\n"
+    },
+    {
       "name": "f01-commit-missing",
       "group": "false",
       "note": "Falsch: der genannte Commit existiert nicht.",
@@ -452,6 +465,20 @@
         "halt": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [HALT: 1RB1RZ_0LA0LA -> 3] [SCORE: 1RB1RZ_0LA0LA -> 2]`\n"
+    },
+    {
+      "name": "f18-compute-wrong-hash",
+      "group": "false",
+      "note": "Falsch: COMPUTE behauptet einen stdout-Hash, den das Kommando im Fixture-Checkout nicht erzeugt (das Stub-Modul laeuft sauber durch, gibt aber 'fixture' aus).",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "compute"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "compute": "REFUTED"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 2d4eec116f5601f8170fca8b3510927c9009fb3a]`\n[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
     }
   ]
 }

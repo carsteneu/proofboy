@@ -25,7 +25,9 @@ except ImportError:  # pragma: no cover - non-POSIX platforms
 
 from bemyself.model import Claim, Result, Verdict
 from bemyself import claimtypes
+from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
+from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 
 GIT_TIMEOUT = 60
 FETCH_TIMEOUT = 30
@@ -134,6 +136,10 @@ class Ctx:
     sandbox: str = "auto"
     # The largest step count a [HALT] claim may ask the simulator to execute.
     halt_limit: int = DEFAULT_HALT_LIMIT
+    # The largest step count a [SEARCHED] claim may ask for.
+    search_limit: int = DEFAULT_SEARCH_LIMIT
+    # Command prefixes a [COMPUTE] claim may run; --allow extends it.
+    compute_allowlist: tuple[str, ...] = DEFAULT_COMPUTE_ALLOWLIST
 
 
 def _repo_command(ctx, *args):
