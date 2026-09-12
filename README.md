@@ -112,10 +112,15 @@ Basis-Revisionen werden streng geprueft, bevor ein Git-Kommando sie sieht.
 Testkommandos laufen in einem Sandkasten, wenn `bwrap` (bubblewrap)
 installiert ist und startet: die Wurzel wird read-only gebunden, nur der
 Wegwerf-Checkout des behaupteten Commits ist beschreibbar
-(`git clone --no-hardlinks`), und das Kommando bekommt einen eigenen Netz-,
-PID- und UTS-Namensraum. Es sieht weder das Netzwerk noch die Prozesse des
-Rechners; ein Schreibversuch ausserhalb des Checkouts scheitert mit
-`Read-only file system`.
+(`git clone --no-hardlinks`), das Kommando bekommt einen eigenen Netz-,
+PID- und UTS-Namensraum, und `/run` wird durch ein leeres tmpfs maskiert.
+Damit ist kein IP-Netzwerk und kein Host-Prozess erreichbar, und die
+Socket-Pfade des Rechners (D-Bus, systemd, docker.sock unter `/run` und
+`/var/run`) fehlen im Sandkasten; ein Schreibversuch ausserhalb des
+Checkouts scheitert mit `Read-only file system`. Unix-Sockets an anderen
+sichtbaren Pfaden (etwa unter `/tmp`) bleiben erreichbar, und die Wurzel
+ist lesbar: der Sandkasten begrenzt Schreiben, IP-Netz und Prozesssicht,
+nicht Lesezugriffe.
 
 | Wert | Wirkung |
 |---|---|
@@ -125,19 +130,22 @@ Rechners; ein Schreibversuch ausserhalb des Checkouts scheitert mit
 
 Jeder ausgefuehrte Testlauf nennt seinen Zustand: `sandboxed with bwrap` oder
 `not sandboxed: <Grund>` (bwrap fehlt, bwrap kann keinen Sandkasten starten,
-Sandkasten abgeschaltet). Vor jedem Lauf prueft der Pruefer den Sandkasten mit
-einem Probeaufruf, damit ein vorhandenes, aber unbrauchbares bwrap (etwa durch
-AppArmor oder Kernelschalter) nicht als fehlgeschlagener Test fehlgedeutet
-wird. `--sandbox=require` kennt keinen stillen Rueckfall: ohne nutzbaren
-Sandkasten wird das Kommando nicht ausgefuehrt.
+Sandkasten abgeschaltet); das JSON nennt ihn zusaetzlich maschinenlesbar als
+Feld `sandboxed` (`true`/`false`/`null`). Vor jedem Lauf prueft der Pruefer
+den Sandkasten mit einem Probeaufruf, damit ein vorhandenes, aber
+unbrauchbares bwrap (etwa durch AppArmor oder Kernelschalter) nicht als
+fehlgeschlagener Test fehlgedeutet wird. `--sandbox=require` kennt keinen
+stillen Rueckfall: ohne nutzbaren Sandkasten wird das Kommando nicht
+ausgefuehrt.
 
 Der Sandkasten ersetzt die Allowlist nicht: nur erlaubte Testkommandos werden
 ueberhaupt ausgefuehrt, und alle uebrigen Beschraenkungen (Wegwerf-Checkout,
 Argumentpruefung, reduzierte Umgebung, Ausgabegrenze) gelten unveraendert.
 bwrap ist eine Abschottung gegen Fehler und Neugier des getesteten Codes,
-keine Grenze gegen Kernel-Exploits: Luecken im Kernel oder in bwrap selbst
-faengt er nicht ab. `eval` nimmt dieselbe Option und reicht sie an jeden
-Testlauf des Sets weiter.
+keine Grenze gegen Kernel-Exploits und keine vollstaendige Isolationsgrenze
+fuer feindlichen Code: Luecken im Kernel oder in bwrap selbst faengt er
+nicht ab, und sichtbare Dateien bleiben lesbar. `eval` nimmt dieselbe Option
+und reicht sie an jeden Testlauf des Sets weiter.
 
 ## Evaluation
 
