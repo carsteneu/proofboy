@@ -3,16 +3,21 @@ topic: deepseek-math-notation
 cluster: 04-offene-probleme
 title: Empfehlung — Shortlist und Testeignung für die Notations-Hypothese
 language: de
-status: Entwurf
+status: Verifiziert
 last_updated: 2026-09-12
 created_at: 2026-09-12
-sources_count: 14
-citations_count: 28
+sources_count: 12
+citations_count: 16
 images_count: 0
 diagrams_count: 1
 related: ["04-01-wahlkriterien", "04-02-kandidaten-katalog", "04-05-bruecke-pruefer", "05-entwurf-testplan"]
 tags: [empfehlung, shortlist, notation, ab-test, busy-beaver, collatz]
-persona_review: {}
+persona_review:
+  personas_tested: [Engineer, Executive]
+  gaps_found: 9
+  gaps_fixed: 9
+  gaps_deferred: ["T2-Trace-Format-Spezifikation → 05-04 (geplant)", "Stichprobengröße/Effektstärke/Erfolgsschwelle → 05-05/05-06 (geplant)", "Tokenizer-Zählverfahren → 01-03 (geplant)", "Kosten- und Zeitplan → 05-04 (geplant)"]
+  note: "Reviewer meldeten 9 Punkte; 2 datei-intern behoben (Tie-Break-Regel für uneindeutige Matrixwerte in §1, Delegationssatz in §4); die übrigen Cross-Cluster-Punkte sind explizit an die genannten geplanten Dateien delegiert (gaps_deferred)."
 ---
 
 # Empfehlung — Shortlist und Testeignung für die Notations-Hypothese
@@ -34,7 +39,7 @@ Bewertet wird mit 0/1/2 je Kriterium; Gates: K2 ≥ 1 und K4 = 2 (vgl. [04-01](0
 
 *Tabelle 1: Bewertung gegen die Kriterien aus [04-01](04-01-wahlkriterien.md) (eigene Bewertung; Belege je Zelle in den verlinkten Katalogabschnitten).*
 
-Zwei Kandidaten erreichen die volle Punktzahl der Kernkriterien; die Gates sortieren den Rest aus: Erdős/formal-conjectures scheitert an K4, solange kein Lean-Kernel-Anschluss auf dieser Maschine existiert ([04-05](04-05-bruecke-pruefer.md), Lücke 7); die SAT-Klassiker sind entschieden (K1) und ihre Zertifikate terabytegroß ([04-03](04-03-rechenfragmente-daten.md), Abschnitt „SAT & Zertifikate"). Sie bleiben als *Referenzkultur* wertvoll, nicht als Testfeld.
+Für uneindeutige Zellwerte (0–1, 1–2) gilt der niedrigere Wert als Standard; eine Aufwertung erfordert einen datierten Primärbeleg. Zwei Kandidaten erreichen die volle Punktzahl der Kernkriterien; die Gates sortieren den Rest aus: Erdős/formal-conjectures scheitert an K4, solange kein Lean-Kernel-Anschluss auf dieser Maschine existiert ([04-05](04-05-bruecke-pruefer.md), Lücke 7); die SAT-Klassiker sind entschieden (K1) und ihre Zertifikate terabytegroß ([04-03](04-03-rechenfragmente-daten.md), Abschnitt „SAT & Zertifikate"). Sie bleiben als *Referenzkultur* wertvoll, nicht als Testfeld.
 
 ## 2. Shortlist
 
@@ -122,7 +127,7 @@ flowchart LR
 - **Antihydra als Sonderfall.** Der wichtigste BB(6)-Teilfall ist ein *Nicht-Halte*-Problem (Haltewahrscheinlichkeit unter ≈ 2,9 × 10⁻²⁸⁷²³⁰⁴²⁵⁶⁵) [Antihydra – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/Antihydra, accessed 2026-09-12). Als Testfeld taugt er nur mit Decider-Zertifikaten (Lücke 1 in [04-05](04-05-bruecke-pruefer.md)), nicht mit der heutigen `[HALT]`-Mechanik.
 - **Konflikt „Komplexität vs. Prüfbarkeit".** Die härtesten Fragmente (Antihydra, Decider) sind am schwersten lokal zu prüfen; die leichtesten (Goldbach-Partition) haben die geringste Notationsexposition. Das A/B-Design sollte deshalb *beide* Enden abdecken (T1/T4 als Boden-, T2/T3 als Hauptmessung).
 - **Kontaminationskontrolle.** Berühmte Aufgaben sind im Trainingsmaterial verankert; nur randomisierte/frische Instanzen (Seed-DB, Holdout-Listen mit Stand 2026) sichern K7 [BB(6) – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/BB(6), accessed 2026-09-12).
-- **Statistische Macht.** Ein Notationseffekt wird klein sein; Aufgabenlisten müssen groß genug und die Trials wiederholt werden — die Kosten des A/B sind Teil des Testplans (05-04/05-05, geplante Dateien), nicht dieses Clusters.
+- **Statistische Macht.** Ein Notationseffekt wird klein sein; Aufgabenlisten müssen groß genug und die Trials wiederholt werden — die Kosten des A/B sind Teil des Testplans (05-04/05-05, geplante Dateien), nicht dieses Clusters. Kosten-, Stichproben- und Schwellenfragen sind bewusst an die geplanten Dateien 05-04/05-05/05-06 delegiert und dort vorzuregistrieren.
 
 **Empfehlung in einem Satz:** BB(6)/bbchallenge-Fragmente als Primärfeld (Prüfpfad und Notation bereits vorhanden), Collatz als randomisierbares Kontrollfeld, Erdős/formal-conjectures als konditionale zweite Stufe — mit T2 (Trace-Kompression) als Kernfamilie des Notationstests.
 
