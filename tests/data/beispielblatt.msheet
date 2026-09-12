@@ -1,0 +1,17 @@
+g: st(27)?; M zyklisch?
+d: st(n) = Schritte bis 1 (V1-Bibliothek)
+a: M = 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC
+h1: (st(27) = 111)
+v h1: auto
+h1+
+h2: M zyklisch (Translation)
+v h2: cyc(6,16,2)
+h2+
+=: st(27)=111 (h1+)
+CLAIM c1: (st(27) = 111)
+WITNESS c1: ref h1
+CLAIM c2: (forall n in 1..20: (divides(2, n)))
+WITNESS c2: auto
+CLAIM c3: (forall n in 1..0: (n > 0))
+WITNESS c3: auto
+[HALT] c1 c2 c3
