@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself.checks import Ctx, run_claim
+from bemyself.checks import Ctx, _repo_command, run_claim
 from bemyself.model import Claim, Verdict
 
 from tests.fixtures import commit_probe, make_repo, merge_into_main
@@ -289,7 +289,43 @@ class CheckerTest(unittest.TestCase):
             self.ctx(repo=repo.path),
         )
         self.assertIs(result.verdict, Verdict.REFUTED)
-        self.assertIn("not a merge commit", result.reason)
+        self.assertIn("not a two-parent merge", result.reason)
+
+    def test_merge_refuted_for_a_commit_that_does_not_resolve(self):
+        result = self.run_check("merge", value="topic", commit="0" * 40)
+        self.assertIs(result.verdict, Verdict.REFUTED)
+        self.assertIn("rev-parse", result.command)
+
+    def test_merge_refuted_for_a_branch_with_no_relation_to_the_merge(self):
+        repo, tip, merge = self.merge_repo("merge-unrelated-branch")
+        subprocess.run(
+            ["git", "-C", repo.path, "branch", "unrelated", repo["base"]], check=True
+        )
+        result = run_claim(
+            make_claim("merge", value="unrelated", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED)
+        self.assertIn("belongs to", result.reason)
+
+    def test_merge_unverifiable_when_the_branch_ran_on_after_the_merge(self):
+        # The tip moved on: no object records where the branch pointed when
+        # the merge was made, so the claim stays UNVERIFIABLE -- refuting it
+        # would deny a merge that may well have happened.
+        repo, tip, merge = self.merge_repo("merge-branch-ran-on")
+        subprocess.run(
+            ["git", "-C", repo.path, "checkout", "-q", "topic"], check=True
+        )
+        with open(os.path.join(repo.path, "later.txt"), "w", encoding="utf-8") as handle:
+            handle.write("later\n")
+        subprocess.run(["git", "-C", repo.path, "add", "-A"], check=True)
+        subprocess.run(
+            ["git", "-C", repo.path, "commit", "-q", "-m", "topic ran on"], check=True
+        )
+        result = run_claim(
+            make_claim("merge", value="topic", commit=merge), self.ctx(repo=repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("moved on", result.reason)
 
     def test_merge_refuted_for_the_target_branch_as_the_merged_branch(self):
         repo, tip, merge = self.merge_repo("merge-wrong-branch")
@@ -337,6 +373,20 @@ class CheckerTest(unittest.TestCase):
         result = self.run_check("merge", value="no", commit=self.repo["good"])
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("names no branch", result.reason)
+
+    def test_merge_unverifiable_for_head_as_the_branch(self):
+        # HEAD is a revision; refs/heads/HEAD cannot exist. Resolving it
+        # anyway would compare against origin/HEAD's branch.
+        result = self.run_check("merge", value="HEAD", commit=self.repo["good"])
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIn("names no branch", result.reason)
+
+    def test_repo_commands_ignore_a_forged_commit_graph(self):
+        # A patched commit-graph entry makes rev-list and merge-base report
+        # parents the object does not have; every command inside the
+        # inspected repo must read the object store instead.
+        command = _repo_command(self.ctx(repo=self.repo.path), "rev-list", "--parents", "-n", "1", "HEAD")
+        self.assertIn("core.commitGraph=false", command)
 
     def test_merge_unverifiable_without_a_commit(self):
         result = self.run_check("merge", value="topic", commit=None)

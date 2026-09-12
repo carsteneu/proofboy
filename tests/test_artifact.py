@@ -191,6 +191,16 @@ class ArtifactCheckTest(unittest.TestCase):
         result = self.run_check(path="alias.bin", sha256=self.digest)
         self.assertIs(result.verdict, Verdict.CONFIRMED)
 
+    def test_the_filesystem_root_as_root_contains_every_path(self):
+        # "/" is its own prefix; a root at the filesystem root is not
+        # "everything is refused".
+        result = self.run_check(
+            ctx=Ctx(repo=None, tmp_dir=None, artifact_root=os.sep),
+            path=os.path.join(self.root, "dist", "app.bin"),
+            sha256=self.digest,
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED)
+
     def test_missing_root_is_unverifiable(self):
         result = self.run_check(
             ctx=Ctx(repo=None, tmp_dir=None, artifact_root=os.path.join(self._tmp.name, "nope")),

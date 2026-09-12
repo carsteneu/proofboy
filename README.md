@@ -99,7 +99,9 @@ Branch-Anspruche werden nur gegen `refs/heads` geprueft, nie gegen Tags oder
 Remote-HEAD. Waehrend jeder Pruefung deaktiviert der Pruefer
 programmausfuehrende Repo-Konfiguration (Git-Hooks, `core.fsmonitor`,
 `remote.uploadpack`, `core.sshCommand`, Credential-Helfer) und ignoriert
-Objektdaten-Manipulationen des Repos (`refs/replace`, `info/grafts`); ein Repo,
+Objektdaten-Manipulationen des Repos (`refs/replace`, `info/grafts`) sowie den
+abgeleiteten Commit-Graph (`core.commitGraph=false` -- eine gepatchte
+Commit-Graph-Datei kann Parents erfinden, die das Objekt nicht hat); ein Repo,
 dessen Konfiguration `core.gitProxy`, `core.askpass` oder einen
 URL-spezifischen HTTP-Proxy setzt, wird beim Branch-Check nicht angefasst
 (`unpruefbar`). Der Standard-Ablageort fuer Wegwerf-Daten ist
@@ -529,22 +531,35 @@ ohne Netz:
   bleibt die Behauptung `unpruefbar`.
 
 Widerspricht der Commit der Behauptung, wird sie `widerlegt` und das Urteil
-nennt die Parents, die es wirklich gibt (kurze Hashes), sowie den Tip des
-genannten Branches. `unpruefbar` bleiben ausserdem: ein Wert ohne Branchnamen
-(`[MERGE: no]`, `pending-PR`, `blocked-PR` sind Statuswerte des
-Yesloop-DONE-Payloads, keine Branches), ein Branch, der weder lokal noch auf
-`origin` aufloest (ein nach dem Merge geloeschter Branch wird nicht erraten),
-ein fehlender Commit und ein nicht aufloesbarer Commit-Hash. Ein
+nennt die Parents, die es wirklich gibt (kurze Hashes) sowie den Tip des
+genannten Branches. `widerlegt` ist auch ein Commit, der selbst auf dem
+genannten Branch liegt (eine Branch wird nicht in einen Commit gemergt, den
+sie schon enthaelt -- so faellt der Zielbranch auf, wenn er als gemergter
+Branch genannt wird) und ein Commit, dessen kein Parent zur Geschichte des
+genannten Branches gehoert. `unpruefbar` bleiben ausserdem: ein Wert ohne
+Branchnamen (`[MERGE: no]`, `pending-PR`, `blocked-PR` sind Statuswerte des
+Yesloop-DONE-Payloads, keine Branches; auch `HEAD` ist eine Revision, keine
+Branch), ein Branch, der weder lokal noch auf `origin` aufloest (ein nach dem
+Merge geloeschter Branch wird nicht erraten), ein Branch, dessen Tip nach dem
+Merge weiterlief (kein Objekt haelt fest, wo eine Branch beim Merge zeigte --
+das Urteil nennt den Parent, der in der Branch-Geschichte liegt), ein
+fehlender Commit und ein nicht aufloesbarer Commit-Hash. Ein
 `[MERGE]`-Claim verlangt kein `--repo`: eine Meldung, die nur `[MERGE: no]`
 traegt, laeuft weiter ohne Repository (und bleibt `unpruefbar`); mit `--repo`
 wird die Behauptung geprueft.
 
 **Grenzen:** Der Check belegt die Merge-Struktur, nicht die Absicht. Er liest
-den Tip des Branches zum Pruefzeitpunkt: ein Branch, der nach dem Merge
-weiterlief, ist nicht mehr als dessen gemergter Branch erkennbar, und ein
-geloeschter Branch macht die Behauptung `unpruefbar` statt `widerlegt`. Ein
-Merge, der die Zielbranch nie erreicht hat, ist `widerlegt` (der andere Parent
-liegt dann nicht auf ihr).
+den Tip des Branches zum Pruefzeitpunkt; ein Branch, der nach dem Merge
+weiterlief, macht die Behauptung `unpruefbar` statt `widerlegt` (das Urteil
+nennt den Parent, der in seiner Geschichte liegt). Ein geloeschter Branch
+macht sie `unpruefbar` -- solange kein Origin-Tracking-Ref desselben Namens
+mehr aufloest; ist die Branch nur auf dem Remote geloescht und der
+Tracking-Ref noch nicht gepruned, prueft der Check gegen diesen. Geprueft
+wird der andere Parent gegen die Zielbranch, nicht der gemeldete Commit
+selbst: ein Merge, der die Zielbranch nie erreicht hat (etwa ein Merge in
+einer weggeworfenen Branch), wird `bestaetigt`, wenn der andere Parent auf
+der Zielbranch liegt -- die Behauptung nennt dann eine wahre Merge-Struktur,
+aber keinen Merge auf der Zielbranch.
 
 ```
 $ python3 -m bemyself check --report merge-report.md --repo <repo>
@@ -584,8 +599,17 @@ regulaere Datei ist (Verzeichnis, Named Pipe, Geraet), und bei abweichendem
 Digest -- Abwesenheit und Abweichung sind Befunde, kein Unwissen; das Urteil
 nennt Pfad, tatsaechlichen Digest und Groesse. `unpruefbar` bei fehlender oder
 nicht existierender Wurzel, bei einem Pfad ausserhalb der Wurzel (auch ueber
-einen Symlink), bei einem Digest, der keine 64 Hex-Ziffern sind, und bei
-einer Datei ueber dem Limit.
+einen Symlink), bei einem Pfad, den der Pruefer nicht oeffnen darf
+(fehlende Rechte), bei einem leeren Pfad, bei einem Digest, der keine 64
+Hex-Ziffern sind, und bei einer Datei ueber dem Limit.
+
+**Grenzen:** Die Wurzel ist der Vertrauensbereich des Aufrufers. Bleibt die
+Konfinierung auch gewahrt -- gelesen wird nur, was unter der Wurzel liegt --
+so ist der Inhalt der Wurzel nicht gegen einen Schreiber geschuetzt, der
+Zugriff darin hat: eine Datei kann zwischen der Aufloesung des Pfades und dem
+Oeffnen ausgetauscht werden (derselbe Vertrauensbereich, keine neue
+Faehigkeit), und ein Hardlink in der Wurzel ist von einer eigenen Datei nicht
+zu unterscheiden (gleicher Inode).
 
 `[DEPLOY: ...]` bleibt bewusst ohne Pruefer und damit dauerhaft `unpruefbar`:
 "Deploy" hat keinen generischen, nachrechenbaren Sinn -- je nach Ziel ist

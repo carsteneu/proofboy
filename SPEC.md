@@ -278,7 +278,7 @@ Behauptung bleibt `UNVERIFIABLE`. Geprueft wird lokal, ohne Netz und ohne
 Fetch:
 
 - Der Commit existiert und hat genau zwei Parents; null, ein oder mehr als
-  zwei Parents ergeben `REFUTED` (kein Merge-Commit).
+  zwei Parents ergeben `REFUTED` (kein Zwei-Parents-Merge).
 - Einer der Parents ist der Tip des genannten Branches (`refs/heads/<branch>`,
   sonst `refs/remotes/origin/<branch>`).
 - Der andere Parent liegt auf der Zielbranch oder ist ihr Tip; Zielbranch ist
@@ -286,18 +286,27 @@ Fetch:
   Branch. Ohne bestimmbare Zielbranch bleibt die Behauptung `UNVERIFIABLE`.
 
 Ein Widerspruch ergibt `REFUTED` und das Urteil nennt die tatsaechlichen
-Parents und den Tip des genannten Branches (kurze Hashes). `UNVERIFIABLE`
-bleiben ausserdem: ein Wert ohne Branchnamen (`[MERGE: no]`, `pending-PR`,
-`blocked-PR` sind Statuswerte des Yesloop-DONE-Payloads, keine Branches), ein
-Branch, der weder lokal noch auf `origin` aufloest (ein nach dem Merge
-geloeschter Branch wird nicht erraten), ein fehlender Commit und ein nicht
-aufloesbarer Commit-Hash.
+Parents und den Tip des genannten Branches (kurze Hashes). `REFUTED` ist
+ausserdem ein Commit, der selbst auf dem genannten Branch liegt (so faellt
+der Zielbranch auf, wenn er als gemergter Branch genannt wird), und ein
+Commit, dessen kein Parent zur Geschichte des genannten Branches gehoert.
+`UNVERIFIABLE` bleiben ausserdem: ein Wert ohne Branchnamen
+(`[MERGE: no]`, `pending-PR`, `blocked-PR` sind Statuswerte des
+Yesloop-DONE-Payloads, keine Branches; `HEAD` ist eine Revision, keine
+Branch), ein Branch, der weder lokal noch auf `origin` aufloest (ein nach dem
+Merge geloeschter Branch wird nicht erraten), ein Branch, dessen Tip nach dem
+Merge weiterlief (kein Objekt haelt fest, wo eine Branch beim Merge zeigte;
+das Urteil nennt den Parent, der in der Branch-Geschichte liegt), ein
+fehlender Commit und ein nicht aufloesbarer Commit-Hash.
 
 Abgrenzung: Der Check belegt die Merge-Struktur, nicht die Absicht. Er liest
 den Tip des Branches zum Pruefzeitpunkt; ein Branch, der nach dem Merge
-weiterlief, macht den Merge-Commit nicht mehr als Merge dieses Branches
-erkennbar. Ein Merge, der die Zielbranch nie erreicht hat, ist `REFUTED` (der
-andere Parent liegt dann nicht auf ihr). Ein `MERGE`-Claim deklariert keinen
+weiterlief, macht die Behauptung `UNVERIFIABLE` statt `REFUTED`. Geprueft
+wird der andere Parent gegen die Zielbranch, nicht der gemeldete Commit
+selbst: ein Merge, der die Zielbranch nie erreicht hat, wird `CONFIRMED`,
+wenn der andere Parent auf der Zielbranch liegt -- die Behauptung nennt dann
+eine wahre Merge-Struktur, aber keinen Merge auf der Zielbranch. Ein
+`MERGE`-Claim deklariert keinen
 Repo-Bedarf: eine Meldung, die nur `[MERGE: no]` traegt, laeuft ohne `--repo`
 weiter (Exit-Codes unveraendert), und ohne Repository bleibt die Behauptung
 `UNVERIFIABLE` statt eines Usage-Fehlers.
@@ -319,7 +328,10 @@ in Bloecken gehasht (konstantes Gedaechtnis); das Limit
 groessere Datei bleibt `UNVERIFIABLE`, ebenso eine Datei, die waehrend des
 Lesens ueber das Limit waechst. Ein Hardlink in der Wurzel ist von einer
 eigenen Datei nicht unterscheidbar (gleicher Inode); der Inhalt der Wurzel
-ist der Vertrauensbereich des Aufrufers.
+ist der Vertrauensbereich des Aufrufers -- die Konfinierung schuetzt vor
+Lesezugriffen ausserhalb, nicht vor einem Schreiber mit Zugriff innerhalb:
+eine Datei kann zwischen der `realpath`-Aufloesung und dem Oeffnen
+ausgetauscht werden (derselbe Vertrauensbereich, keine neue Faehigkeit).
 
 Urteile: `CONFIRMED` nur bei vollstaendig gelesener Datei mit exakt dem
 behaupteten Digest (Gross-/Kleinschreibung egal); `REFUTED` bei fehlender
@@ -328,7 +340,9 @@ Pipe, Geraet), und bei abweichendem Digest -- das Urteil nennt Pfad,
 tatsaechlichen Digest und Groesse, denn Abwesenheit und Abweichung sind
 Befunde. `UNVERIFIABLE` ohne Wurzel (kein `--artifact-root`, kein `--repo`),
 bei fehlender oder nicht-Verzeichnis-Wurzel, bei einem Pfad ausserhalb der
-Wurzel, bei einem Digest, der keine 64 Hex-Ziffern sind, und bei einer Datei
+Wurzel, bei einem Pfad, den der Pruefer nicht oeffnen darf (fehlende Rechte),
+bei einem leeren Pfad, bei einem Digest, der keine 64 Hex-Ziffern sind, und
+bei einer Datei
 ueber dem Limit. Der Typ deklariert keinen Repo-Bedarf: die Wurzel ist
 konfiguriert (`--artifact-root <dir>`, Default das Repository), nicht das
 Repository.

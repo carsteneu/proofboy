@@ -77,13 +77,16 @@ def _resolved_under_root(root_real, path_text):
     A ``..`` component is refused before any resolution, so the escape
     question is answered lexically and by ``realpath`` -- a symlink pointing
     outside the root fails the prefix check even though its own path is
-    lexically clean.
+    lexically clean. The root ``/`` is its own prefix (it is not made of
+    components to descend into), so a root at the filesystem root contains
+    every path.
     """
     if any(part == ".." for part in path_text.split("/")):
         return None
     candidate = path_text if os.path.isabs(path_text) else os.path.join(root_real, path_text)
     resolved = os.path.realpath(candidate)
-    if resolved != root_real and not resolved.startswith(root_real + os.sep):
+    prefix = root_real if root_real.endswith(os.sep) else root_real + os.sep
+    if resolved != root_real and not resolved.startswith(prefix):
         return None
     return resolved
 
