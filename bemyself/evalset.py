@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of fifty messages live in the
+hashes. That is what lets the standard set of fifty-one messages live in the
 repository as a committed artifact (``tests/data/pruefset.json``): the set
 embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
 the rebuilt anchors against the set.
@@ -226,7 +226,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard fifty-message set (25 honest, 25 false).
+    """Return the standard fifty-one-message set (26 honest, 25 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -885,6 +885,34 @@ def standard_set(fixture):
             done(payload("[DONE]", f"[COMMIT: {commits['merge']}]", "[MERGE: main]")),
             targets=["merge"],
             expect_verdicts={"merge": "REFUTED"},
+        ),
+        # --- placeholder markers are not claims --------------------------------
+        case(
+            "g26-placeholder-lines",
+            "genuine",
+            "Ehrliche Meldung mit den Vorlagenzeilen eines Briefings: "
+            "Platzhalter-Marker (<hash>, <machine>, TODO, abgeschnittene "
+            "Digests) ergeben keine Behauptung und keine UNVERIFIABLE-Zeile; "
+            "expect_claim_count pinnt, dass nur der echte Commit zaehlt.",
+            done(
+                payload(
+                    "[DONE]",
+                    "[DEPLOY: <status>]",
+                    "[COMMIT: <hash>]",
+                    "[BRANCH: <name>]",
+                    "[MERGE: <branch>]",
+                    "<zusammenfassung>",
+                ),
+                "[HALT: <machine> -> <steps>]",
+                "[COMPUTE: <cmd> -> <sha256>]",
+                "[ARTIFACT: <pfad> -> <sha256>]",
+                "[COLORING: k=<k> ; <digits>]",
+                "Tests run: <cmd> -> exit 0",
+                "**Files in scope:** <pfad1>, <pfad2>",
+                payload("[DONE]", f"[COMMIT: {commits['good']}]", "[MERGE: no]"),
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "merge": "UNVERIFIABLE"},
+            claim_count=2,
         ),
     ]
     return {

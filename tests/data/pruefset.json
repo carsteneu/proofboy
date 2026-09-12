@@ -666,6 +666,20 @@
         "merge": "REFUTED"
       },
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 89401913df0433dc6897ef6bffe31ff5b6ad8759] [MERGE: main]`\n"
+    },
+    {
+      "name": "g26-placeholder-lines",
+      "group": "genuine",
+      "note": "Ehrliche Meldung mit den Vorlagenzeilen eines Briefings: Platzhalter-Marker (<hash>, <machine>, TODO, abgeschnittene Digests) ergeben keine Behauptung und keine UNVERIFIABLE-Zeile; expect_claim_count pinnt, dass nur der echte Commit zaehlt.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "merge": "UNVERIFIABLE"
+      },
+      "expect_claim_count": 2,
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[COLORING: k=<k> ; <digits>]\nTests run: <cmd> -> exit 0\n**Files in scope:** <pfad1>, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
     }
   ]
 }
