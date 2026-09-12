@@ -90,8 +90,10 @@ class ReadSectionTest(unittest.TestCase):
         self.addCleanup(os.chmod, db, 0o644)
         self.assertEqual(read_section(db, "/proj", "report"), "x")
         self.assertEqual(os.stat(db).st_mtime_ns, before)
-        # No journal or WAL sibling may appear next to a database that was
-        # opened read-only.
+        # A rollback-journal database opened read-only leaves no journal
+        # sibling behind. (A WAL database may create -shm/-wal auxiliary
+        # files even when read-only -- SQLite behavior; the fixture is not
+        # WAL. mode=ro still rules out writes to the data in both modes.)
         self.assertEqual(os.listdir(self._tmp.name), ["scratchpad.db"])
 
     def test_at_most_caps_the_fetched_text(self):

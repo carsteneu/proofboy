@@ -27,7 +27,9 @@ Pruefset. Die Meldung kommt entweder aus einer Datei (`--report`) oder direkt au
 einer YesMem-Scratchpad-Section (`--section`): genau eines von beiden ist
 Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--section` ist
 `--project` Pflicht und ohne `--repo` prueft der Pruefer dasselbe Verzeichnis;
-die Section wird ausschliesslich lesend gelesen (SQLite `mode=ro`), die
+die Section wird ausschliesslich lesend gelesen (SQLite `mode=ro`; bei
+WAL-Datenbanken koennen dabei `-shm`/`-wal`-Hilfsdateien entstehen, die
+Datenbank selbst wird nie veraendert). Die
 Standard-Datenbank ist `~/.claude/yesmem/yesmem.db`, `--db` zeigt auf eine
 andere. Ein unbekannter Section-Name ist ein Fehler (Exit 2), eine leere
 Section verhaelt sich wie ein leerer Report (Exit 3), eine Section ueber 1 MiB
