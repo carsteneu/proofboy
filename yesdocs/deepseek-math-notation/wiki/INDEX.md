@@ -21,12 +21,13 @@ prüfbare Mathematik rücküberführbar (Zeugen, nicht Glauben).
 
 Instanz unter Test: `deepseek/deepseek-flash` (Provider `deepseek`; Kontext 1.000.000, Output 8.192 Tokens;
 interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Stand 2026-09-12:
-Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-08) und die
-Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D) sind erfolgt; die nächsten Runden
-sind in 05-09 §7 skizziert.
+Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-08), die
+Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D) und die Härte-Runde (05-10: Sets v0.3,
+Zahlen-Regime, tiefe Läufe, Zyklus-Suche) sind erfolgt; die nächsten Runden
+sind in 05-10 §7 skizziert.
 
-**Umfang:** 33 Dateien in 5 Clustern · 74130 Wörter ·
-709 Quellenangaben (Datei-Summen) · 1078 Inline-Zitate · Visuals in `assets/` je Cluster.
+**Umfang:** 34 Dateien in 5 Clustern · 77188 Wörter ·
+717 Quellenangaben (Datei-Summen) · 1086 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 
@@ -73,6 +74,7 @@ graph LR
     F0507[07-denksprache-v1.1]
     F0508[08-pilotbericht-v1.1]
     F0509[09-rueckkanal-runde-v12]
+    F0510[10-haerte-runde-v13]
   end
   F0102 --> F0204
   F0103 --> F0201
@@ -125,6 +127,12 @@ graph LR
   F0509 --> F0505
   F0509 --> F0504
   F0509 --> F0103B
+  F0510 --> F0509
+  F0510 --> F0508
+  F0510 --> F0507
+  F0510 --> F0505
+  F0510 --> F0504
+  F0510 --> F0103B
   classDef C01 fill:#1f77b422,stroke:#1f77b4,stroke-width:1px
   classDef C02 fill:#2ca02c22,stroke:#2ca02c,stroke-width:1px
   classDef C03 fill:#d6272822,stroke:#d62728,stroke-width:1px
@@ -134,9 +142,9 @@ graph LR
   class F0201,F0202,F0203,F0204,F0205,F0206 C02
   class F0301,F0302,F0303,F0304,F0305 C03
   class F0401,F0402,F0403,F0404,F0405 C04
-  class F0501,F0502,F0503,F0504,F0505,F0506,F0507,F0508,F0509 C05
+  class F0501,F0502,F0503,F0504,F0505,F0506,F0507,F0508,F0509,F0510 C05
 ```
-*Eigene Darstellung: Kanten abgeleitet aus den `related:`-Feldern der Datei-Frontmatter (42 clustergrenzenüberschreitende Verweise).*
+*Eigene Darstellung: Kanten abgeleitet aus den `related:`-Feldern der Datei-Frontmatter (43 clustergrenzenüberschreitende Verweise).*
 
 ---
 
@@ -202,6 +210,7 @@ Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/
 | [05-07-denksprache-v1.1.md](05-entwurf-testplan/05-07-denksprache-v1.1.md) | Denk-Sprache V1.1 (Entwurf) — Tags, epistemische Status, Kürzel, Trace-Formen | Entwurf (V1.1) | 15 | 43 | 0 Img / 1 Diagr |
 | [05-08-pilotbericht-v1.1.md](05-entwurf-testplan/05-08-pilotbericht-v1.1.md) | Pilotlauf V1.1: Werkzeuge, Arme K/B/C, erste Messung der Denk-Sprache | Verifiziert | 6 | 6 | 0 Img / 0 Diagr |
 | [05-09-rueckkanal-runde-v12.md](05-entwurf-testplan/05-09-rueckkanal-runde-v12.md) | Rückkanal-Runde V12: Reparatur-Loop, Arme K/B/C/D und die Messung des Rückkanals | Verifiziert | 7 | 7 | 0 Img / 0 Diagr |
+| [05-10-haerte-runde-v13.md](05-entwurf-testplan/05-10-haerte-runde-v13.md) | Härte-Runde V13: Zahlen-Regime, lange Läufe und die Zyklus-Suche — Sets v0.3 und die Protokoll-Fixes | Verifiziert | 8 | 8 | 0 Img / 0 Diagr |
 
 Querverweise: [01-modellprofil/01-03-tokenizer-zahlen.md](01-modellprofil/01-03-tokenizer-zahlen.md), [01-modellprofil/01-06-betrieb-umgebung.md](01-modellprofil/01-06-betrieb-umgebung.md), [02-wirksame-formate/02-01-tokenisierung-arithmetik.md](02-wirksame-formate/02-01-tokenisierung-arithmetik.md), [02-wirksame-formate/02-02-embedding-position.md](02-wirksame-formate/02-02-embedding-position.md), [02-wirksame-formate/02-03-format-sensitivitaet.md](02-wirksame-formate/02-03-format-sensitivitaet.md), [02-wirksame-formate/02-04-lokalitaet-struktur.md](02-wirksame-formate/02-04-lokalitaet-struktur.md), [02-wirksame-formate/02-05-latentes-denken.md](02-wirksame-formate/02-05-latentes-denken.md), [03-formale-bruecke/03-01-formale-systeme.md](03-formale-bruecke/03-01-formale-systeme.md), [03-formale-bruecke/03-04-zeugen-zertifikate.md](03-formale-bruecke/03-04-zeugen-zertifikate.md), [03-formale-bruecke/03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md), [04-offene-probleme/04-01-wahlkriterien.md](04-offene-probleme/04-01-wahlkriterien.md), [04-offene-probleme/04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md), [04-offene-probleme/04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md), [04-offene-probleme/04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md), [01-modellprofil/01-03b-tokenizer-v11-lexeme.md](01-modellprofil/01-03b-tokenizer-v11-lexeme.md)
 
