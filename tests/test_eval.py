@@ -195,6 +195,42 @@ class SetLoadingTest(unittest.TestCase):
             evalset.load_set(path)
 
 
+class HostileSetTextTest(unittest.TestCase):
+    """A hostile set file must not be able to spoof the terminal output."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.fixture = evalset.build_fixture(os.path.join(cls._tmp.name, "fixture"))
+        commits = cls.fixture.commits
+        cls.document = {
+            "version": 1,
+            "fixture": {"base": commits["base"], "head": commits["fixed"]},
+            "cases": [
+                {
+                    "name": "x-\x1b[2Kevil\u202e",
+                    "group": "genuine",
+                    "note": "hostile case name and expected kind",
+                    "base": commits["base"],
+                    "targets": [],
+                    "expect_verdicts": {"\x1b[2Kghost": "CONFIRMED"},
+                    "report": f"**send_to payload:** `[COMMIT: {commits['good']}]`\n",
+                }
+            ],
+        }
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_hostile_names_are_sanitized(self):
+        report = evaluate(self.document, self.fixture, os.path.join(self._tmp.name, "work"))
+        self.assertGreater(report["expectation_misses"], 0)
+        text = render_text(report)
+        self.assertNotIn("\x1b", text)
+        self.assertNotIn("\u202e", text)
+
+
 class EvalCliTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -237,6 +273,22 @@ class EvalCliTest(unittest.TestCase):
         proc = self.invoke(set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None)
         self.assertEqual(proc.returncode, 2)
         self.assertIn("set", proc.stderr.lower())
+
+    def test_failed_evaluation_exits_one(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"] = [
+            {
+                "name": "x-false-will-confirm",
+                "group": "false",
+                "note": "a target claim the fixture confirms on purpose",
+                "base": document["fixture"]["base"],
+                "targets": ["commit_exists"],
+                "report": f"**send_to payload:** `[COMMIT: {document['fixture']['base']}]`\n",
+            }
+        ]
+        path = self.write(document, "failing.json")
+        proc = self.invoke(set_path=path, tmp="run-failing")
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
 
     def test_set_for_a_foreign_fixture_is_an_error(self):
         document = evalset.load_set(SET_PATH)

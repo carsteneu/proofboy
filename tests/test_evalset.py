@@ -162,5 +162,23 @@ class StandardSetTest(unittest.TestCase):
         self.assertEqual(evalset.set_bytes(evalset.standard_set(self.fixture)), committed)
 
 
+class EvalsetRegenerationTest(unittest.TestCase):
+    def test_module_regeneration_matches_the_committed_set(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = os.path.join(tmp, "pruefset.json")
+            proc = subprocess.run(
+                ("python3", "-m", "bemyself.evalset", out_path),
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with open(out_path, "rb") as handle:
+                regenerated = handle.read()
+            with open(SET_PATH, "rb") as handle:
+                committed = handle.read()
+        self.assertEqual(regenerated, committed)
+
+
 if __name__ == "__main__":
     unittest.main()
