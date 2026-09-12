@@ -406,5 +406,57 @@ class RepairLoopTest(unittest.TestCase):
         self.assertEqual(set(assistant.keys()), {"role", "content"})
 
 
+class EvaluateRoundsTest(unittest.TestCase):
+    """M4: Runden-Metriken -- End-Trefferquote, Runden bis ok, Reparaturgewinn."""
+
+    def _root(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(dir=tmp_root))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def _runs(self):
+        root = self._root()
+        # rep1: Reparatur gelingt; rep2: bleibt unbestimmt (3 Runden).
+        harness.run_rounds("C", TASK_A, 1, root, _FakeArgs(), call=_FakeCall([_SHEET_BAD, _SHEET_OK]))
+        harness.run_rounds("C", TASK_A, 2, root, _FakeArgs(), call=_FakeCall([_SHEET_BAD, _SHEET_BAD, _SHEET_BAD]))
+        _manifest, runs = evaluate.load_runs(root)
+        return runs
+
+    def test_load_runs_reads_round_layout(self):
+        runs = self._runs()
+        self.assertEqual(len(runs), 2)
+        for run in runs:
+            self.assertIsNotNone(run["summary"])
+            self.assertEqual(len(run["rounds"]), len(run["summary"]["rounds"]))
+
+    def test_round_metrics(self):
+        summary = evaluate.summarize_runs(self._runs())
+        entry = summary["C-A"]
+        self.assertEqual(entry["n"], 2)
+        self.assertEqual(entry["r0_solved"], 0)
+        self.assertEqual(entry["final_solved"], 1)
+        self.assertEqual(entry["repaired"], 1)
+        self.assertEqual(entry["rounds_to_ok"], {"0": 0, "1": 1, "2": 0, "unresolved": 1})
+        self.assertEqual(entry["xx_resolution"]["total"], 3)  # v1 in R0 von rep1+rep2, in R1 von rep2
+        self.assertEqual(entry["xx_resolution"]["resolved"], 1)  # rep1 R1 ohne #xx
+        self.assertGreater(entry["tokens_per_final_solved"], 0)
+
+    def test_legacy_flat_layout_still_loads(self):
+        # V11-Läufe (flaches Layout ohne summary.json) bleiben auswertbar.
+        root = self._root()
+        run_dir = root / "A-0001" / "K-rep1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "parsed.json").write_text(
+            json.dumps({"arm": "K", "tier": "A", "solved": True, "duration_s": 1.0, "usage": {}}),
+            encoding="utf-8",
+        )
+        _manifest, runs = evaluate.load_runs(root)
+        self.assertEqual(len(runs), 1)
+        self.assertIsNone(runs[0]["summary"])
+        self.assertTrue(runs[0]["rounds"][0]["solved"])
+
+
 if __name__ == "__main__":
     unittest.main()
