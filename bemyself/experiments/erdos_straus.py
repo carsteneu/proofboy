@@ -165,7 +165,13 @@ def main(argv=None):
     if len(args) != 1 or not (args[0].isascii() and args[0].isdigit()):
         print(usage, file=sys.stderr)
         return 2
-    limit = int(args[0])
+    try:
+        limit = int(args[0])
+    except ValueError:
+        # CPython caps int(text) at a few thousand digits (3.11+); such a
+        # limit could never finish anyway.
+        print(f"{usage}: limit has too many digits: {len(args[0])}", file=sys.stderr)
+        return 2
     if limit < 2:
         print(f"{usage}: limit must be >= 2, got {limit}", file=sys.stderr)
         return 2
