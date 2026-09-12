@@ -14,6 +14,12 @@ Maschinen ist lokal generiert (deterministische Saat) -- kontaminationsfrei
 Sets sind unveraendert: jede Aenderung erzeugt eine neue ``set_version``;
 der Harness protokolliert ``set_version`` + ``set_sha256`` (05-04/05-05).
 
+v0.2 (2026-09-12, Runde 2): Inhalte wie v0.1; Aenderungen nur Hygiene --
+generierte Tier-B-Maschinen tragen ihre eigene Lizenz (CC0-1.0), die
+Memory-ID in der Quelle des BB(5)-Champions ist durch die externe Referenz
+ersetzt. B-0011 (schwerer Uebersetzer-Zyklus) ist enthalten und wird im
+Runde-2-Lauf ohne Shuffle-Ausschluss gefahren.
+
 Aufruf: python3 build_sets.py [--out DIR]
 """
 
@@ -34,9 +40,14 @@ from bemyself import turing  # noqa: E402
 from bemyself.claimtypes import cycle  # noqa: E402
 from bemyself.model import Claim  # noqa: E402
 
-TIER_A_VERSION = "v11-a-0.1"
-TIER_B_VERSION = "v11-b-0.1"
+TIER_A_VERSION = "v11-a-0.2"
+TIER_B_VERSION = "v11-b-0.2"
 SEED = 20260912
+
+# Licenses of the Tier-B tasks: curated machines are public bbchallenge
+# machines; generated ones are self-created (v0.2 hygiene, 05-08 section 8).
+_LICENSE_CURATED = "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+_LICENSE_GENERATED = "CC0-1.0 (selbst erzeugt)"
 
 # ---------------------------------------------------------------------------
 # Tier A
@@ -106,7 +117,7 @@ CURATED_TRACE_MACHINES = [
     ),
     (
         "1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA",
-        "bbchallenge BB(5)-Champion (P7-Learning #97269; 47.176.870 Schritte, Score 4098)",
+        "bbchallenge BB(5)-Champion (bbchallenge.org; 47.176.870 Schritte, Score 4098)",
         [5, 10, 20],
     ),
     (
@@ -202,7 +213,11 @@ def build_tier_b():
         index += 1
         machine = turing.parse(machine_text)
         rows = _checkpoints(machine, steps)
-        tasks.append(_trace_task(f"B-{index:04d}", machine_text, steps, rows, source))
+        tasks.append(
+            _trace_task(
+                f"B-{index:04d}", machine_text, steps, rows, source, _LICENSE_CURATED
+            )
+        )
 
     rng = random.Random(SEED)
     generated = _find_generated_machines(rng, 4)
@@ -215,7 +230,11 @@ def build_tier_b():
             f"generiert (random.Random({SEED}); lokal simuliert: halt nach "
             f"{halt_steps} Schritten)"
         )
-        tasks.append(_trace_task(f"B-{index:04d}", machine_text, steps, rows, source))
+        tasks.append(
+            _trace_task(
+                f"B-{index:04d}", machine_text, steps, rows, source, _LICENSE_GENERATED
+            )
+        )
 
     for machine_text, certificate, source in CYC_TASKS:
         index += 1
@@ -256,13 +275,13 @@ def build_tier_b():
                 ),
                 "notation": "v11",
                 "source": source,
-                "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar",
+                "license": _LICENSE_CURATED,
             }
         )
     return tasks
 
 
-def _trace_task(task_id, machine_text, steps, rows, source):
+def _trace_task(task_id, machine_text, steps, rows, source, license_text):
     steps_text = ", ".join(str(s) for s in steps)
     return {
         "id": task_id,
@@ -280,7 +299,7 @@ def _trace_task(task_id, machine_text, steps, rows, source):
         ),
         "notation": "v11",
         "source": source,
-        "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar",
+        "license": license_text,
     }
 
 
@@ -302,12 +321,17 @@ def main(argv=None):
         "set_version": TIER_A_VERSION,
         "created": "2026-09-12",
         "seed": SEED,
+        "note": "v0.2: Aufgabeninhalte identisch zu v0.1 (nur Versions-/Provenienzstand).",
         "tasks": build_tier_a(),
     }
     tier_b = {
         "set_version": TIER_B_VERSION,
         "created": "2026-09-12",
         "seed": SEED,
+        "note": (
+            "v0.2: Inhalte wie v0.1; Hygiene -- Lizenz generierter Maschinen "
+            "korrigiert, Memory-ID durch externe Referenz ersetzt. B-0011 enthalten."
+        ),
         "tasks": build_tier_b(),
     }
 

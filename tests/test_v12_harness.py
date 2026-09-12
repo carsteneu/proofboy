@@ -11,9 +11,14 @@ The functions under test decide the measurement: untested feedback or
 round-logic would poison the round.
 """
 
+import hashlib
 import importlib.util
+import json
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -101,6 +106,73 @@ class TraceConventionV02Test(unittest.TestCase):
             system, _user = prompts.build_messages(arm, TASK_TRACE)
             self.assertIn("Kopfposition = ganze Zahl ab", system, arm)
             self.assertIn("Zellen sind 0", system, arm)
+
+
+class SetsV02Test(unittest.TestCase):
+    """M2: Sets v0.2 -- neue Version+sha256, v0.1 unangetastet, B-0011 enthalten."""
+
+    SETS = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
+
+    def _load_set(self, name):
+        return json.loads((self.SETS / name).read_text(encoding="utf-8"))
+
+    def test_v02_sets_exist_with_expected_shape(self):
+        tier_a = self._load_set("tier_a_v11-a-0.2.json")
+        tier_b = self._load_set("tier_b_v11-b-0.2.json")
+        self.assertEqual(tier_a["set_version"], "v11-a-0.2")
+        self.assertEqual(tier_b["set_version"], "v11-b-0.2")
+        self.assertEqual(len(tier_a["tasks"]), 16)
+        self.assertEqual(len(tier_b["tasks"]), 12)
+
+    def test_heavy_translator_cycle_is_present(self):
+        # Runde-2-Auftrag: B-0011 wird forciert (kein Shuffle-Ausschluss).
+        tier_b = self._load_set("tier_b_v11-b-0.2.json")
+        task = next(t for t in tier_b["tasks"] if t["id"] == "B-0011")
+        self.assertEqual(task["tier_b_kind"], "cyc")
+        self.assertEqual(task["machine"], "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC")
+        self.assertEqual(task["certificate"], [6, 16, 2])
+
+    def test_tier_a_content_is_identical_to_v01(self):
+        # Kontinuitaet: die Aufgabeninhalte bleiben Pilot-1-gleich.
+        old = self._load_set("tier_a_v11-a-0.1.json")
+        new = self._load_set("tier_a_v11-a-0.2.json")
+        self.assertEqual(old["tasks"], new["tasks"])
+
+    def test_v01_files_are_untouched(self):
+        # Hashes aus 05-08 (Pilot-1-Lauf): v0.1 bleibt eingefroren.
+        for name, prefix in (
+            ("tier_a_v11-a-0.1.json", "50c985e169aa5007"),
+            ("tier_b_v11-b-0.1.json", "074ab6bf5ebfc213"),
+        ):
+            digest = hashlib.sha256((self.SETS / name).read_bytes()).hexdigest()
+            self.assertTrue(digest.startswith(prefix), name)
+
+    def test_generated_tasks_carry_own_license_and_no_memory_ids(self):
+        tier_b = self._load_set("tier_b_v11-b-0.2.json")
+        generated = [t for t in tier_b["tasks"] if t["source"].startswith("generiert")]
+        self.assertTrue(generated)
+        for task in generated:
+            self.assertEqual(task["license"], "CC0-1.0 (selbst erzeugt)", task["id"])
+        for task in tier_b["tasks"]:
+            self.assertNotIn("Learning", task["source"], task["id"])
+
+    def test_rebuild_reproduces_the_committed_v02_files(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        tmp = Path(tempfile.mkdtemp(dir=tmp_root))
+        try:
+            subprocess.run(
+                [sys.executable, str(TOOLING / "build_sets.py"), "--out", str(tmp)],
+                check=True,
+                cwd=ROOT,
+                capture_output=True,
+            )
+            for name in ("tier_a_v11-a-0.2.json", "tier_b_v11-b-0.2.json"):
+                self.assertEqual(
+                    (tmp / name).read_bytes(), (self.SETS / name).read_bytes(), name
+                )
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

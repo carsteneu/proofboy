@@ -1,0 +1,184 @@
+{
+  "set_version": "v11-a-0.2",
+  "created": "2026-09-12",
+  "seed": 20260912,
+  "note": "v0.2: Aufgabeninhalte identisch zu v0.1 (nur Versions-/Provenienzstand).",
+  "tasks": [
+    {
+      "id": "A-0001",
+      "tier": "A",
+      "kind": "st",
+      "prompt": "Berechne die Anzahl der Schritte, die die Collatz-Funktion (gerade: halbieren; ungerade: verdreifachen und 1 addieren) braucht, um 27 auf 1 zu bringen.",
+      "notation": "v1",
+      "expected": "111",
+      "witness": "(st(27) = 111)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0002",
+      "tier": "A",
+      "kind": "st",
+      "prompt": "Berechne die Anzahl der Collatz-Schritte von 97 bis 1.",
+      "notation": "v1",
+      "expected": "118",
+      "witness": "(st(97) = 118)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0003",
+      "tier": "A",
+      "kind": "st",
+      "prompt": "Berechne die Anzahl der Collatz-Schritte von 871 bis 1.",
+      "notation": "v1",
+      "expected": "178",
+      "witness": "(st(871) = 178)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0004",
+      "tier": "A",
+      "kind": "mx",
+      "prompt": "Bestimme das Maximum der Collatz-Trajektorie von 27 bis 1 (Startwert eingeschlossen).",
+      "notation": "v1",
+      "expected": "9232",
+      "witness": "(mx(27) = 9232)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0005",
+      "tier": "A",
+      "kind": "mx",
+      "prompt": "Bestimme das Maximum der Collatz-Trajektorie von 97 bis 1.",
+      "notation": "v1",
+      "expected": "9232",
+      "witness": "(mx(97) = 9232)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0006",
+      "tier": "A",
+      "kind": "pm",
+      "prompt": "Berechne 2 hoch 10 modulo 1000.",
+      "notation": "v1",
+      "expected": "24",
+      "witness": "(pm(2, 10, 1000) = 24)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0007",
+      "tier": "A",
+      "kind": "pm",
+      "prompt": "Berechne 3 hoch 100 modulo 97.",
+      "notation": "v1",
+      "expected": "81",
+      "witness": "(pm(3, 100, 97) = 81)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0008",
+      "tier": "A",
+      "kind": "pm",
+      "prompt": "Berechne 7 hoch 128 modulo 1000000007.",
+      "notation": "v1",
+      "expected": "692745742",
+      "witness": "(pm(7, 128, 1000000007) = 692745742)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0009",
+      "tier": "A",
+      "kind": "gc",
+      "prompt": "Bestimme den groessten gemeinsamen Teiler von 12 und 18.",
+      "notation": "v1",
+      "expected": "6",
+      "witness": "(gc(12, 18) = 6)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0010",
+      "tier": "A",
+      "kind": "gc",
+      "prompt": "Bestimme den groessten gemeinsamen Teiler von 1071 und 462.",
+      "notation": "v1",
+      "expected": "21",
+      "witness": "(gc(1071, 462) = 21)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0011",
+      "tier": "A",
+      "kind": "fc",
+      "prompt": "Berechne die Fakultaet von 5 (5!).",
+      "notation": "v1",
+      "expected": "120",
+      "witness": "(fc(5) = 120)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0012",
+      "tier": "A",
+      "kind": "fc",
+      "prompt": "Berechne die Fakultaet von 10 (10!).",
+      "notation": "v1",
+      "expected": "3628800",
+      "witness": "(fc(10) = 3628800)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0013",
+      "tier": "A",
+      "kind": "ch",
+      "prompt": "Berechne den Binomialkoeffizienten \"10 ueber 3\".",
+      "notation": "v1",
+      "expected": "120",
+      "witness": "(ch(10, 3) = 120)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0014",
+      "tier": "A",
+      "kind": "ch",
+      "prompt": "Berechne den Binomialkoeffizienten \"52 ueber 5\".",
+      "notation": "v1",
+      "expected": "2598960",
+      "witness": "(ch(52, 5) = 2598960)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0015",
+      "tier": "A",
+      "kind": "fb",
+      "prompt": "Bestimme die 30-te Fibonacci-Zahl (fb(0)=0, fb(1)=1, fb(n)=fb(n-1)+fb(n-2)).",
+      "notation": "v1",
+      "expected": "832040",
+      "witness": "(fb(30) = 832040)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "A-0016",
+      "tier": "A",
+      "kind": "fb",
+      "prompt": "Bestimme die 100-te Fibonacci-Zahl (fb(0)=0, fb(1)=1).",
+      "notation": "v1",
+      "expected": "354224848179261915075",
+      "witness": "(fb(100) = 354224848179261915075)",
+      "source": "generiert (tier_a, seed=20260912)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    }
+  ]
+}
