@@ -43,6 +43,17 @@ def _commit(repo, message):
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
+def commit_probe(repo, name, source):
+    """Commit a probe test file into ``repo`` and return the new commit hash.
+
+    The sandbox tests need probe tests whose content depends on the running
+    test (a live port number, a marker path), so they cannot live in the
+    static commit chain of :func:`make_repo`.
+    """
+    _write(repo.path, name, source)
+    return _commit(repo.path, name)
+
+
 def make_repo(root, with_remote=True):
     """Create a fixture repo under ``root``.
 
