@@ -407,6 +407,45 @@ class EvalCliTest(unittest.TestCase):
         self.assertEqual(claims["searched"]["verdict"], "UNVERIFIABLE")
         self.assertIn("executable limit of 2", claims["searched"]["reason"])
 
+    def test_cycle_limit_reaches_the_check(self):
+        document = evalset.load_set(SET_PATH)
+        document["cases"] = [
+            {
+                "name": "x-genuine-cycle",
+                "group": "genuine",
+                "note": "a translated-cycle certificate the default limit covers",
+                "base": document["fixture"]["base"],
+                "targets": [],
+                "report": (
+                    f"**send_to payload:** `[COMMIT: {document['fixture']['base']}] "
+                    "[CYCLE: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC -> 6,16,2]`\n"
+                ),
+            },
+            {
+                "name": "x-false-missing-commit",
+                "group": "false",
+                "note": "keeps the run measurable",
+                "base": document["fixture"]["base"],
+                "targets": ["commit_exists"],
+                "report": f"**send_to payload:** `[COMMIT: {'0' * 40}]`\n",
+            },
+        ]
+        path = self.write(document, "cycle-limit.json")
+        roomy = self.invoke(set_path=path, tmp="run-cycle-roomy")
+        self.assertEqual(roomy.returncode, 0, roomy.stdout + roomy.stderr)
+        cramped = self.invoke(
+            "--json", "--cycle-limit", "5", set_path=path, tmp="run-cycle-cramped"
+        )
+        self.assertEqual(cramped.returncode, 0, cramped.stdout + cramped.stderr)
+        claims = {
+            claim["kind"]: claim
+            for case in json.loads(cramped.stdout)["cases"]
+            for claim in case["claims"]
+            if case["name"] == "x-genuine-cycle"
+        }
+        self.assertEqual(claims["cycle"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("executable limit of 5", claims["cycle"]["reason"])
+
     def test_missing_set_is_an_error(self):
         proc = self.invoke(set_path=os.path.join(self._tmp.name, "nope.json"), tmp=None)
         self.assertEqual(proc.returncode, 2)

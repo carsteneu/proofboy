@@ -34,6 +34,7 @@ from bemyself import evalset
 from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, run_claim
 from bemyself.cli import EXIT_ERROR, EXIT_OK, EXIT_STRICT, exit_code, sanitize
 from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
+from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 from bemyself.model import Verdict
@@ -50,7 +51,7 @@ THRESHOLDS = {
 }
 
 
-def _run_case(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT_HALT_LIMIT, search_limit=DEFAULT_SEARCH_LIMIT):
+def _run_case(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT_HALT_LIMIT, search_limit=DEFAULT_SEARCH_LIMIT, cycle_limit=DEFAULT_CYCLE_LIMIT):
     ctx = Ctx(
         repo=fixture.repo,
         # A hostile set could smuggle path separators into a case name; the
@@ -61,6 +62,7 @@ def _run_case(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT
         sandbox=sandbox,
         halt_limit=halt_limit,
         search_limit=search_limit,
+        cycle_limit=cycle_limit,
         compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST,
     )
     claims = parse_report(case["report"])
@@ -95,9 +97,9 @@ def _expectation_misses(case, claims, results):
     return misses
 
 
-def _case_record(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT_HALT_LIMIT, search_limit=DEFAULT_SEARCH_LIMIT):
+def _case_record(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT_HALT_LIMIT, search_limit=DEFAULT_SEARCH_LIMIT, cycle_limit=DEFAULT_CYCLE_LIMIT):
     claims, results = _run_case(
-        index, case, fixture, tmp_root, sandbox, halt_limit, search_limit
+        index, case, fixture, tmp_root, sandbox, halt_limit, search_limit, cycle_limit
     )
     code = exit_code(results)
     record = {
@@ -143,10 +145,11 @@ def evaluate(
     sandbox="auto",
     halt_limit=DEFAULT_HALT_LIMIT,
     search_limit=DEFAULT_SEARCH_LIMIT,
+    cycle_limit=DEFAULT_CYCLE_LIMIT,
 ):
     """Run every case of ``document`` against ``fixture`` and aggregate rates."""
     records = [
-        _case_record(index, case, fixture, tmp_root, sandbox, halt_limit, search_limit)
+        _case_record(index, case, fixture, tmp_root, sandbox, halt_limit, search_limit, cycle_limit)
         for index, case in enumerate(document["cases"], start=1)
     ]
     false_records = [record for record in records if record["group"] == "false"]
@@ -324,6 +327,7 @@ def run_eval(args):
         sandbox=args.sandbox,
         halt_limit=args.halt_limit,
         search_limit=args.search_limit,
+        cycle_limit=args.cycle_limit,
     )
     base_ok = report["ok"]
     strict_violation = False

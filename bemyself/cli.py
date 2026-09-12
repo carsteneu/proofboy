@@ -17,6 +17,7 @@ from bemyself.checks import (
     run_claim,
 )
 from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
+from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 from bemyself.model import Claim, Verdict
@@ -187,6 +188,17 @@ def build_parser():
             "stays unverifiable"
         ),
     )
+    check.add_argument(
+        "--cycle-limit",
+        type=_non_negative_int,
+        default=DEFAULT_CYCLE_LIMIT,
+        metavar="N",
+        help=(
+            "largest step count a [CYCLE] claim may ask the simulator to "
+            f"execute (default {DEFAULT_CYCLE_LIMIT}); a claim beyond it "
+            "stays unverifiable"
+        ),
+    )
     evaluate = sub.add_parser("eval", help="measure the verifier against a labelled message set")
     evaluate.add_argument("--set", required=True, help="path to the evaluation set (JSON)")
     evaluate.add_argument("--json", action="store_true", help="emit machine-readable JSON")
@@ -220,6 +232,17 @@ def build_parser():
         help=(
             "largest step count a [SEARCHED] claim may ask the simulator to "
             f"execute (default {DEFAULT_SEARCH_LIMIT}); a claim beyond it "
+            "stays unverifiable"
+        ),
+    )
+    evaluate.add_argument(
+        "--cycle-limit",
+        type=_non_negative_int,
+        default=DEFAULT_CYCLE_LIMIT,
+        metavar="N",
+        help=(
+            "largest step count a [CYCLE] claim may ask the simulator to "
+            f"execute (default {DEFAULT_CYCLE_LIMIT}); a claim beyond it "
             "stays unverifiable"
         ),
     )
@@ -454,6 +477,7 @@ def run_check(args, parser):
         sandbox=args.sandbox,
         halt_limit=args.halt_limit,
         search_limit=args.search_limit,
+        cycle_limit=args.cycle_limit,
         compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST + tuple(args.allow),
     )
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
