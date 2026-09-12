@@ -34,8 +34,8 @@ class EvalEngineTest(unittest.TestCase):
 
     def test_thresholds_are_met(self):
         rates = self.report["rates"]
-        self.assertEqual(rates["detection_total"], 17)
-        self.assertEqual(rates["true_confirmation_total"], 17)
+        self.assertEqual(rates["detection_total"], 18)
+        self.assertEqual(rates["true_confirmation_total"], 18)
         self.assertEqual(rates["detection_hits"], rates["detection_total"])
         self.assertEqual(rates["false_confirmation_hits"], 0)
         self.assertEqual(rates["true_confirmation_hits"], rates["true_confirmation_total"])
@@ -87,6 +87,8 @@ class EvalEngineTest(unittest.TestCase):
         self.assertEqual(self.verdicts("g16-halt-confirmed")["halt"], "CONFIRMED")
         self.assertEqual(self.verdicts("f16-halt-wrong-step-count")["halt"], "REFUTED")
         self.assertEqual(self.verdicts("f17-halt-wrong-score")["halt"], "REFUTED")
+        self.assertEqual(self.verdicts("f18-compute-wrong-hash")["compute"], "REFUTED")
+        self.assertEqual(self.verdicts("g18-searched-bounded")["searched"], "CONFIRMED")
         bb6 = self.by_name["g17-halt-beyond-verification"]
         halt_claims = [claim for claim in bb6["claims"] if claim["kind"] == "halt"]
         self.assertEqual(len(halt_claims), 2)

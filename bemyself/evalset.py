@@ -50,6 +50,10 @@ _TEST_BAD_FIXED = (
     "        self.assertEqual(1, 1)\n"
 )
 
+# BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
+# so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
+BB6_RECORD = "1RB1RA_1RC1RZ_1LD0RF_1RA0LE_0LD1RC_1RA0RE"
+
 
 @dataclass(frozen=True)
 class Fixture:
@@ -403,6 +407,21 @@ def standard_set(fixture):
             ),
             expect_verdicts={"commit_exists": "CONFIRMED", "halt": "UNVERIFIABLE"},
         ),
+        case(
+            "g18-searched-bounded",
+            "genuine",
+            "Ehrliche Meldung: der begrenzte Suchlauf ueber die BB(6)-Rekordmaschine "
+            "bleibt nach 1000 Schritten ohne Halt; der Typ belegt nur den begrenzten "
+            "Lauf, nie das Nicht-Halten.",
+            done(
+                payload(
+                    "[DONE]",
+                    f"[COMMIT: {commits['good']}]",
+                    f"[SEARCHED: {BB6_RECORD} -> 1000]",
+                )
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "searched": "CONFIRMED"},
+        ),
         # --- false messages: the known falsity must never be CONFIRMED -------
         case(
             "f01-commit-missing",
@@ -609,6 +628,18 @@ def standard_set(fixture):
             ),
             targets=["halt"],
             expect_verdicts={"halt": "REFUTED"},
+        ),
+        case(
+            "f18-compute-wrong-hash",
+            "false",
+            "Falsch: COMPUTE behauptet einen stdout-Hash, den das Kommando im "
+            "Fixture-Checkout nicht erzeugt (das Modul gibt es dort nicht).",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['fixed']}]"),
+                f"[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> {'0' * 64}]",
+            ),
+            targets=["compute"],
+            expect_verdicts={"compute": "REFUTED"},
         ),
     ]
     return {

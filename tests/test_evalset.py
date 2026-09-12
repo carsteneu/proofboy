@@ -123,12 +123,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_half_false(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 34)
+        self.assertEqual(len(cases), 36)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 17)
-        self.assertEqual(groups.count("false"), 17)
+        self.assertEqual(groups.count("genuine"), 18)
+        self.assertEqual(groups.count("false"), 18)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 34)
+        self.assertEqual(len(set(names)), 36)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -161,6 +161,8 @@ class StandardSetTest(unittest.TestCase):
             "f12-hostile-giant-line",
             "f13-hostile-huge-report",
             "f14-hostile-control-characters",
+            "f18-compute-wrong-hash",
+            "g18-searched-bounded",
         ):
             self.assertIn(name, present, name)
 
