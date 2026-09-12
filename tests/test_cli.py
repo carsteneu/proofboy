@@ -116,6 +116,37 @@ class CliTest(unittest.TestCase):
         verdicts = self.verdicts(proc.stdout)
         self.assertEqual(verdicts["merge"], "UNVERIFIABLE")
 
+    def test_placeholder_report_parses_to_no_claims(self):
+        # The template lines of a yesloop briefing are not assertions: the
+        # report yields no claim at all and the run exits 3, without a single
+        # UNVERIFIABLE verdict for a placeholder.
+        report = self.write_report(
+            "### Phase 6: FINISH\n"
+            "**send_to payload:** `[DONE] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>]`\n"
+            "[HALT: <machine> -> <steps>]\n"
+            "**Files in scope:** <pfad1>, <pfad2>\n"
+            "Tests run: <cmd> -> exit 0\n"
+        )
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 3, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertEqual(payload["claims"], [])
+        self.assertEqual(payload["summary"]["UNVERIFIABLE"], 0)
+        self.assertIn("no verifiable claims found", proc.stderr)
+
+    def test_placeholder_markers_do_not_hide_real_claims(self):
+        report = self.write_report(
+            "### Phase 6: FINISH\n"
+            "**send_to payload:** `[DONE] [COMMIT: <hash>] "
+            f"[COMMIT: {self.repo['good']}] [MERGE: no]`\n"
+        )
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            self.verdicts(proc.stdout),
+            {"commit_exists": "CONFIRMED", "merge": "UNVERIFIABLE"},
+        )
+
     def test_strict_fails_when_any_claim_stays_unverifiable(self):
         report = self.write_report(
             f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
