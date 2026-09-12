@@ -48,12 +48,17 @@ class ClaimType:
 
     ``pattern`` matches the claim's markers inside one line, ``parse`` turns
     one match into the claim's fields (or None to skip it), and ``check``
-    re-derives the claim against the world. Adding a kind is a new module
-    under :mod:`bemyself.claimtypes` plus one entry in its ``CLAIM_TYPES``;
-    the report parser and the CLI stay untouched.
+    re-derives the claim against the world. ``needs_repo`` declares whether
+    that check reads a git repository (:func:`bemyself.checks.kind_needs_repo`
+    resolves it). Adding a kind is a new module under
+    :mod:`bemyself.claimtypes` plus one entry in its ``CLAIM_TYPES``; the
+    report parser and the CLI stay untouched.
     """
 
     kind: str
     pattern: re.Pattern[str]
     parse: Callable[[re.Match[str], str], dict | None]
     check: Callable[[Claim, "Ctx"], Result]
+    # The CLI requires --repo for a report only while some occurring kind
+    # declares this.
+    needs_repo: bool = False

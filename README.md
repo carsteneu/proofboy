@@ -17,7 +17,7 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> --repo <pfad> [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
+python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
 python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
 python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N]
 ```
@@ -25,7 +25,13 @@ python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sand
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
 Pruefset. Die Meldung kommt entweder aus einer Datei (`--report`) oder direkt aus
 einer YesMem-Scratchpad-Section (`--section`): genau eines von beiden ist
-Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--section` ist
+Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--report` ist
+`--repo` nur dann Pflicht, wenn die Meldung eine Behauptung enthaelt, deren
+Pruefer ein Repository braucht (`COMMIT`, `BRANCH`, Tests, Diff-Scope; eine per
+`--files` ergaenzte Diff-Scope-Behauptung zaehlt mit); ein
+Report aus repo-freien Behauptungen (etwa `[HALT]`) laeuft ohne `--repo`. Fehlt
+`--repo` fuer einen repo-beduerftigen Report, bricht der Aufruf mit Exit 2 und
+usage ab und nennt den Behauptungstyp. Mit `--section` ist
 `--project` Pflicht und ohne `--repo` prueft der Pruefer dasselbe Verzeichnis;
 die Section wird ausschliesslich lesend gelesen (SQLite `mode=ro`; bei
 WAL-Datenbanken koennen dabei `-shm`/`-wal`-Hilfsdateien entstehen, die
@@ -42,7 +48,7 @@ Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
 |---|---|
 | 0 | Mindestens eine Behauptung `bestaetigt`, keine `widerlegt` |
 | 1 | Mindestens eine Behauptung `widerlegt` |
-| 2 | Fehler (Report fehlt oder zu gross, Repo-Pfad fehlt, Section unbekannt oder nicht lesbar) |
+| 2 | Fehler (Report fehlt oder zu gross, benoetigtes `--repo` fehlt oder ist ungueltig, Section unbekannt oder nicht lesbar) |
 | 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
 | 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar`, nichts `widerlegt` |
 
@@ -234,6 +240,13 @@ CLAIM_TYPES = (halt.HALT, even.EVEN)
 Danach findet `parse_report` den Marker `[EVEN: 42]` und `run_claim` fuehrt
 `check` aus. `tests/test_claimtypes.py` fuehrt diesen Weg als Test durch
 (Eintrag zur Laufzeit registriert, beide Bestandsmodule unveraendert).
+
+Ein Typ deklariert am Eintrag ausserdem, ob sein `check` ein Git-Repository
+liest: `ClaimType(..., needs_repo=True)`. Ohne die Angabe (Default `False`)
+laeuft `check --report` auch ohne `--repo`; mit `needs_repo=True` verlangt ein
+Report, der eine solche Behauptung enthaelt, `--repo` (usage-Fehler, Exit 2,
+mit dem Typ in der Meldung). Den Bedarf liest der Pruefer aus der Registry
+(`bemyself.checks.kind_needs_repo`), nicht aus einer Typ-Liste im CLI-Code.
 
 ## Evaluation
 

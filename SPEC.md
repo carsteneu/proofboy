@@ -60,25 +60,35 @@ BB(5)-Champion), konfigurierbar ueber `--halt-limit N` bei `check` und
 `UNVERIFIABLE`. Der Simulator (`bemyself/turing.py`, API `parse(machine)` und
 `run(machine, max_steps)`) laeuft in-process in reiner
 Standardbibliothek: kein Subprozess, kein Netz-, Repo- oder Sandkastenbezug
-(es entsteht kein ungesandboxtes Fremdkommando); der Speicher waechst linear
+(es entsteht kein ungesandboxtes Fremdkommando; ein Report aus lauter
+HALT-Behauptungen laeuft ohne `--repo`); der Speicher waechst linear
 mit den ausgefuehrten Schritten. Das Limit begrenzt die einzelne Behauptung,
 nicht den Report; ein Claim am Limit kostet wenige Sekunden, viele HALT-Zeilen
 summieren sich.
 
 Erweiterbarkeit: Behauptungstypen liegen als Registry vor
 (`bemyself/claimtypes/`): ein neuer Typ ist ein Modul plus ein Eintrag in
-`CLAIM_TYPES`, ohne Aenderung an Parser (`bemyself/report.py`) oder CLI
-(`bemyself/cli.py`). Rezept mit durchgerechnetem Mini-Beispiel: README,
+`CLAIM_TYPES` samt `needs_repo`, das den Repository-Bedarf deklariert, ohne
+Aenderung an Parser (`bemyself/report.py`) oder CLI (`bemyself/cli.py`) --
+`check --report` verlangt `--repo` nur, wenn ein vorkommender Typ ihn
+deklariert. Rezept mit durchgerechnetem Mini-Beispiel: README,
 Abschnitt "Neuen Behauptungstyp hinzufuegen".
 
 ## Kommandos (Ziel)
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> --repo <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
 | `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
 | `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
+
+`--repo` verlangt `check --report` nur, wenn mindestens eine vorkommende
+Behauptung ein Repository deklariert (COMMIT, BRANCH, Tests, Diff-Scope; eine
+per `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit). Der
+Bedarf steht am Checker bzw. am `ClaimType.needs_repo` in der Registry, nicht
+als Liste im CLI; HALT/SCORE und unbekannte Typen ohne Checker laufen ohne
+`--repo` (und bleiben gegebenenfalls `UNVERIFIABLE`).
 
 ## Harte Regeln
 

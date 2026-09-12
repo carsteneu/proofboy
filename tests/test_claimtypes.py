@@ -7,7 +7,7 @@ from unittest import mock
 
 from bemyself import claimtypes
 from bemyself.claimtypes import halt
-from bemyself.checks import Ctx, run_claim
+from bemyself.checks import Ctx, kind_needs_repo, needs_repo, run_claim
 from bemyself.model import ClaimType, Result, Verdict
 from bemyself.report import parse_report
 
@@ -30,6 +30,67 @@ class RegistryTest(unittest.TestCase):
     def test_checker_lookup(self):
         self.assertIs(claimtypes.checker_for("halt"), halt.check)
         self.assertIsNone(claimtypes.checker_for("nothing-registered"))
+
+    def test_kind_repo_need_comes_from_the_checker(self):
+        for kind in ("commit_exists", "branch_pushed", "diff_scope", "tests_green", "tests_exit"):
+            with self.subTest(kind=kind):
+                self.assertTrue(kind_needs_repo(kind))
+        for kind in ("halt", "merge", "deploy", "nothing-registered"):
+            with self.subTest(kind=kind):
+                self.assertFalse(kind_needs_repo(kind))
+
+    def test_registered_repo_need_is_honored(self):
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="checked")
+
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        needs = ClaimType(
+            kind="needsrepo",
+            pattern=re.compile(r"\[NEEDSREPO: (\w+)\]"),
+            parse=parse,
+            check=check,
+            needs_repo=True,
+        )
+        with mock.patch.object(claimtypes, "CLAIM_TYPES", claimtypes.CLAIM_TYPES + (needs,)):
+            self.assertTrue(kind_needs_repo("needsrepo"))
+        self.assertFalse(kind_needs_repo("needsrepo"))
+
+    def test_repo_need_defaults_to_false(self):
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="checked")
+
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        even = ClaimType(
+            kind="even",
+            pattern=re.compile(r"\[EVEN: (\d+)\]"),
+            parse=parse,
+            check=check,
+        )
+        self.assertFalse(even.needs_repo)
+
+    def test_a_decorated_checker_declares_the_need_too(self):
+        # The @needs_repo marker works on an optional type's checker just like
+        # on a built-in one: the resolution honors both declaration sites.
+        @needs_repo
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="checked")
+
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        decorated = ClaimType(
+            kind="decorated",
+            pattern=re.compile(r"\[DECORATED: (\w+)\]"),
+            parse=parse,
+            check=check,
+        )
+        self.assertTrue(getattr(check, "needs_repo"))
+        with mock.patch.object(claimtypes, "CLAIM_TYPES", claimtypes.CLAIM_TYPES + (decorated,)):
+            self.assertTrue(kind_needs_repo("decorated"))
 
     def test_a_new_type_needs_no_parser_or_cli_change(self):
         # The documented recipe: one new module and one registration entry.

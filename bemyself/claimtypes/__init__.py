@@ -3,7 +3,8 @@
 A claim type is one module in this package plus one entry in
 :data:`CLAIM_TYPES`: ``pattern`` finds its markers in a report line, ``parse``
 turns one match into the claim's fields, ``check`` re-derives the claim
-against the world. The report parser (:mod:`bemyself.report`) and the checker
+against the world, and ``needs_repo`` declares whether that check reads a git
+repository. The report parser (:mod:`bemyself.report`) and the checker
 dispatcher (:func:`bemyself.checks.run_claim`) both consult this registry, so
 a new type needs no change to either -- see README, "Neuen Behauptungstyp
 hinzufuegen".
@@ -19,9 +20,26 @@ from bemyself.model import ClaimType
 CLAIM_TYPES: tuple[ClaimType, ...] = (halt.HALT,)
 
 
-def checker_for(kind: str) -> Callable | None:
-    """The checker of a registered optional claim kind, or None."""
+def _find(kind: str) -> ClaimType | None:
     for claim_type in CLAIM_TYPES:
         if claim_type.kind == kind:
-            return claim_type.check
+            return claim_type
     return None
+
+
+def checker_for(kind: str) -> Callable | None:
+    """The checker of a registered optional claim kind, or None."""
+    claim_type = _find(kind)
+    return claim_type.check if claim_type is not None else None
+
+
+def type_needs_repo(kind: str) -> bool:
+    """Whether the registered optional claim kind declares a repo need.
+
+    The declaration is the ``ClaimType.needs_repo`` field or the
+    :func:`bemyself.checks.needs_repo` marker on the type's checker.
+    """
+    claim_type = _find(kind)
+    if claim_type is None:
+        return False
+    return claim_type.needs_repo or bool(getattr(claim_type.check, "needs_repo", False))
