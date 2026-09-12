@@ -1214,13 +1214,17 @@ class CheckerTest(unittest.TestCase):
 
     @mock.patch("bemyself.checks.TEST_TIMEOUT", 2)
     def test_tests_green_timeout_kills_the_process_group(self):
+        # The marker must be unique per run: a shared "sleep <n>" makes
+        # concurrent runs pgrep/pkill each other's grandchildren.
+        seconds = f"5432{os.getpid()}"
+        marker = f"sleep {seconds}"
         ctx = self.ctx(allowlist=("python3 -c",))
         result = run_claim(
             make_claim(
                 "tests_green",
                 command=(
                     "python3 -c \"import subprocess, time; "
-                    "subprocess.Popen(['sleep', '54321']); time.sleep(60)\""
+                    f"subprocess.Popen(['sleep', '{seconds}']); time.sleep(60)\""
                 ),
                 claimed_exit=0,
                 commit=self.repo["good"],
@@ -1230,10 +1234,15 @@ class CheckerTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         import time
 
-        time.sleep(0.3)
-        probe = subprocess.run(["pgrep", "-f", "sleep 54321"], capture_output=True, text=True)
+        # The kill is asynchronous and load-dependent: poll for a bounded
+        # window instead of assuming a fixed grace period is enough.
+        deadline = time.monotonic() + 5
+        probe = subprocess.run(["pgrep", "-f", marker], capture_output=True, text=True)
+        while probe.returncode == 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+            probe = subprocess.run(["pgrep", "-f", marker], capture_output=True, text=True)
         if probe.returncode == 0:
-            subprocess.run(["pkill", "-f", "sleep 54321"], capture_output=True)
+            subprocess.run(["pkill", "-f", marker], capture_output=True)
         self.assertNotEqual(probe.returncode, 0, "the grandchild survived the timeout")
 
     def test_tests_green_unverifiable_for_abbreviated_dangerous_option(self):
