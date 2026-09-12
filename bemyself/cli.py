@@ -16,6 +16,7 @@ from bemyself.checks import (
     kind_needs_repo,
     run_claim,
 )
+from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 from bemyself.model import Claim, Verdict
@@ -146,7 +147,13 @@ def build_parser():
     check.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     check.add_argument("--tmp", help="directory for throwaway checkouts")
     check.add_argument(
-        "--allow", action="append", default=[], help="extra allowlisted command prefix (repeatable)"
+        "--allow",
+        action="append",
+        default=[],
+        help=(
+            "extra allowlisted command prefix for test runs and [COMPUTE] "
+            "claims (repeatable)"
+        ),
     )
     check.add_argument(
         "--sandbox",
@@ -447,6 +454,7 @@ def run_check(args, parser):
         sandbox=args.sandbox,
         halt_limit=args.halt_limit,
         search_limit=args.search_limit,
+        compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST + tuple(args.allow),
     )
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 

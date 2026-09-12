@@ -33,6 +33,7 @@ import sys
 from bemyself import evalset
 from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, run_claim
 from bemyself.cli import EXIT_ERROR, EXIT_OK, EXIT_STRICT, exit_code, sanitize
+from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 from bemyself.model import Verdict
@@ -60,6 +61,7 @@ def _run_case(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT
         sandbox=sandbox,
         halt_limit=halt_limit,
         search_limit=search_limit,
+        compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST,
     )
     claims = parse_report(case["report"])
     results = [(claim, run_claim(claim, ctx)) for claim in claims]

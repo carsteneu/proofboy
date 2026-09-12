@@ -95,9 +95,13 @@ def parse_report(text: str) -> list[Claim]:
     # guess must never confirm anything.
     bound_commit = commit_values[0] if len(set(commit_values)) == 1 else None
     if bound_commit is not None:
+        # A claim kind declares this at its registry entry (binds_commit), so
+        # the parser stays free of per-kind branches.
+        binders = {claim_type.kind for claim_type in claimtypes.CLAIM_TYPES if claim_type.binds_commit}
         for claim in claims:
-            if claim.kind == "branch_pushed" and claim.fields["commit"] is None:
-                claim.fields["commit"] = bound_commit
+            if claim.kind == "branch_pushed" or claim.kind in binders:
+                if claim.fields.get("commit") is None:
+                    claim.fields["commit"] = bound_commit
 
     for lineno, raw, command, code in tests_lines:
         kind = "tests_green" if code == 0 else "tests_exit"

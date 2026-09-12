@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -417,6 +418,51 @@ class CliTest(unittest.TestCase):
         proc = self.invoke("--report", self.searched_report(), "--search-limit=banana")
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--search-limit", proc.stderr)
+
+    # --- [COMPUTE] ---------------------------------------------------------
+    def compute_report(self, digest_text, command='python3 -c "print(42)"'):
+        return self.write_report(
+            "### Phase 6: FINISH\n"
+            "**Status:** COMPLETE\n"
+            f"**send_to payload:** `[DONE] [COMMIT: {self.repo['good']}]`\n"
+            f"[COMPUTE: {command} -> {digest_text}]\n",
+            name="compute-report.txt",
+        )
+
+    def test_compute_claim_confirms_end_to_end_with_allow(self):
+        correct = hashlib.sha256(b"42\n").hexdigest()
+        proc = self.invoke(
+            "--report", self.compute_report(correct), "--json", "--allow", "python3 -c"
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["compute"]["verdict"], "CONFIRMED")
+
+    def test_compute_command_outside_the_allowlist_stays_unverifiable(self):
+        correct = hashlib.sha256(b"42\n").hexdigest()
+        proc = self.invoke("--report", self.compute_report(correct), "--json")
+        # The commit claim still confirms (exit 0); the compute claim must not.
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["compute"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("compute allowlist", claims["compute"]["reason"])
+
+    def test_compute_wrong_digest_is_refuted(self):
+        proc = self.invoke(
+            "--report", self.compute_report("a" * 64), "--json", "--allow", "python3 -c"
+        )
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["compute"]["verdict"], "REFUTED")
+
+    def test_compute_only_report_without_repo_is_a_usage_error(self):
+        report = self.write_report(
+            f"[COMPUTE: python3 -c \"print(42)\" -> {'a' * 64}]\n", name="compute-only.txt"
+        )
+        proc = self.invoke_without_repo("--report", report)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--repo is required", proc.stderr)
+        self.assertIn("compute", proc.stderr)
 
     # --- --repo: required only for claim kinds that need it ----------------
     def invoke_without_repo(self, *args):

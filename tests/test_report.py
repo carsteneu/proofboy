@@ -1,5 +1,9 @@
+import re
 import unittest
+from unittest import mock
 
+from bemyself import claimtypes
+from bemyself.model import ClaimType, Result, Verdict
 from bemyself.report import parse_report
 
 
@@ -108,6 +112,49 @@ class ParseReportTest(unittest.TestCase):
         )
         tests = [c for c in parse_report(text) if c.kind == "tests_green"][0]
         self.assertEqual(tests.fields["commit"], "aaaa1111")
+
+
+class ClaimTypeCommitBindingTest(unittest.TestCase):
+    """An optional claim type declaring ``binds_commit`` receives the report's
+    single commit -- a registry declaration, not a parser special case."""
+
+    def compute_claims(self, text):
+        return [claim for claim in parse_report(text) if claim.kind == "compute"]
+
+    def test_compute_binds_to_the_single_commit(self):
+        claims = self.compute_claims(
+            f"**send_to payload:** `[COMMIT: aaaa1111]`\n[COMPUTE: python3 emit.py -> {'a' * 64}]\n"
+        )
+        self.assertEqual(len(claims), 1)
+        self.assertEqual(claims[0].fields["commit"], "aaaa1111")
+
+    def test_compute_stays_unbound_with_several_distinct_commits(self):
+        claims = self.compute_claims(
+            "**send_to payload:** `[COMMIT: aaaa1111]`\n"
+            "**send_to payload:** `[COMMIT: bbbb2222]`\n"
+            f"[COMPUTE: python3 emit.py -> {'a' * 64}]\n"
+        )
+        self.assertIsNone(claims[0].fields["commit"])
+
+    def test_any_registered_type_can_declare_the_binding(self):
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="stub")
+
+        dummy = ClaimType(
+            kind="dummy",
+            pattern=re.compile(r"\[DUMMY: (\w+)\]"),
+            parse=parse,
+            check=check,
+            binds_commit=True,
+        )
+        with mock.patch.object(claimtypes, "CLAIM_TYPES", claimtypes.CLAIM_TYPES + (dummy,)):
+            claims = parse_report("[COMMIT: aaaa1111]\n[DUMMY: x]\n")
+        bound = [claim for claim in claims if claim.kind == "dummy"]
+        self.assertEqual(len(bound), 1)
+        self.assertEqual(bound[0].fields["commit"], "aaaa1111")
 
 
 if __name__ == "__main__":
