@@ -84,7 +84,17 @@ from bemyself.msheet.sheet import parse_sheet  # noqa: E402
 from bemyself.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
 from prompts import build_messages, build_repair_message  # noqa: E402
 
-PROXY_URL = "http://localhost:9099/v1/chat/completions"
+def proxy_url():
+    """Der OpenAI-kompatible Endpunkt; per ENV umstellbar (Default: lokaler Proxy).
+
+    Auf einer gemieteten GPU zeigt ``BEMYSELF_PROXY_URL`` auf die eigene
+    vLLM-/SGLang-Instanz, damit dieselben Arme/Sets gegen das trainierte
+    Modell laufen (Runbook: training/README.md).
+    """
+    return os.environ.get("BEMYSELF_PROXY_URL", "http://localhost:9099/v1/chat/completions")
+
+
+PROXY_URL = proxy_url()  # Kompatibilitaets-Konstante (Anzeige/Altcode)
 MODEL = "deepseek-flash"
 AUTH_PATH = os.path.expanduser("~/.local/share/opencode/auth.json")
 SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
@@ -133,7 +143,7 @@ def call_model(messages, timeout):
         }
     ).encode("utf-8")
     request = urllib.request.Request(
-        PROXY_URL,
+        proxy_url(),
         data=body,
         headers={
             "Content-Type": "application/json",
