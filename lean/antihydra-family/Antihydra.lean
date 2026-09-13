@@ -81,4 +81,57 @@ theorem three_le_two_pow {k : Nat} (hk : 3 ≤ k) : 3 ≤ 2 ^ k := by
   have h' : 2 ^ 3 ≤ 2 ^ k := Nat.pow_le_pow_right (by omega) hk
   omega
 
+/-- **First induction (β-sequence).** For `i ≤ k−1`: `β_i + 3 = 3^i · 2^{k−i}`.
+One induction hypothesis, no case gaps; the additive form is chosen so the step
+needs no subtraction distributivity (Astra §(A)). -/
+theorem beta_invariant (k : Nat) (hk : 3 ≤ k) :
+    ∀ i, i ≤ k - 1 → beta k i + 3 = 3 ^ i * 2 ^ (k - i) := by
+  intro i
+  induction i with
+  | zero =>
+      intro _
+      simp [beta, Nat.sub_add_cancel (three_le_two_pow hk)]
+  | succ i ih =>
+      intro hle
+      have hi : i ≤ k - 1 := by omega
+      have hIH := ih hi
+      have hexp : k - i = (k - (i + 1)) + 1 := by omega
+      have h2 : 3 ^ i * 2 ^ (k - i) = 2 * (3 ^ i * 2 ^ (k - (i + 1))) := by
+        rw [hexp, Nat.pow_succ]
+        ac_rfl
+      calc beta k (i + 1) + 3
+          = U (beta k i) + 3 := rfl
+        _ = 3 * (3 ^ i * 2 ^ (k - (i + 1))) := U_add_three_of_two_mul (by rw [hIH, h2])
+        _ = 3 ^ (i + 1) * 2 ^ (k - (i + 1)) := by
+            rw [Nat.pow_succ]
+            ac_rfl
+
+/-- **Corollary.** All relevant `β_i` (`i ≤ k−1`) are odd. -/
+theorem beta_odd (k : Nat) (hk : 3 ≤ k) (i : Nat) (hi : i ≤ k - 1) : beta k i % 2 = 1 := by
+  have h := beta_invariant k hk i hi
+  have hexp : k - i = (k - (i + 1)) + 1 := by omega
+  have h2 : 3 ^ i * 2 ^ (k - i) = 2 * (3 ^ i * 2 ^ (k - (i + 1))) := by
+    rw [hexp, Nat.pow_succ]
+    ac_rfl
+  exact odd_of_two_mul (by rw [h, h2])
+
+/-- **Second induction (pair state).** After `i ≤ k−1` legal transitions the
+state is exactly `(k−1−i, β_i)`. In the step `A_i ≥ 1` (no halt) and `β_i` is
+odd, so only the odd rule applies. -/
+theorem iterate_state (k : Nat) (hk : 3 ≤ k) :
+    ∀ i, i ≤ k - 1 → stepN i (k - 1, 2 ^ k - 3) = some (k - 1 - i, beta k i) := by
+  intro i
+  induction i with
+  | zero =>
+      intro _
+      rfl
+  | succ i ih =>
+      intro hle
+      have hi : i ≤ k - 1 := by omega
+      have hodd : beta k i % 2 = 1 := beta_odd k hk i hi
+      have hpos : 0 < k - 1 - i := by omega
+      have harith : k - 1 - i - 1 = k - 1 - (i + 1) := by omega
+      rw [stepN_succ, ih hi, Option.bind_some]
+      simp [step, hodd, hpos, beta, U, harith]
+
 end Antihydra
