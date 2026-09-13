@@ -194,10 +194,70 @@ class ScriptsTest(unittest.TestCase):
         record = {"gold": {"certificate_given": False, "certificate": [34, 37, -1]}}
         values = distill.gold_values(record)
         self.assertEqual(values, [34, 37, -1])
-        self.assertEqual(distill.find_gold_leaks("t1=34, t2=37, d=-1", values)[:2], [-1, 34])
+        self.assertEqual(distill.find_gold_leaks("S1: t1=34, t2=37, d=-1", values), [-1, 34, 37])
+        self.assertEqual(distill.find_gold_leaks("Zertifikat (34, 37, -1) bestaetigt", values), [-1, 34, 37])
         self.assertEqual(distill.find_gold_leaks("Suche laeuft, noch kein Zyklus gefunden", values), [])
         given = {"gold": {"certificate_given": True, "certificate": [1, 3, 2]}}
         self.assertEqual(distill.gold_values(given), [])
+
+    def test_distill_leak_guard_protects_when_flag_is_absent(self):
+        """Default-Deny: aeltere Set-Versionen kennen certificate_given nicht."""
+        distill = load_module("distill_thinking")
+        record = {"gold": {"certificate": [0, 1, -1]}}
+        self.assertEqual(distill.gold_values(record), [0, 1, -1])
+
+    def test_distill_leak_guard_ignores_line_prefix_numbers(self):
+        """Kleine Zertifikatswerte duerfen nicht an h1:/S1:-Praefixen anschlagen."""
+        distill = load_module("distill_thinking")
+        values = [1, 3, 2]
+        zone = "h1: (((1 + 2) = 3))\nv h1: auto\nh1+\nS1: Schritt 1 addiert 2\n"
+        self.assertEqual(distill.find_gold_leaks(zone, values), [])
+        self.assertEqual(distill.find_gold_leaks("h3: d=-1", [1, 3, -1]), [-1])
+        self.assertEqual(distill.find_gold_leaks("h3: d=-1", [1, 3, 2]), [])
+
+    def test_rlvr_reward_accepts_the_trl_call_signature(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = write_fixture_corpus(Path(tmp) / "corpus")
+            rlvr = load_module("rlvr")
+            record = json.loads((directory / "rlvr.jsonl").read_text())
+            records = {record["id"]: record}
+            scores = rlvr.reward(
+                prompts=[record["messages"]],
+                completions=[GOOD_ANSWER],
+                record_id=[record["id"]],
+                records_by_id=records,
+            )
+            self.assertEqual(scores, [1.0])
+            self.assertEqual(rlvr.reward(completions=[GOOD_ANSWER], record_id="unknown", records_by_id=records), [0.0])
+
+    def test_rlvr_reward_covers_checkpoint_cells(self):
+        """Zellen ohne Behauptungszone (v0.1-Format) werden per Checkpoint-Abgleich bewertet."""
+        rlvr = load_module("rlvr")
+        answer = "S1: cp 1: (B,1,1)\nS2: cp 2: (A,0,1)\n[HALT]\n"
+        record = {
+            "id": "rlvr:fx:B-0001:B",
+            "verifier": {
+                "command": ["python3", "-m", "bemyself.msheet", "run", "{sheet}", "--json"],
+                "expect": {"checkpoints_all_matched": True, "checkpoints_total": 2},
+            },
+            "gold": {"checkpoints_gold": [[1, "B", 1, "1"], [2, "A", 0, "1"]]},
+        }
+        result = rlvr.score(answer, record)
+        self.assertEqual(result["reward"], 1.0, result)
+        self.assertEqual(result["reason"], "checkpoints_matched")
+        wrong = rlvr.score("S1: cp 1: (B,1,1)\n[HALT]\n", record)
+        self.assertEqual(wrong["reward"], 0.5, wrong)
+
+    def test_dpo_rows_use_the_conversation_format(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = write_fixture_corpus(Path(tmp) / "corpus")
+            dpo = load_module("train_dpo")
+            record = json.loads((directory / "dpo.jsonl").read_text())
+            rows = dpo.build_dpo_rows([record])
+            self.assertEqual(len(rows), 1)
+            self.assertEqual([message["role"] for message in rows[0]["prompt"]], ["system", "user"])
+            self.assertEqual(rows[0]["chosen"], [{"role": "assistant", "content": GOOD_ANSWER}])
+            self.assertEqual(rows[0]["rejected"], [{"role": "assistant", "content": BAD_ANSWER}])
 
     def test_distill_dry_run_builds_request_without_sending(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -233,6 +293,8 @@ class ScriptsTest(unittest.TestCase):
             self.assertEqual(harness.proxy_url(), "http://localhost:9099/v1/chat/completions")
             os.environ["BEMYSELF_PROXY_URL"] = "http://gpu-box:8000/v1/chat/completions"
             self.assertEqual(harness.proxy_url(), "http://gpu-box:8000/v1/chat/completions")
+            os.environ["BEMYSELF_PROXY_URL"] = "   "
+            self.assertEqual(harness.proxy_url(), "http://localhost:9099/v1/chat/completions")
         finally:
             if previous is None:
                 os.environ.pop("BEMYSELF_PROXY_URL", None)

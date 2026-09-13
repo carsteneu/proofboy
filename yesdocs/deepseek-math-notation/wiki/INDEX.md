@@ -29,7 +29,7 @@ vorbereitet**: Korpus v0 aus den abgeschlossenen Läufen plus QLoRA-SFT/DPO/RLVR
 und Leck-Guard in [`training/`](../../../training/README.md), eingeordnet in
 [05-07 §13](05-entwurf-testplan/05-07-denksprache-v1.1.md).
 
-**Umfang:** 34 Dateien in 5 Clustern · 77661 Wörter ·
+**Umfang:** 34 Dateien in 5 Clustern · 77693 Wörter ·
 721 Quellenangaben (Datei-Summen) · 1089 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte

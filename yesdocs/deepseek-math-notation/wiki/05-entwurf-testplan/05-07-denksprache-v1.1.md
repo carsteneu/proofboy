@@ -223,11 +223,16 @@ Legende + Aufgabe → verifiziertes Blatt verbatim; nur Blätter ohne
 REFUTED/UNVERIFIABLE-Behauptungen), DPO (18 Paare verifiziert/nicht
 bestätigt), RLVR (176 Zellen mit Runner-Kommando und `all_claims_confirmed`)
 und Denkzonen-Material (176). Die Läufe selbst bleiben die Quelle
-(Häfte-Runde v13: [05-10](05-10-haerte-runde-v13.md)); Splits liegen auf
+(Härte-Runde v13: [05-10](05-10-haerte-runde-v13.md)); Splits liegen auf
 Task-Familien (Seed dokumentiert), Korpus v0 ist committet und per Skript
 sha256-stabil reproduzierbar.
 `training/{train_sft,train_dpo,rlvr,distill_thinking}.py` sind GPU-ready
 (QLoRA/TRL, Reward = Runner-Verdikt, Leck-Guard für die Nicht-Vorgabe-Zellen);
+nach der Fremd-Review gehärtet: `sandbox="require"` für Blatt-Zeugen (fail
+closed statt still unsandboxed), TRL-Aufruf gegen die deklarierte
+Versionsspanne gebaut (`processing_class`, kein `max_prompt_length`) und der
+Leck-Guard als Default-Deny (zählt beschriftete Werte/Tripel statt roher
+Ziffern);
 die Leiter (Basis vs. LoRA vs. DPO/RLVR) steht in `training/EVALPLAN.md`.
 Ehrlichkeitsgrenze: auf der CPU-Maschine sind nur dry-runs, Reward-Läufe,
 Leck-Guard und Rebuild geprüft — jeder Trainingslauf braucht gemietete

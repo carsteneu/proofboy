@@ -33,6 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TRAINING = ROOT / "training"
+TRAINING_DIR = TRAINING
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -396,6 +397,56 @@ class BuilderTest(unittest.TestCase):
             self.assertEqual(manifest["files"]["sft.jsonl"]["sha256"], digest)
             self.assertEqual(manifest["files"]["sft.jsonl"]["records"], 5)
             self.assertEqual(manifest["seed"], 7)
+
+    def test_clean_sheet_refuses_py_witness_without_bwrap(self):
+        """Sandbox-Pflicht: ohne bwrap faellt das Blatt aus SFT/DPO (fail closed)."""
+        from bemyself.msheet import witnesses
+
+        py_sheet = (
+            "h1: (((1 + 2) = 3))\n"
+            "v h1: py: (1 + 2) == 3\n"
+            "h1+\n"
+            "CLAIM c1: ((1 + 2) = 3)\n"
+            "WITNESS c1: ref h1\n"
+            "[HALT] c1\n"
+        )
+        self.assertTrue(self.builder._clean_sheet(py_sheet))
+        original = witnesses.find_bwrap
+        witnesses.find_bwrap = lambda: None
+        self.builder.sheet_verdicts.cache_clear()  # gehaltene Verdikte nicht weiterverwenden
+        try:
+            self.assertFalse(self.builder._clean_sheet(py_sheet))
+            verdicts = self.builder.sheet_verdicts(py_sheet, "auto")
+            self.assertTrue(verdicts["unsandboxed"])
+            self.assertFalse(self.builder._clean_sheet(py_sheet, "auto"))
+        finally:
+            witnesses.find_bwrap = original
+            self.builder.sheet_verdicts.cache_clear()
+
+    def test_no_verify_cli_runs_without_dependency_on_harness_import(self):
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "runs-v12-x"
+            write_branch_run(root, "tier-a-x", "A-0001", "B", 1, [(GOOD_ANSWER, True, None)])
+            out = Path(tmp) / "corpus"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(TRAINING_DIR / "build_corpus.py"),
+                    "--runs", str(root),
+                    "--out", str(out),
+                    "--no-verify",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(ROOT),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("ModuleNotFoundError", result.stderr)
+            self.assertTrue((out / "manifest.json").exists())
+            manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["sandbox"], "require")
 
     def test_scan_runs_reports_missing_summary_as_unlabeled_not_solved(self):
         with tempfile.TemporaryDirectory() as tmp:

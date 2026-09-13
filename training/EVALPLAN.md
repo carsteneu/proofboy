@@ -35,7 +35,7 @@ plus Korpus; Laeufe landen in `.yesmem/tmp/runs/` des Checkouts.
 
 ## Erwartungen — und was davon ehrlich ist
 
-* **Korpus ist klein:** 160 SFT-Saetze, 18 DPO-Paare, 24 Task-Familien.
+* **Korpus ist klein:** 160 SFT-Saetze, 18 DPO-Paare, 28 Task-Familien.
   Erwartbar ist ein Sichtbarmachen der Notationstreue (Format-Rate), **keine**
   Signifikanzaussagen — n = 8 je Arm in Tier B, eine Wiederholung.
 * **GO/NO-GO:** SFT behalten, wenn Falschbestaetigungen 0 bleiben **und** die
@@ -45,10 +45,11 @@ plus Korpus; Laeufe landen in `.yesmem/tmp/runs/` des Checkouts.
   ohne die Falschbestaetigungsrate zu heben.
 * **Der 8B-Stand-in ist nicht das API-Zielmodell.** Uebertragbar ist die
   Methodik (Legende, Format, Zeugen); die absoluten Ziffern sind es nicht.
-* **Sandbox auf der GPU-Kiste:** `py:`-Zeugen laufen im Harness mit
-  `--sandbox auto`; fuer fremde Blaetter/RLVR gehoert `bwrap` installiert
-  (sonst `--sandbox require` fehlschlagen lassen, nie stillschweigend
-  unsandboxed laufen).
+* **Sandbox auf der GPU-Kiste:** `py:`-Zeugen laufen in `training/build_corpus.py`
+  und `training/rlvr.py` mit `sandbox="require"` (Default) -- fehlt `bwrap`,
+  werden die Blaetter UNVERIFIABLE und fallen aus SFT/DPO bzw. liefern 0 Reward,
+  statt still unsandboxed zu rechnen. Der Harness selbst hat weiterhin seinen
+  `--sandbox auto`-Default; fuer fremde Blaetter dort ebenfalls `require` nutzen.
 * **Splits:** train/val/test sind auf Task-Familien gezogen; die Leiter-Faelle
   selbst sind Saetze v0.3 — sie sind teilweise Trainingsmaterial (Tier A/B).
   Fuer saubere Verallgemeinerungsaussagen muessten neue Aufgaben (neue Familien)

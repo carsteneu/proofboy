@@ -1,11 +1,12 @@
 {
-  "built_at": "2026-09-13T07:41:46+00:00",
+  "built_at": "2026-09-13T07:59:17+00:00",
   "seed": 20260912,
   "arms": [
     "B",
     "C",
     "D"
   ],
+  "sandbox": "require",
   "command": "training/build_corpus.py --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v11-20260912 --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v12-20260912 --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v13-20260912 --out training/corpus",
   "counts": {
     "runs_scanned": 436,
@@ -30,7 +31,7 @@
   },
   "files": {
     "sft.jsonl": {
-      "sha256": "525628eb58894f41a90b240a8b8c6ed9c1312fa73da44af515ae2ba0dd20d4cb",
+      "sha256": "83f0485b44d2abfb40aef4b5b0b69ad83b9dab4c7d7b974580d8ccf42ba4de67",
       "records": 160
     },
     "dpo.jsonl": {
@@ -38,7 +39,7 @@
       "records": 18
     },
     "rlvr.jsonl": {
-      "sha256": "6d9ae44aff43449994f612a1871afcc73f36576bc853fe23193a30af52a5aec4",
+      "sha256": "5efcb597ed4a060943d1d07a58b3af6e7493babe5d9bd46d008be903a2edbe97",
       "records": 176
     },
     "think.jsonl": {

@@ -48,11 +48,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
 TOOLING_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "tooling"
 DEFAULT_ARMS = ("B", "C", "D")
 SET_VERSION_BY_RUN = {"v11": "0.1", "v12": "0.2", "v13": "0.3"}
 RATIOS = (0.70, 0.15, 0.15)
+# Blaetter tragen modellgenerierte py:-Zeugen; ohne bwrap liefen sie ungecontaint.
+# "require" laesst den Bau lieber scheitern (Runner: UNVERIFIABLE -> Blatt faellt
+# aus SFT/DPO), statt still unsandboxed zu rechnen. --sandbox auto/off nur bewusst.
+DEFAULT_SANDBOX = "require"
 
 _TASK_RE = re.compile(r"\A(?P<tier>[A-Z]+)(?P<gen>\d*)-(?P<num>\d+)\Z")
 _ARM_RE = re.compile(r"\A(?P<arm>[A-Za-z]+)-rep(?P<rep>\d+)\Z")
@@ -301,7 +307,8 @@ def _pick_preferred(runs):
     return best
 
 
-def build_sft(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict | None = None) -> list[dict]:
+def build_sft(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict | None = None,
+              sandbox: str = DEFAULT_SANDBOX) -> list[dict]:
     # Dedup je (Set-Version, Task, Arm): Wiederholungen derselben Zelle fallen
     # weg, verschiedene Set-Versionen bleiben -- sie tragen unterschiedliche
     # Legenden (v0.1 vs. v0.2), sind also verschiedene Beispiele derselben
@@ -319,11 +326,11 @@ def build_sft(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict |
         messages = prompt_messages(run.rounds[0].prompt_path)
         if answer is None or messages is None:
             continue
-        if not _clean_sheet(answer):
+        if not _clean_sheet(answer, sandbox):
             if stats is not None:
                 stats["sft_dropped_unverified"] = stats.get("sft_dropped_unverified", 0) + 1
             continue
-        verdicts = sheet_verdicts(answer)
+        verdicts = sheet_verdicts(answer, sandbox)
         records[key] = {
             "id": f"sft:{run.version}:{run.task_id}:{run.arm}",
             "task_key": task_family(run.task_id),
@@ -343,13 +350,16 @@ def build_sft(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict |
                     "confirmed": verdicts["confirmed"],
                     "refuted": verdicts["refuted"],
                     "unverifiable": verdicts["unverifiable"],
+                    "sandbox": verdicts["sandbox"],
+                    "sandboxed": verdicts["sandboxed"],
                 },
             },
         }
     return sorted(records.values(), key=lambda record: record["id"])
 
 
-def build_dpo(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict | None = None) -> list[dict]:
+def build_dpo(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict | None = None,
+              sandbox: str = DEFAULT_SANDBOX) -> list[dict]:
     verified = _pick_preferred([run for run in runs if run.arm in arms and run.solved is True])
     rejected: dict[tuple[str, str], tuple[ArmRun, Round]] = {}
     for run in runs:
@@ -392,7 +402,7 @@ def build_dpo(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict |
         messages = prompt_messages(chosen_run.rounds[0].prompt_path)
         if chosen is None or rejected_answer is None or messages is None:
             continue
-        if not _clean_sheet(chosen):
+        if not _clean_sheet(chosen, sandbox):
             if stats is not None:
                 stats["dpo_dropped_unverified_chosen"] = (
                     stats.get("dpo_dropped_unverified_chosen", 0) + 1
@@ -433,15 +443,33 @@ def thinking_zone(answer: str) -> list[str]:
     return [lines[number - 1] for number in numbers if 1 <= number <= len(lines)]
 
 
+
+def _sandbox_state(flags) -> dict:
+    """True/False nur bei py:-Zeugen; None = das Blatt hatte keine py:-Zeugen."""
+    if any(flag is False for flag in flags):
+        return {"unsandboxed": True, "sandboxed": False}
+    if any(flag is True for flag in flags):
+        return {"unsandboxed": False, "sandboxed": True}
+    return {"unsandboxed": False, "sandboxed": None}
+
+
 @functools.lru_cache(maxsize=None)
-def sheet_verdicts(answer: str) -> dict:
-    """Die Verdikte des Blatts aus dem echten Runner (gecached je Antwort)."""
+def sheet_verdicts(answer: str, sandbox: str = DEFAULT_SANDBOX) -> dict:
+    """Die Verdikte des Blatts aus dem echten Runner (gecached je Antwort).
+
+    ``unsandboxed`` wird mitgeliefert, damit ein stiller Verlust der bwrap-
+    Sandbox sichtbar bleibt (bei ``sandbox="require"`` liefert der Runner
+    stattdessen UNVERIFIABLE und das Blatt faellt aus SFT/DPO).
+    """
     from bemyself.msheet.runner import run_sheet
     from bemyself.msheet.sheet import parse_sheet
 
     sheet = parse_sheet(answer)
-    result = run_sheet(sheet, sandbox="auto", timeout=20.0)
+    result = run_sheet(sheet, sandbox=sandbox, timeout=20.0)
     counter = collections.Counter(claim.verdict.value for claim in result.claim_results)
+    flags = [
+        item.sandboxed for item in (*result.v_results, *result.claim_results)
+    ]
     return {
         "claims": [
             {"id": claim.cid, "verdict": claim.verdict.value} for claim in result.claim_results
@@ -449,11 +477,14 @@ def sheet_verdicts(answer: str) -> dict:
         "confirmed": counter.get("CONFIRMED", 0),
         "refuted": counter.get("REFUTED", 0),
         "unverifiable": counter.get("UNVERIFIABLE", 0),
+        "sandbox": sandbox,
+        **_sandbox_state(flags),
     }
 
 
-def _clean_sheet(answer: str) -> bool:
-    """Wahr, wenn das Blatt keine widerlegte und keine unpruefbare Behauptung traegt.
+def _clean_sheet(answer: str, sandbox: str = DEFAULT_SANDBOX) -> bool:
+    """Wahr, wenn das Blatt keine widerlegten/unpruefbaren Behauptungen traegt
+    und (falls py:-Zeugen liefen) die Sandbox gegriffen hat.
 
     Ein Lauf kann auf Trace-Aufgaben ``solved`` sein (Checkpoint-Gleichheit),
     waehrend das Blatt selbst z.B. eine ``sim``-Zeuge ohne Maschinenbindung
@@ -461,10 +492,14 @@ def _clean_sheet(answer: str) -> bool:
     unverifizierbare Form) -- sie bleiben aber als RLVR-/Think-Beleg erhalten.
     """
     try:
-        verdicts = sheet_verdicts(answer)
+        verdicts = sheet_verdicts(answer, sandbox)
     except Exception:  # noqa: BLE001 -- ein nicht ausfuehrbares Blatt ist nie "sauber"
         return False
-    return verdicts["refuted"] == 0 and verdicts["unverifiable"] == 0
+    return (
+        verdicts["refuted"] == 0
+        and verdicts["unverifiable"] == 0
+        and not verdicts["unsandboxed"]
+    )
 
 
 def _dedup_cells(runs, arms):
@@ -482,7 +517,8 @@ def _dedup_cells(runs, arms):
     return out
 
 
-def build_rlvr(runs, arms=DEFAULT_ARMS, splits: dict | None = None, sets: dict | None = None) -> list[dict]:
+def build_rlvr(runs, arms=DEFAULT_ARMS, splits: dict | None = None, sets: dict | None = None,
+               sandbox: str = DEFAULT_SANDBOX) -> list[dict]:
     gold_keys = ("tier_b_kind", "expected", "checkpoints_gold", "checkpoints_t", "machine",
                  "certificate", "certificate_given")
     records: list[dict] = []
@@ -493,12 +529,35 @@ def build_rlvr(runs, arms=DEFAULT_ARMS, splits: dict | None = None, sets: dict |
         if answer is None or messages is None:
             continue
         try:
-            verdicts = sheet_verdicts(answer)
+            verdicts = sheet_verdicts(answer, sandbox)
         except Exception as exc:  # noqa: BLE001 -- ein kaputtes Blatt darf den Bau nicht killen
             verdicts = {"claims": [], "confirmed": 0, "refuted": 0, "unverifiable": 0,
+                        "sandbox": sandbox, "unsandboxed": None, "sandboxed": None,
                         "error": f"{type(exc).__name__}: {exc}"}
         task = task_for(run, sets) if sets else None
         gold = {key: task[key] for key in gold_keys if task is not None and key in task}
+        verifier: dict = {
+            "command": ["python3", "-m", "bemyself.msheet", "run", "{sheet}", "--json"],
+        }
+        if gold.get("tier_b_kind") == "trace" and gold.get("checkpoints_gold"):
+            # Trace-Aufgaben werden ueber ihre Konfigurationspunkte geprueft
+            # (genau so hat der Original-Harness sie bewertet); ein
+            # Behauptungsblock ist dort nicht verlangt.
+            verifier["expect"] = {
+                "checkpoints_all_matched": True,
+                "checkpoints_total": len(gold["checkpoints_gold"]),
+            }
+            verifier["note"] = (
+                "ohne Behauptungszone (v0.1-Format): Belohnung per Checkpoint-Abgleich "
+                "in training/rlvr.py"
+            )
+        elif verdicts["claims"]:
+            verifier["expect"] = {
+                "all_claims_confirmed": True,
+                "min_claims": max(1, len(verdicts["claims"])),
+            }
+        else:
+            verifier["expect"] = {"all_claims_confirmed": True, "min_claims": 1}
         records.append(
             {
                 "id": f"rlvr:{run.version}:{run.task_id}:{run.arm}",
@@ -508,14 +567,15 @@ def build_rlvr(runs, arms=DEFAULT_ARMS, splits: dict | None = None, sets: dict |
                 "arm": run.arm,
                 "split": (splits or {}).get(task_family(run.task_id)),
                 "messages": messages,
-                "verifier": {
-                    "command": ["python3", "-m", "bemyself.msheet", "run", "{sheet}", "--json"],
-                    "expect": {"all_claims_confirmed": True, "min_claims": 1},
-                },
+                "verifier": verifier,
                 "gold": gold,
                 "reference": {
                     "claims": verdicts["claims"],
                     "fully_confirmed": verdicts["refuted"] == 0 and verdicts["unverifiable"] == 0,
+                    "sandbox": verdicts["sandbox"],
+                    "sandboxed": verdicts["sandboxed"],
+                    "unsandboxed": verdicts["unsandboxed"],
+                    "error": verdicts.get("error"),
                 },
                 "meta": {**_source_meta(run), "round": solved_round.index},
             }
@@ -594,6 +654,7 @@ def write_corpus(
     verify: bool = True,
     evaluator=None,
     built_at: str | None = None,
+    sandbox: str = DEFAULT_SANDBOX,
 ) -> dict:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -608,9 +669,9 @@ def write_corpus(
     ]
     splits = assign_splits(families, seed)
     stats: dict = {}
-    sft = build_sft(runs, arms=arms, splits=splits, stats=stats)
-    dpo = build_dpo(runs, arms=arms, splits=splits, stats=stats)
-    rlvr = build_rlvr(runs, arms=arms, splits=splits, sets=sets)
+    sft = build_sft(runs, arms=arms, splits=splits, stats=stats, sandbox=sandbox)
+    dpo = build_dpo(runs, arms=arms, splits=splits, stats=stats, sandbox=sandbox)
+    rlvr = build_rlvr(runs, arms=arms, splits=splits, sets=sets, sandbox=sandbox)
     think = build_think(runs, arms=arms, splits=splits)
     digests = {
         "sft.jsonl": _write_jsonl(out / "sft.jsonl", sft),
@@ -642,6 +703,7 @@ def write_corpus(
         "built_at": built_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "seed": seed,
         "arms": list(arms),
+        "sandbox": sandbox,
         "command": " ".join(sys.argv),
         "counts": {
             "runs_scanned": len(runs),
@@ -690,6 +752,8 @@ def main(argv=None) -> int:
     parser.add_argument("--sets-dir", default=str(SETS_DIR))
     parser.add_argument("--no-verify", action="store_true",
                         help="Runs ohne summary.json nicht re-evaluieren (werden ausgelassen)")
+    parser.add_argument("--sandbox", choices=("require", "auto", "off"), default=DEFAULT_SANDBOX,
+                        help="Sandbox fuer py:-Zeugen der Blaetter (Default: require)")
     parser.add_argument("--built-at", default=None)
     args = parser.parse_args(argv)
     arms = tuple(part.strip() for part in args.arms.split(",") if part.strip())
@@ -702,6 +766,7 @@ def main(argv=None) -> int:
         sets_dir=args.sets_dir,
         verify=not args.no_verify,
         built_at=args.built_at,
+        sandbox=args.sandbox,
     )
     print(json.dumps(manifest["counts"], ensure_ascii=False, indent=2))
     return 0

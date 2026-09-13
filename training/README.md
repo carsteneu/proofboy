@@ -27,15 +27,27 @@ Harness-Endpunkt.
 Quellen (nur lesend): `.yesmem/tmp/runs-v11-20260912/`,
 `runs-v12-20260912/`, `runs-v13-20260912/` (Set-Versionen v0.1/v0.2/v0.3).
 436 Arm-Laeufe gescannt; Labels aus `summary.json` (v12/v13) bzw. per
-Re-Evaluierung mit dem Repo-Evaluator und den eingefrorenen Sets (v11: 131
-Laeufe, 112 geloest, 1 ohne Set-Zuordnung).
+Re-Evaluierung mit dem Repo-Evaluator und den eingefrorenen Sets (v11: 132
+gescannt, 131 re-evaluiert, 112 geloest, 1 ohne Set-Zuordnung). Die
+Re-Evaluierung nutzt den Evaluator des aktuellen Stands -- fuer die beiden
+cyc-Zellen der v0.1-Sets (B-0011/B-0012) kann das Label dadurch vom
+Originallauf abweichen (Fenster: `evaluate_answer` und das Zyklus-Scoring
+entstanden erst mit den v12-Laeufen).
 
 | Datei | Saetze | Inhalt |
 |---|---|---|
 | `sft.jsonl` | 160 | (System-Legende + Aufgabe) → verifiziertes Blatt verbatim; Arme B/C/D; je (Set-Version, Task, Arm) ein Satz |
 | `dpo.jsonl` | 18 | (prompt, chosen=verifiziert, rejected=nicht bestaetigt), 15 mit Notiz (Cross-Arm/-Version) |
-| `rlvr.jsonl` | 176 | Task + Verifier-Kommando (`python3 -m bemyself.msheet run … --json`) + Erwartung (`all_claims_confirmed`) + Gold (Checkpoints/Zertifikat/Zahl) |
-| `think.jsonl` | 176 | Task + Denkzone des verifizierten Blatts (Material fuer Denk-Traces; Prosa-RC nur als Laengen-Metadatum) |
+| `rlvr.jsonl` | 176 | Task + Verifier-Kommando (`python3 -m bemyself.msheet run … --json`) + Erwartung + Gold (Checkpoints/Zertifikat/Zahl) |
+| `think.jsonl` | 176 | Task + Denkzone des verifizierten Blatts (Material fuer Denk-Traces; Prosa-RC nur als Laengen-Metadatum; ein Satz traegt eine leere Denkzone -- datentreu, das Blatt hat keine Denkzeilen) |
+
+Zwei Verifier-Modi in `rlvr.jsonl` (maschinell aus dem Aufgabentyp abgeleitet):
+
+* `all_claims_confirmed` mit `min_claims` -- Aufgaben mit Behauptungszone: alle
+  Behauptungen des abgegebenen Blatts muessen CONFIRMED sein;
+* `checkpoints_all_matched` mit `checkpoints_total` -- Trace-Aufgaben ohne
+  Behauptungsblock (v0.1-Format ``S<n>: cp <t>: (…)``): die Konfigurationspunkte
+  werden wie im Original-Harness abgeglichen.
 
 Regeln, die der Bauer durchsetzt (und die Tests festhalten):
 
@@ -51,11 +63,19 @@ Regeln, die der Bauer durchsetzt (und die Tests festhalten):
 * **Dedup je (Set-Version, Task, Arm).** Wiederholungen derselben Zelle fallen
   weg; v11- und v12-Saetze derselben Aufgabe bleiben, weil sie verschiedene
   Legenden tragen.
+* **SFT-Ziel:** der Runden-0-Prompt (System-Legende + Aufgabe) mit der Antwort
+  der **ersten geloesten Runde** als Assistant-Teil; `meta.round` weist aus,
+  welche Runde das war (bei reparierten Zellen also die korrigierte Fassung).
 * **Splits auf Task-Familien** (Tier + Nummern-Suffix: `A-0007` und `A3-0007`
   sind eine Familie), Seed `20260912`, 20/4/4 Familien train/val/test;
   `splits.json` dokumentiert die Zuordnung.
 
-Rebuild (deterministisch; sha256 der Datenfiles stabil):
+Rebuild (deterministisch; sha256 der Datenfiles stabil). Fragilitaet, die man
+kennen muss: die Quell-Laeufe liegen unter `.yesmem/tmp/` und sind
+**gitignoriert** -- nach einem Clone/`git clean -xdf` ist der Korpus nicht mehr
+re-derivierbar (nur noch trainierbar). Auch der Ordnername zaehlt:
+`runs-v<ziffern>…`, sonst faellt die Zuordnung zu den Set-Versionen still aus
+(der Lauf bleibt dann `unresolved`).
 
 ```bash
 python3 training/build_corpus.py \
@@ -112,20 +132,25 @@ python3 training/train_dpo.py --corpus training/corpus/dpo.jsonl \
 `training/rlvr.py` liefert den Reward gegen den Runner; als GRPO-Reward:
 
 ```python
-import functools, trl
-from training.rlvr import reward           # oder: sys.path + Import wie im Kopf
+import functools, json, trl
+from training.rlvr import reward
 records = {r["id"]: r for r in map(json.loads, open("training/corpus/rlvr.jsonl"))}
+dataset = [{"prompt": r["messages"], "record_id": r["id"]} for r in records.values()]
 trainer = trl.GRPOTrainer(
     model=model,
     reward_funcs=[functools.partial(reward, records_by_id=records)],
-    train_dataset=dataset,                 # Spalte: prompt + record_id
+    train_dataset=dataset,          # Spalten: prompt + record_id (Name zaehlt!)
     args=trl.GRPOConfig(output_dir="training/out/rlvr", ...),
 )
 ```
 
-Reward-Vertrag: `REFUTED` → 0.0; sonst `confirmed / target` (target =
-`max(min_claims, Referenz-Behauptungen)`). Die Gold-Felder der Saetze dienen
-der Leiter-Auswertung, nicht der Belohnung.
+Reward-Vertrag (`reward(completions, prompts, record_id, …)` -- TRLs Aufruf,
+Dataset-Spalte `record_id`): `REFUTED` → 0.0 (fail closed); Behauptungszellen
+`confirmed / max(min_claims, Referenz-Behauptungen)`; Checkpoint-Zellen
+`matched / total` gegen die Aufgaben-Zielpunkte; kein Referenzmaterial → 0.0 mit
+`reason = "no_reference"`. Blaetter laufen mit `sandbox="require"`; `sandboxed`
+(True/False/None = keine py:-Zeugen) steht im Ergebnis. Die Gold-Felder dienen
+sonst der Leiter-Auswertung.
 
 ### 5. Adapter servieren + Harness gegen die eigene Instanz
 
@@ -170,8 +195,14 @@ Siehe `training/EVALPLAN.md`: Basis vs. LoRA auf denselben Leiter-Faellen
 
 * Der Trainingspfad ist **nicht ausgefuehrt** (keine GPU, kein Torch auf dieser
   Maschine). Geprueft sind: Kompilat aller Skripte, dry-run-Validierung,
-  Runner-Reward (echter Lauf), Leck-Guard, ENV-Endpunkt, Korpus-Rebuild
-  (sha256-stabil) — 27 neue Tests insgesamt.
+  Runner-Reward in beiden Modi (echte Laeufe), Leck-Guard, ENV-Endpunkt,
+  Korpus-Rebuild (sha256-stabil) — 35 neue Tests insgesamt.
+* Der TRL-Aufruf ist gegen die deklarierte Spanne (`trl>=0.17` bis 1.x)
+  gebaut: `processing_class` ist immer gesetzt, `max_prompt_length` bewusst
+  nicht (ab TRL 1.0 entfernt), chosen/rejected sind Gespraechslisten. Auf einer
+  konkreten Installation gehoert das trotzdem einmal mit `--dry-run` und einem
+  Mini-Lauf geprueft -- auf einer CPU-Maschine ist keiner dieser Pfade
+  ausfuehrbar.
 * Die Datei-/Tokenzahlen im Korpus sind gemessen; alle Kosten-/Dauerangaben
   sind Schaetzungen ohne Messung.
 * Kein Push/Merge/Deploy; die Laufverzeichnisse wurden nur gelesen.

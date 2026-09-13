@@ -40,6 +40,24 @@ def select_train(records):
     return [record for record in records if record["split"] == "train"]
 
 
+def build_dpo_rows(records) -> list[dict]:
+    """Trainer-Zeilen im TRL-Gespraechsformat.
+
+    ``prompt`` ist die Nachrichtenliste (System-Legende + Aufgabe),
+    ``chosen``/``rejected`` sind ebenfalls Gespraechslisten -- ein gemischtes
+    Format (Liste + String) entscheidet TRL versionsabhaengig und kann an
+    ``example["prompt"] + example["chosen"]`` zerbrechen.
+    """
+    return [
+        {
+            "prompt": record["messages"],
+            "chosen": [{"role": "assistant", "content": record["chosen"]}],
+            "rejected": [{"role": "assistant", "content": record["rejected"]}],
+        }
+        for record in records
+    ]
+
+
 def is_adapter(path: Path | str) -> bool:
     return (Path(path) / "adapter_config.json").exists()
 
@@ -118,11 +136,12 @@ def train(args) -> int:
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
     model, tokenizer, lora = load_model(base_model, quantization, config)
+    # ``max_prompt_length`` wird bewusst nicht gesetzt: aeltere TRL-Versionen
+    # kennen es, ab 1.0 ist es entfernt -- ohne den Schluessel laeuft beides.
     dpo_config = DPOConfig(
         output_dir=str(args.out),
         beta=config["beta"],
         max_length=config["max_seq_len"],
-        max_prompt_length=config["max_prompt_len"],
         num_train_epochs=args.epochs or config["epochs"],
         per_device_train_batch_size=config["per_device_train_batch_size"],
         gradient_accumulation_steps=config["gradient_accumulation_steps"],
@@ -136,17 +155,15 @@ def train(args) -> int:
         seed=args.seed or config["seed"],
         report_to="none",
     )
-    dataset = Dataset.from_list(
-        [
-            {"prompt": record["messages"], "chosen": record["chosen"], "rejected": record["rejected"]}
-            for record in train_records
-        ]
-    )
+    dataset = Dataset.from_list(build_dpo_rows(train_records))
     trainer = DPOTrainer(
         model=model,
         args=dpo_config,
         train_dataset=dataset,
         peft_config=lora,
+        # seit TRL 0.17 Pflicht (ohne Auto-Laden bis 0.18); unabhaengig davon
+        # explizit gesetzt, damit die Version nicht ueber den Aufruf entscheidet
+        processing_class=tokenizer,
     )
     trainer.train()
     trainer.save_model(str(args.out))

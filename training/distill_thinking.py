@@ -13,7 +13,8 @@ ein Leck aus dem Set. ``find_gold_leaks`` prueft das mechanisch (ganze Zahlen
 im Text gegen die Gold-Werte).
 
     python3 training/distill_thinking.py --dry-run --id sft:v13:B3-0008:D
-    python3 training/distill_thinking.py --send  --id sft:v13:B3-0008:D --out trace.txt
+    BEMYSELF_DISTILL_KEY=… python3 training/distill_thinking.py --send \
+        --id sft:v13:B3-0008:D --out trace.txt
 """
 
 from __future__ import annotations
@@ -46,23 +47,54 @@ NO_CERT_VALUES = (
     "das Ergebnis behaupten.\n"
 )
 
-_INT_RE = re.compile(r"-?\d+")
+# t1/t2/d-Zuweisungen -- die Schreibweise, in der Zertifikate in den Laeufen
+# vorkommen. Zeilenpraefixe (h1:, S2:, cp 5:) sind bewusst NICHT Teil eines
+# Treffers: eine Denkzone beginnt praktisch immer mit "h1:"/"S1:", ein reiner
+# Zahlen-Scan wuerde also jede Denkzone als Leck melden (falsch-positiv).
+_LABEL_RE = re.compile(r"\b(?:t1|t2|d)\s*[=:]\s*(-?\d+)", re.IGNORECASE)
+_TUPLE_RE = re.compile(r"[\(\[\{]\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*[\)\]\}]")
 
 
 def gold_values(record: dict) -> list[int]:
-    """Die zu schuetzenden Gold-Werte des Datensatzes (leer, wenn keine)."""
+    """Die zu schuetzenden Gold-Werte des Datensatzes (leer, wenn keine).
+
+    Default-Deny: sobald ein Zertifikat vorliegt und ``certificate_given``
+    nicht ausdruecklich ``True`` ist (aeltere Set-Versionen kennen das Flag
+    nicht), gilt das Zertifikat als nicht vorgegeben und wird geschuetzt.
+    """
     gold = record.get("gold") or {}
-    if gold.get("certificate_given") is False and gold.get("certificate"):
-        return [int(value) for value in gold["certificate"]]
+    certificate = gold.get("certificate")
+    if certificate and gold.get("certificate_given") is not True:
+        return [int(value) for value in certificate]
     return []
 
 
 def find_gold_leaks(text: str, values) -> list[int]:
-    """Gold-Werte, die im Text als ganze Zahl vorkommen (Leck-Kandidaten)."""
-    if not values:
+    """Gold-Werte, die der Text als Zertifikatsaussage verraet.
+
+    Erkannt wird ein Wert, wenn er
+    * mit ``t1=``/``t2=``/``d=`` beschriftet ist, oder
+    * Teil eines Zahlentripels ``(a, b, c)`` ist, das die Zertifikatswerte
+      vollstaendig enthaelt.
+
+    Bewusste Grenze: eine unbeschriftete Zahlenfolge ohne Tripel-Klammern
+    ("34 37") wird nicht erkannt -- dafuer gibt es praktisch keine
+    Falsch-Positive mehr.
+    """
+    values = list(values)
+    if not values or not text:
         return []
-    present = {int(match) for match in _INT_RE.findall(text)}
-    return sorted(value for value in values if value in present)
+    leaked: set[int] = set()
+    for match in _LABEL_RE.finditer(text):
+        value = int(match.group(1))
+        if value in values:
+            leaked.add(value)
+    wanted = tuple(sorted(values))
+    for match in _TUPLE_RE.finditer(text):
+        triple = tuple(sorted(int(group) for group in match.groups()))
+        if triple == wanted:
+            leaked.update(triple)
+    return sorted(leaked)
 
 
 def build_request(sft_record: dict, rlvr_record: dict | None, model: str = DEFAULT_MODEL) -> dict:
@@ -117,7 +149,6 @@ def main(argv=None) -> int:
     parser.add_argument("--id", required=True, help="sft:-Kennung, z.B. sft:v13:B3-0008:D")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--url", default=DEFAULT_URL)
-    parser.add_argument("--api-key", default=os.environ.get("BEMYSELF_DISTILL_KEY", ""))
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--out", default=None, help="Trace in Datei schreiben")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -131,9 +162,10 @@ def main(argv=None) -> int:
         print(json.dumps(request, ensure_ascii=False, indent=2))
         return 0
 
-    if not args.api_key:
-        raise SystemExit("--api-key oder BEMYSELF_DISTILL_KEY noetig fuer --send")
-    trace = fetch_trace(request, url=args.url, api_key=args.api_key, timeout=args.timeout)
+    api_key = os.environ.get("BEMYSELF_DISTILL_KEY", "")
+    if not api_key:
+        raise SystemExit("BEMYSELF_DISTILL_KEY noetig fuer --send (ENV, nicht CLI -- ps sichtbar)")
+    trace = fetch_trace(request, url=args.url, api_key=api_key, timeout=args.timeout)
     leaks = find_gold_leaks(trace, gold_values(rlvr or {}))
     if leaks:
         print(json.dumps({"leak": True, "values": leaks, "trace_rejected": True}, ensure_ascii=False))

@@ -10,6 +10,10 @@ transformers>=4.51,<5
 datasets>=3.2
 accelerate>=1.2
 peft>=0.14
+# Der Aufruf in train_dpo.py ist gegen trl 0.17 bis 1.x gebaut
+# (processing_class gesetzt, max_prompt_length bewusst nicht). Nach einem
+# pip install einmal `python3 training/train_dpo.py --dry-run` und einen
+# Mini-Lauf fahren -- auf der CPU-Maschine ist keiner dieser Pfade testbar.
 trl>=0.17
 bitsandbytes>=0.45
 

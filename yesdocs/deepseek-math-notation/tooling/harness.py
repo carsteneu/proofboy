@@ -84,14 +84,20 @@ from bemyself.msheet.sheet import parse_sheet  # noqa: E402
 from bemyself.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
 from prompts import build_messages, build_repair_message  # noqa: E402
 
+DEFAULT_PROXY_URL = "http://localhost:9099/v1/chat/completions"
+
+
 def proxy_url():
     """Der OpenAI-kompatible Endpunkt; per ENV umstellbar (Default: lokaler Proxy).
 
     Auf einer gemieteten GPU zeigt ``BEMYSELF_PROXY_URL`` auf die eigene
     vLLM-/SGLang-Instanz, damit dieselben Arme/Sets gegen das trainierte
-    Modell laufen (Runbook: training/README.md).
+    Modell laufen (Runbook: training/README.md). Ein leerer/whitespace-Wert
+    zaehlt als "nicht gesetzt" -- so bricht ein versehentlich leeres ENV den
+    Lauf nicht mit einem ValueError, sondern nutzt den Default.
     """
-    return os.environ.get("BEMYSELF_PROXY_URL", "http://localhost:9099/v1/chat/completions")
+    value = os.environ.get("BEMYSELF_PROXY_URL", "").strip()
+    return value or DEFAULT_PROXY_URL
 
 
 PROXY_URL = proxy_url()  # Kompatibilitaets-Konstante (Anzeige/Altcode)
@@ -647,7 +653,7 @@ def cmd_batch(args):
         "model": MODEL,
         "mode": "repair",
         "max_repairs": args.max_repairs,
-        "transport": "proxy-9099",
+        "transport": "custom-endpoint" if os.environ.get("BEMYSELF_PROXY_URL", "").strip() else "proxy-9099",
         "reasoning_history": "strip",
         "arms": arms,
         "reps": args.reps,
