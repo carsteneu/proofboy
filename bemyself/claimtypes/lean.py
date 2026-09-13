@@ -117,7 +117,7 @@ from collections import namedtuple
 
 from bemyself import toolmanifest
 from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # One build, query or re-check run must finish within this many seconds. Like
 # COMPUTE_TIMEOUT this is a fixed bound, not a CLI option.
@@ -639,23 +639,33 @@ def check(claim, ctx):
         return guard
     path = (claim.fields.get("path") or "").strip()
     if not _valid_path(path):
-        return Result(Verdict.UNVERIFIABLE, reason=f"not a valid Lean source path: {path!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a valid Lean source path: {path!r}",
+            cause=Cause.DEFECT,
+        )
     if path.startswith("./"):
         path = path[2:]
     theorem = (claim.fields.get("theorem") or "").strip()
     if not _valid_theorem(theorem):
-        return Result(Verdict.UNVERIFIABLE, reason=f"not a valid declaration name: {theorem!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a valid declaration name: {theorem!r}",
+            cause=Cause.DEFECT,
+        )
     value = (claim.fields.get("commit") or "").strip()
     if not value:
         return Result(
             Verdict.UNVERIFIABLE,
             reason="no commit hash to pin the Lean check; the report needs one hash-shaped [COMMIT] marker",
+            cause=Cause.DEFECT,
         )
     commit = checks._resolve_commit(ctx, value)
     if commit is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
+            cause=Cause.UNVERIFIABLE,
         )
 
     # The file must be a blob in the pinned commit -- not just in the working
@@ -678,6 +688,7 @@ def check(claim, ctx):
             checks._format(checks._repo_command(ctx, *type_args)),
             checks._output(type_proc),
             f"cannot determine the object type of {path!r} in commit {commit[:12]}",
+            cause=Cause.UNVERIFIABLE,
         )
     object_type = type_proc.stdout.strip()
     if object_type != "blob":
@@ -694,6 +705,7 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             reason=reason
             or "lean is not available in PATH; the Lean proof cannot be checked",
+            cause=Cause.ENVIRONMENT,
         )
     leanchecker, checker_pin, reason = _resolve_tool(ctx, "leanchecker")
     if leanchecker is None:
@@ -702,11 +714,13 @@ def check(claim, ctx):
             reason=reason
             or "leanchecker is not available in PATH; the compiled proof cannot be "
             "re-checked with Lean's kernel",
+            cause=Cause.ENVIRONMENT,
         )
     if not os.path.isfile(_QUERY_PROGRAM):
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the axiom query program is missing: {_QUERY_PROGRAM}",
+            cause=Cause.ENVIRONMENT,
         )
 
     # `auto` deliberately behaves like `require` here: building and elaborating
@@ -715,7 +729,11 @@ def check(claim, ctx):
     # sandbox.
     mode = ctx.sandbox
     if mode not in checks.SANDBOX_MODES:
-        return Result(Verdict.UNVERIFIABLE, reason=f"unknown sandbox mode: {mode!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"unknown sandbox mode: {mode!r}",
+            cause=Cause.ENVIRONMENT,
+        )
     bwrap = None if mode == "off" else checks.find_bwrap()
     if mode != "off" and bwrap is None:
         return Result(
@@ -723,6 +741,7 @@ def check(claim, ctx):
             reason="a working sandbox is required to build Lean source "
             "(it executes code and lake may fetch dependencies); bwrap is not "
             "available in PATH. Pass --sandbox=off to run unsandboxed",
+            cause=Cause.ENVIRONMENT,
         )
     note = "sandboxed with bwrap" if bwrap is not None else "not sandboxed: --sandbox=off"
     note_suffix = f" ({note})"
@@ -733,10 +752,14 @@ def check(claim, ctx):
     # verdict text carries.
     lean_tool, reason = _identify_tool("lean", lean, lean_pin)
     if lean_tool is None:
-        return Result(Verdict.UNVERIFIABLE, reason=reason + note_suffix)
+        return Result(
+            Verdict.UNVERIFIABLE, reason=reason + note_suffix, cause=Cause.ENVIRONMENT
+        )
     checker_tool, reason = _identify_tool("leanchecker", leanchecker, checker_pin)
     if checker_tool is None:
-        return Result(Verdict.UNVERIFIABLE, reason=reason + note_suffix)
+        return Result(
+            Verdict.UNVERIFIABLE, reason=reason + note_suffix, cause=Cause.ENVIRONMENT
+        )
     lake_tool = None
     toolchain_pin = None
     tool_bin = None
@@ -755,6 +778,7 @@ def check(claim, ctx):
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}" + note_suffix,
+            cause=Cause.ENVIRONMENT,
         )
     command_desc = f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && "
     try:
@@ -768,6 +792,7 @@ def check(claim, ctx):
                 command_desc,
                 checks._output(clone),
                 reason="could not create a clean checkout" + note_suffix,
+                cause=Cause.UNVERIFIABLE,
             )
         co = checks._run_git(
             ["git", "-C", checkout, "checkout", "--quiet", commit], checks.GIT_TIMEOUT
@@ -778,6 +803,7 @@ def check(claim, ctx):
                 command_desc,
                 checks._output(co),
                 reason=f"could not check out {commit}" + note_suffix,
+                cause=Cause.UNVERIFIABLE,
             )
 
         file_path = os.path.join(checkout, path)
@@ -789,6 +815,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"the path {path!r} resolves outside the checkout" + note_suffix,
+                cause=Cause.DEFECT,
             )
         if not os.path.isfile(real_file):
             return Result(
@@ -796,6 +823,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"the file {path!r} is not in the checkout" + note_suffix,
+                cause=Cause.UNVERIFIABLE,
             )
         with open(real_file, encoding="utf-8", errors="replace") as handle:
             source_text = handle.read()
@@ -817,6 +845,7 @@ def check(claim, ctx):
                     or f"the file is part of a Lake project at "
                     f"{os.path.relpath(project, checkout)!r} but lake is not available in PATH")
                     + note_suffix,
+                    cause=Cause.ENVIRONMENT,
                 )
             if module is None:
                 return Result(
@@ -824,10 +853,17 @@ def check(claim, ctx):
                     command_desc,
                     "",
                     f"cannot derive the Lake module name of {path!r}" + note_suffix,
+                    cause=Cause.DEFECT,
                 )
             lake_tool, reason = _identify_tool("lake", lake, lake_pin)
             if lake_tool is None:
-                return Result(Verdict.UNVERIFIABLE, command_desc, "", reason + note_suffix)
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    reason + note_suffix,
+                    cause=Cause.ENVIRONMENT,
+                )
             refresh_identity_note()
         else:
             module = _standalone_module(real_file)
@@ -837,6 +873,7 @@ def check(claim, ctx):
                     command_desc,
                     "",
                     f"the file name of {path!r} is not a Lean module name" + note_suffix,
+                    cause=Cause.DEFECT,
                 )
             try:
                 os.makedirs(build_dir, exist_ok=True)
@@ -846,6 +883,7 @@ def check(claim, ctx):
                     command_desc,
                     "",
                     f"cannot create the build directory in the checkout: {exc}" + note_suffix,
+                    cause=Cause.ENVIRONMENT,
                 )
 
         # Elaboration-time code execution makes the build uncontrollable: the
@@ -873,6 +911,7 @@ def check(claim, ctx):
                     f"{what} executes code at elaboration time ({match.group(0).strip()!r}); "
                     f"a build of it cannot be vouched for, so the proof is not checked"
                     + note_suffix,
+                    cause=Cause.ENVIRONMENT,
                 )
 
         # A working-tree dependency cache is bound read-only when the fresh
@@ -911,6 +950,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"cannot prepare the tool directory for the run: {exc}" + note_suffix,
+                cause=Cause.ENVIRONMENT,
             )
         env["PATH"] = tool_bin + os.pathsep + env["PATH"]
         # Any shim among the resolved tools puts elan in play: ELAN_HOME must
@@ -942,6 +982,7 @@ def check(claim, ctx):
                     "",
                     f"cannot prepare the elan home for the run: {exc}" + note_suffix,
                     sandboxed=sandboxed,
+                    cause=Cause.ENVIRONMENT,
                 )
         # A `lean-toolchain` file is a request, not an authority. A path-like
         # value is refused whenever it is seen -- elan would execute the path
@@ -965,6 +1006,7 @@ def check(claim, ctx):
                     f"repository asks for a toolchain, it does not choose one (the value "
                     f"is not quoted: the file may point outside the repository)" + note_suffix,
                     sandboxed=sandboxed,
+                    cause=Cause.ENVIRONMENT,
                 )
             request = (value or None) if lean_pin is None else None
         if elan_home is not None:
@@ -989,6 +1031,7 @@ def check(claim, ctx):
                         f"shim would resolve it from the inspected tree, so the proof was "
                         f"not checked" + note_suffix,
                         sandboxed=sandboxed,
+                        cause=Cause.ENVIRONMENT,
                     )
             else:
                 toolchain_pin = operator_choice
@@ -1004,6 +1047,7 @@ def check(claim, ctx):
                             f"installed under {elan_home}; the proof was not checked"
                             + note_suffix,
                             sandboxed=sandboxed,
+                            cause=Cause.ENVIRONMENT,
                         )
                     toolchain_pin = request
                 if toolchain_pin is None:
@@ -1025,6 +1069,7 @@ def check(claim, ctx):
                         f"would resolve the toolchain from the inspected tree, so the proof "
                         f"was not checked" + note_suffix,
                         sandboxed=sandboxed,
+                        cause=Cause.ENVIRONMENT,
                     )
             refresh_identity_note()
         cache_note = ""
@@ -1034,13 +1079,14 @@ def check(claim, ctx):
                 f"from {extra_binds[0][0]})"
             )
 
-        def unverifiable(run, shown, reason):
+        def unverifiable(run, shown, reason, cause=Cause.UNVERIFIABLE):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc + shown + cache_note,
                 checks._last_lines(run.tail or run.head) if run is not None else "",
                 reason + note_suffix,
                 sandboxed=sandboxed,
+                cause=cause,
             )
 
         def refuted(run, shown, reason, output=None):
@@ -1058,7 +1104,13 @@ def check(claim, ctx):
         run_argv, shown = wrapped(preflight, " ".join(preflight), project or checkout)
         run = _run(run_argv, checkout, env, PREFLIGHT_TIMEOUT, ctx.tmp_dir, "lean-preflight-")
         if run.error is not None:
-            return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                run.error + note_suffix,
+                cause=Cause.ENVIRONMENT,
+            )
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
             if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
@@ -1066,12 +1118,14 @@ def check(claim, ctx):
                     run,
                     shown,
                     f"the sandbox could not run the command: {_first_error_line(combined) or 'bwrap failed'}",
+                    cause=Cause.ENVIRONMENT,
                 )
             detail = _first_error_line(run.head or run.tail) or f"exit status {run.returncode}"
             return unverifiable(
                 run,
                 shown,
                 f"the Lean toolchain could not run ({preflight[0]} --version): {detail}",
+                cause=Cause.ENVIRONMENT,
             )
         toolchain = _toolchain_name(run.head) or _toolchain_name(run.tail) or "Lean"
         lean_version = _tool_version(run.head) or _tool_version(run.tail)
@@ -1085,6 +1139,7 @@ def check(claim, ctx):
                     f"the tool manifest pins lean to version {lean_pin.version}, but {lean} "
                     f"reported no parseable version; the tool that would judge cannot be "
                     f"confirmed as the pinned one",
+                    cause=Cause.ENVIRONMENT,
                 )
             if not _same_version(lean_version, lean_pin.version):
                 return unverifiable(
@@ -1092,6 +1147,7 @@ def check(claim, ctx):
                     shown,
                     f"the tool manifest pins lean to version {lean_pin.version}, but {lean} "
                     f"reports {lean_version}; the tool that would judge is not the pinned one",
+                    cause=Cause.ENVIRONMENT,
                 )
         if lean_version:
             lean_tool = lean_tool._replace(version=lean_version)
@@ -1120,6 +1176,7 @@ def check(claim, ctx):
                     f"({'lean reports ' + lean_version if lean_version else 'lean reports no parseable version'}"
                     f", or leanchecker is not the toolchain beside lean); the tool that "
                     f"would judge cannot be confirmed as the pinned one",
+                    cause=Cause.ENVIRONMENT,
                 )
         # The toolchain's own library directory is the first LEAN_PATH entry:
         # the inspected tree must not be able to shadow the toolchain modules
@@ -1139,6 +1196,7 @@ def check(claim, ctx):
                 f"could not determine the Lean library directory ({print_libdir[0]} "
                 f"--print-libdir); the proof cannot be re-checked without a trusted "
                 f"search path",
+                cause=Cause.ENVIRONMENT,
             )
         if lake is not None:
             lake_preflight = [lake, "--version"]
@@ -1147,7 +1205,13 @@ def check(claim, ctx):
                 run_argv, project, env, PREFLIGHT_TIMEOUT, ctx.tmp_dir, "lake-preflight-"
             )
             if run.error is not None:
-                return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    run.error + note_suffix,
+                    cause=Cause.ENVIRONMENT,
+                )
             if run.returncode != 0:
                 combined = run.head + "\n" + run.tail
                 if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
@@ -1156,12 +1220,14 @@ def check(claim, ctx):
                         shown,
                         f"the sandbox could not run the command: "
                         f"{_first_error_line(combined) or 'bwrap failed'}",
+                        cause=Cause.ENVIRONMENT,
                     )
                 detail = _first_error_line(run.head or run.tail) or f"exit status {run.returncode}"
                 return unverifiable(
                     run,
                     shown,
                     f"the Lake toolchain could not run ({lake_preflight[0]} --version): {detail}",
+                    cause=Cause.ENVIRONMENT,
                 )
             lake_version = _tool_version(run.head) or _tool_version(run.tail)
             if lake_pin is not None and lake_pin.version:
@@ -1172,6 +1238,7 @@ def check(claim, ctx):
                         f"the tool manifest pins lake to version {lake_pin.version}, but "
                         f"{lake} reported no parseable version; the tool that would judge "
                         f"cannot be confirmed as the pinned one",
+                        cause=Cause.ENVIRONMENT,
                     )
                 if not _same_version(lake_version, lake_pin.version):
                     return unverifiable(
@@ -1180,6 +1247,7 @@ def check(claim, ctx):
                         f"the tool manifest pins lake to version {lake_pin.version}, but "
                         f"{lake} reports {lake_version}; the tool that would judge is not "
                         f"the pinned one",
+                        cause=Cause.ENVIRONMENT,
                     )
             if lake_version:
                 lake_tool = lake_tool._replace(version=lake_version)
@@ -1199,25 +1267,44 @@ def check(claim, ctx):
                     "",
                     f"the build directory {build_root!r} resolves outside the checkout; "
                     f"it was not touched" + note_suffix,
+                    cause=Cause.ENVIRONMENT,
                 )
             build = [lake, "build", module]
             cwd = project
             run_argv, shown = wrapped(build, " ".join(build), cwd)
             run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-build-")
             if run.error is not None:
-                return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    run.error + note_suffix,
+                    cause=Cause.ENVIRONMENT,
+                )
             if run.returncode is None:
-                return unverifiable(run, shown, f"the Lean build timed out after {LEAN_TIMEOUT}s")
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the Lean build timed out after {LEAN_TIMEOUT}s (built-in time limit)",
+                    cause=Cause.LIMIT,
+                )
             if run.truncated:
                 return unverifiable(
-                    run, shown, "the Lean build exceeded the output limit; its outcome cannot be verified"
+                    run,
+                    shown,
+                    "the Lean build exceeded the output limit; its outcome cannot be "
+                    "verified (built-in limit)",
+                    cause=Cause.LIMIT,
                 )
             if run.returncode != 0:
                 combined = run.head + "\n" + run.tail
                 first = _first_error_line(combined)
                 if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
                     return unverifiable(
-                        run, shown, f"the sandbox could not run the command: {first}"
+                        run,
+                        shown,
+                        f"the sandbox could not run the command: {first}",
+                        cause=Cause.ENVIRONMENT,
                     )
                 if extra_binds and _READONLY_CACHE_RE.search(combined):
                     return unverifiable(
@@ -1226,6 +1313,7 @@ def check(claim, ctx):
                         f"the dependency packages bound read-only from {extra_binds[0][0]} "
                         f"carry no compiled artifacts for this build; the project cannot "
                         f"be built offline: {first}",
+                        cause=Cause.ENVIRONMENT,
                     )
                 if _missing_dependency(combined, imports) is not None:
                     return unverifiable(
@@ -1234,6 +1322,7 @@ def check(claim, ctx):
                         f"a dependency of {path!r} is not available in the checkout "
                         f"(no network, no complete dependency cache); the build was "
                         f"not checked: {first}",
+                        cause=Cause.ENVIRONMENT,
                     )
                 if _blames_the_file(first, real_file, checkout, project):
                     return refuted(
@@ -1250,6 +1339,7 @@ def check(claim, ctx):
                         shown,
                         f"the Lean toolchain could not be resolved; the build was not "
                         f"checked: {first}",
+                        cause=Cause.ENVIRONMENT,
                     )
                 return unverifiable(
                     run,
@@ -1291,6 +1381,7 @@ def check(claim, ctx):
                     f"the run cannot be pinned against; elan would execute the path, so the "
                     f"proof was not checked" + note_suffix,
                     sandboxed=sandboxed,
+                    cause=Cause.ENVIRONMENT,
                 )
         if late_file is not None and neutral_elan:
             late_value = _toolchain_value(late_file)
@@ -1306,6 +1397,7 @@ def check(claim, ctx):
                     f"tools); elan would resolve the toolchain from the inspected tree, so "
                     f"the proof was not checked" + note_suffix,
                     sandboxed=sandboxed,
+                    cause=Cause.ENVIRONMENT,
                 )
         # The evidence artifact is compiled from a copy of the pinned file:
         # never through the lakefile-driven build, and never through the
@@ -1332,6 +1424,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"the file name of {path!r} is not a Lean module name" + note_suffix,
+                cause=Cause.DEFECT,
             )
         if not _discard_path(build_dir, checkout):
             return Result(
@@ -1340,6 +1433,7 @@ def check(claim, ctx):
                 "",
                 f"the build directory {build_dir!r} resolves outside the checkout; "
                 f"it was not touched" + note_suffix,
+                cause=Cause.ENVIRONMENT,
             )
         evidence_dir = os.path.join(build_dir, "evidence")
         evidence_file = os.path.join(evidence_dir, f"{evidence_name}.lean")
@@ -1353,6 +1447,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"cannot prepare the evidence directory in the checkout: {exc}" + note_suffix,
+                cause=Cause.ENVIRONMENT,
             )
         compile_cmd = [lean, "-R", evidence_dir, "-o", artifact, evidence_file]
         cwd = evidence_dir
@@ -1360,21 +1455,37 @@ def check(claim, ctx):
         run_argv, shown = wrapped(compile_cmd, " ".join(compile_cmd), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-compile-")
         if run.error is not None:
-            return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                run.error + note_suffix,
+                cause=Cause.ENVIRONMENT,
+            )
         if run.returncode is None:
-            return unverifiable(run, shown, f"the Lean compile timed out after {LEAN_TIMEOUT}s")
+            return unverifiable(
+                run,
+                shown,
+                f"the Lean compile timed out after {LEAN_TIMEOUT}s (built-in time limit)",
+                cause=Cause.LIMIT,
+            )
         if run.truncated:
             return unverifiable(
                 run,
                 shown,
-                "the Lean compile exceeded the output limit; its outcome cannot be verified",
+                "the Lean compile exceeded the output limit; its outcome cannot be "
+                "verified (built-in limit)",
+                cause=Cause.LIMIT,
             )
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
             first = _first_error_line(combined)
             if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
                 return unverifiable(
-                    run, shown, f"the sandbox could not run the command: {first}"
+                    run,
+                    shown,
+                    f"the sandbox could not run the command: {first}",
+                    cause=Cause.ENVIRONMENT,
                 )
             if _TOOLCHAIN_FAILURE_RE.search(combined) and not _blames_the_file(
                 first, real_file, checkout, project
@@ -1388,6 +1499,7 @@ def check(claim, ctx):
                     shown,
                     f"the Lean toolchain could not be resolved; the file was not "
                     f"checked: {first}",
+                    cause=Cause.ENVIRONMENT,
                 )
             if extra_binds and _READONLY_CACHE_RE.search(combined):
                 return unverifiable(
@@ -1396,6 +1508,7 @@ def check(claim, ctx):
                     f"the dependency packages bound read-only from {extra_binds[0][0]} "
                     f"carry no compiled artifacts for this build; the project cannot "
                     f"be built offline: {first}",
+                    cause=Cause.ENVIRONMENT,
                 )
             if _missing_dependency(combined, imports) is not None or "unknown module prefix" in combined:
                 return unverifiable(
@@ -1404,6 +1517,7 @@ def check(claim, ctx):
                     f"a dependency of {path!r} is not available in the checkout "
                     f"(no network, no complete dependency cache); the file was not "
                     f"checked: {first}",
+                    cause=Cause.ENVIRONMENT,
                 )
             return refuted(
                 run,
@@ -1431,17 +1545,29 @@ def check(claim, ctx):
         run_argv, shown = wrapped(recheck, " ".join(recheck), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-recheck-")
         if run.error is not None:
-            return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                run.error + note_suffix,
+                cause=Cause.ENVIRONMENT,
+            )
         if run.returncode is None:
             return unverifiable(
-                run, shown, f"the kernel re-check timed out after {LEAN_TIMEOUT}s"
+                run,
+                shown,
+                f"the kernel re-check timed out after {LEAN_TIMEOUT}s (built-in time limit)",
+                cause=Cause.LIMIT,
             )
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
             first = _first_error_line(combined)
             if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
                 return unverifiable(
-                    run, shown, f"the sandbox could not run the command: {first}"
+                    run,
+                    shown,
+                    f"the sandbox could not run the command: {first}",
+                    cause=Cause.ENVIRONMENT,
                 )
             if _TOOLCHAIN_FAILURE_RE.search(combined):
                 return unverifiable(
@@ -1449,6 +1575,7 @@ def check(claim, ctx):
                     shown,
                     f"the Lean toolchain could not be resolved; the kernel re-check was "
                     f"not completed: {first}",
+                    cause=Cause.ENVIRONMENT,
                 )
             return unverifiable(
                 run,
@@ -1463,14 +1590,27 @@ def check(claim, ctx):
         run_argv, shown = wrapped(query, " ".join(query), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-query-")
         if run.error is not None:
-            return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                run.error + note_suffix,
+                cause=Cause.ENVIRONMENT,
+            )
         if run.returncode is None:
             return unverifiable(
-                run, shown, f"the axiom query timed out after {LEAN_TIMEOUT}s"
+                run,
+                shown,
+                f"the axiom query timed out after {LEAN_TIMEOUT}s (built-in time limit)",
+                cause=Cause.LIMIT,
             )
         if run.truncated:
             return unverifiable(
-                run, shown, "the axiom query exceeded the output limit; its outcome cannot be verified"
+                run,
+                shown,
+                "the axiom query exceeded the output limit; its outcome cannot be "
+                "verified (built-in limit)",
+                cause=Cause.LIMIT,
             )
         combined = run.head + "\n" + run.tail
         # The answer is the last line of the run; the tail alone is read so a
@@ -1490,6 +1630,7 @@ def check(claim, ctx):
                     shown,
                     f"a dependency of {path!r} is not available (no network, no complete "
                     f"dependency cache); the proof was not checked: {payload}",
+                    cause=Cause.ENVIRONMENT,
                 )
             return unverifiable(
                 run,

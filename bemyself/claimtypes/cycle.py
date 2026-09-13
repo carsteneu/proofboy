@@ -40,7 +40,7 @@ import re
 
 from bemyself import turing
 from bemyself.claimtypes.halt import _count, _split_body
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # The largest step count a [CYCLE] claim may ask the simulator to execute.
 # Deliberately bounded like the SEARCHED limit, not the HALT limit: a larger
@@ -169,13 +169,16 @@ def _tape_difference(first, second, start, end):
 def check(claim, ctx):
     machine_text = (claim.fields.get("machine") or "").strip()
     if not machine_text:
-        return Result(Verdict.UNVERIFIABLE, reason="the claim names no machine")
+        return Result(
+            Verdict.UNVERIFIABLE, reason="the claim names no machine", cause=Cause.DEFECT
+        )
     try:
         machine = turing.parse(machine_text)
     except turing.MachineError as exc:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"not a machine of the bbchallenge notation: {exc}",
+            cause=Cause.UNVERIFIABLE,
         )
     t1_text = claim.fields.get("t1") or ""
     t2_text = claim.fields.get("t2") or ""
@@ -185,39 +188,49 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             reason="the certificate needs three comma-separated values (t1,t2,d): "
             f"{claim.fields.get('values')!r}",
+            cause=Cause.DEFECT,
         )
     t1 = _count(t1_text)
     if t1 is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the claimed t1 is not a non-negative integer: {t1_text!r}",
+            cause=Cause.UNVERIFIABLE,
         )
     t2 = _count(t2_text)
     if t2 is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the claimed t2 is not a non-negative integer: {t2_text!r}",
+            cause=Cause.UNVERIFIABLE,
         )
     d = _signed_count(d_text)
     if d is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the claimed translation is not an integer: {d_text!r}",
+            cause=Cause.UNVERIFIABLE,
         )
     if t2 <= t1:
+        # An unsound certificate is not a defective report: the claim is
+        # honestly unverifiable ("P10" design), it is not accused of lying.
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the certificate needs t2 > t1 (here t1={t1}, t2={t2})",
+            cause=Cause.UNVERIFIABLE,
         )
     if d == 0:
         return Result(
             Verdict.UNVERIFIABLE,
             reason="the certificate needs a non-zero translation d (here 0)",
+            cause=Cause.UNVERIFIABLE,
         )
     if t2 > ctx.cycle_limit:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason=f"the claimed {t2} steps exceed the executable limit of {ctx.cycle_limit}",
+            reason=f"the claimed {t2} steps exceed the executable limit of "
+            f"{ctx.cycle_limit}; raise the limit with --cycle-limit",
+            cause=Cause.LIMIT,
         )
     result, snapshots = turing.run_checkpoints(machine, t2, (t1, t2), max_cells=TAPE_LIMIT)
     command = (
@@ -242,7 +255,9 @@ def check(claim, ctx):
             command,
             output,
             f"the configuration at step {step} does not materialize within the "
-            f"tape bound of {TAPE_LIMIT} cells; the comparison cannot be performed",
+            f"tape bound of {TAPE_LIMIT} cells; the comparison cannot be performed "
+            "(built-in limit)",
+            cause=Cause.LIMIT,
         )
     if first.state != second.state:
         return Result(
@@ -279,7 +294,9 @@ def check(claim, ctx):
             command,
             output,
             f"the comparison window of {end - start} cells exceeds the tape "
-            f"bound of {TAPE_LIMIT} cells; the comparison cannot be performed",
+            f"bound of {TAPE_LIMIT} cells; the comparison cannot be performed "
+            "(built-in limit)",
+            cause=Cause.LIMIT,
         )
     difference = _tape_difference(first, second, start, end)
     if difference is not None:

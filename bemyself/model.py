@@ -17,6 +17,23 @@ class Verdict(str, Enum):
     UNVERIFIABLE = "UNVERIFIABLE"
 
 
+class Cause(str, Enum):
+    """Why a claim did not end CONFIRMED: the machine-readable class.
+
+    ``DEFECT`` blames the report (a missing, malformed or contradictory
+    value, a claim that cannot bind); it fails a run in both modes.
+    ``ENVIRONMENT`` is a capability the run does not have (no remote, no
+    sandbox, no tool). ``LIMIT`` is a budget that was exhausted before the
+    claim could be checked. ``UNVERIFIABLE`` is the residual: the check was
+    attempted and could not decide.
+    """
+
+    DEFECT = "defect"
+    ENVIRONMENT = "environment"
+    LIMIT = "limit"
+    UNVERIFIABLE = "unverifiable"
+
+
 @dataclass(frozen=True)
 class Claim:
     """A single verifiable assertion extracted from a report."""
@@ -39,6 +56,15 @@ class Result:
     # runs, None when no command was executed. Machine-readable counterpart of
     # the note in ``reason``, which is display text and echo of report input.
     sandboxed: bool | None = None
+    # Why the claim did not end CONFIRMED: exactly one class per unconfirmed
+    # claim, None for CONFIRMED and REFUTED. The residual class is the default
+    # so every UNVERIFIABLE result carries a class without each caller having
+    # to name one.
+    cause: Cause | None = None
+
+    def __post_init__(self):
+        if self.verdict is Verdict.UNVERIFIABLE and self.cause is None:
+            self.cause = Cause.UNVERIFIABLE
 
 
 @dataclass(frozen=True)
