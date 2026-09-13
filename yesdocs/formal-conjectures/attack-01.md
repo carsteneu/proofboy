@@ -132,7 +132,7 @@ extern verankerte Tiefe. Ein `[COMPUTE]`-Anker für den 2^32-Lauf ist nicht mög
 python3 yesdocs/formal-conjectures/tools/reductions.py --bmo1-run 10000000
 ```
 
-Ergebnis: 10^7 Iterationen ohne a = b (kein Halt-Hinweis auf dem endlichen Lauf);
+Ergebnis: 10^7 Iterationen ohne erreichten Halte-Trigger b = a + 2 (kein Halt-Hinweis auf dem endlichen Lauf);
 Endpaar a/b mit 2 178 111 / 2 178 113 Bit (≈656 000 Dezimalziffern), Digest
 `sha256(hex(a):hex(b)) = 1aa72b0b90…` (im Artefakt vollständig); Laufzeit ≈13 min
 (780 s bzw. 822 s in zwei Läufen, byte-identische Ausgabezeile).
@@ -151,7 +151,10 @@ beschriftet statt hochgerechnet.
 
 **(a) Random-Walk-Lösung der Antihydra-Frage ist exakt.** Die Wiki-Frage
 P(n) = 1/2·P(n-1) + 1/2·P(n+2) mit P(-1) = 1 hat nach eigenen Tabellen die Lösung
-P(n) = φ^(n+1). Wir prüfen die Identität exakt in Z[φ] (φ² = 1 − φ, ganzzahlige
+P(n) = φ^(n+1). Konvention hier: φ := (√5−1)/2 ≈ 0,618 (reziproke Goldene; mit der
+Standard-Goldenen Φ = (1+√5)/2 gilt P(n) = Φ^(−(n+1)) — fallend, wie eine
+Trefferwahrscheinlichkeit sein muss). Wir prüfen die Identität exakt in Z[φ]
+(φ² = 1 − φ, ganzzahlige
 Paare, kein Fließkomma): 1 + φ³ = 2φ und P(n-1) + P(n+2) = 2·P(n) für n = 0..200 —
 0 Abweichungen (`data/structure.txt`, `[ARTIFACT]`). Das ist eine finite exakte
 Verifikation der Rekurrenz-Äquivalenz, kein Beweis der offenen Frage (P(n) → 0 bleibt
