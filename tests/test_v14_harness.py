@@ -27,6 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLING = ROOT / "yesdocs" / "deepseek-math-notation" / "tooling"
+SETS = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -439,6 +440,152 @@ class RunIntegrationTest(unittest.TestCase):
         self.assertTrue(summary["final_solved"])
         self.assertEqual(summary["feedback"], "G0")
         self.assertTrue((root / _HARD["id"] / "D-rep1" / "round0" / "parsed.json").exists())
+
+
+class SetsV04Test(unittest.TestCase):
+    """Sets v0.4: erweiterte harte Zyklus-Familie + Kontrollen; v0.3 eingefroren."""
+
+    TIER_B_V04 = "tier_b_v11-b-0.4.json"
+    # Die eingefrorenen Staende v0.1-v0.3 (Datei-Hash der committeten Bytes).
+    FROZEN = {
+        "tier_a_v11-a-0.1.json": "50c985e169aa500799824d7e05fa5cf918b5f1b1c3e45be5a4cb8c3ec73474f9",
+        "tier_b_v11-b-0.1.json": "074ab6bf5ebfc2132a73dcaae7b490754e559e1870a594c28dc0deb9a2b02ccf",
+        "tier_a_v11-a-0.2.json": "007424292fd10129877b3c0c2d733de6e556d08183955b6d9a10c0d2d8be81ce",
+        "tier_b_v11-b-0.2.json": "68eb917ebd26ae2d4ed1200b56c62114edd019bba868d2bd0d350348aad52395",
+        "tier_a_v11-a-0.3.json": "eb294ea93235e19c247eed4c547bbe879ea357aa86f8cdd80b979e4f9c5d11c3",
+        "tier_b_v11-b-0.3.json": "a1fcac5e4c6ae568dc17a4cd56928eaba7d7949ec94760d02281b1e5d3c1c51f",
+    }
+    EXPECTED_IDS = ["B3-0002", "B3-0005", "B3-0008", "B4-0001", "B4-0002", "B4-0003"]
+
+    def _load(self):
+        return json.loads((SETS / self.TIER_B_V04).read_text(encoding="utf-8"))
+
+    def test_v04_file_exists_and_parses(self):
+        payload = self._load()
+        self.assertEqual(payload["set_version"], "v11-b-0.4")
+        self.assertEqual([task["id"] for task in payload["tasks"]], self.EXPECTED_IDS)
+        ids = [task["id"] for task in payload["tasks"]]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_v04_trace_control_rederives_its_gold(self):
+        tasks = [t for t in self._load()["tasks"] if t["tier_b_kind"] == "trace"]
+        self.assertEqual([t["id"] for t in tasks], ["B3-0002"])
+        from bemyself import turing
+
+        for task in tasks:
+            machine = turing.parse(task["machine"])
+            _result, snapshots = turing.run_checkpoints(
+                machine, max(task["checkpoints_t"]), tuple(task["checkpoints_t"])
+            )
+            for step, letter, head, window in task["checkpoints_gold"]:
+                snapshot = snapshots.get(step)
+                self.assertIsNotNone(snapshot, f"{task['id']} t={step}")
+                self.assertEqual(chr(ord("A") + snapshot.state), letter, f"{task['id']} t={step}")
+                self.assertEqual(snapshot.head, head, f"{task['id']} t={step}")
+                window_now = "".join(str(c) for c in snapshot.left[::-1] + snapshot.right)
+                self.assertEqual(window_now, window, f"{task['id']} t={step}")
+
+    def test_v04_cyc_certificates_confirmed_and_prompts_leak_free(self):
+        tasks = [t for t in self._load()["tasks"] if t["tier_b_kind"] == "cyc"]
+        self.assertEqual(len(tasks), 5)
+        not_given = [t for t in tasks if t.get("certificate_given") is False]
+        self.assertEqual(len(not_given), 5, "alle neuen Zyklus-Aufgaben ohne Vorgabe")
+        from bemyself.claimtypes import cycle
+        from bemyself.model import Claim, Verdict
+
+        for task in tasks:
+            t1, t2, d = task["certificate"]
+            claim = Claim(
+                kind="cycle",
+                line=0,
+                raw="set-check",
+                fields={
+                    "machine": task["machine"],
+                    "values": f"{t1},{t2},{d}",
+                    "t1": str(t1),
+                    "t2": str(t2),
+                    "d": str(d),
+                },
+            )
+
+            class _Ctx:
+                cycle_limit = cycle.DEFAULT_CYCLE_LIMIT
+
+            result = cycle.check(claim, _Ctx())
+            self.assertEqual(result.verdict, Verdict.CONFIRMED, f"{task['id']}: {result.reason}")
+            prompt = task["prompt"]
+            for needle in (f"t1={t1}", f"t2={t2}", f"d={d}"):
+                self.assertNotIn(needle, prompt, task["id"])
+            self.assertIn("selbst", prompt, task["id"])
+
+    def test_v04_new_tasks_match_the_frozen_search_finds(self):
+        tasks = {task["id"]: task for task in self._load()["tasks"]}
+        self.assertEqual(tasks["B4-0001"]["machine"], "1RB1LC_1RD0LC_1RB1LB_1LC1RD")
+        self.assertEqual(tasks["B4-0001"]["certificate"], [65, 81, -2])
+        self.assertEqual(tasks["B4-0002"]["machine"], "1LC1RD_1RZ0LZ_1RA1LC_0RC1RC")
+        self.assertEqual(tasks["B4-0002"]["certificate"], [14, 21, -1])
+        self.assertEqual(tasks["B4-0003"]["machine"], "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC")
+        self.assertEqual(tasks["B4-0003"]["certificate"], [6, 16, 2])
+        self.assertIn("Suchlauf", tasks["B4-0001"]["source"])
+        self.assertIn("20260915", tasks["B4-0001"]["source"])
+        self.assertIn("Suchlauf", tasks["B4-0002"]["source"])
+        self.assertIn("20260914", tasks["B4-0002"]["source"])
+
+    def test_v04_search_reproduces_the_b4_0002_find(self):
+        # Der deterministische Suchlauf (Attempt-Zaehlung statt Wall-Clock)
+        # liefert mit der eingefrorenen Saat dieselbe Maschine; die Angabe im
+        # source-Feld ist damit nachpruefbar.
+        import importlib.util
+        import random
+
+        spec = importlib.util.spec_from_file_location("build_sets", TOOLING / "build_sets.py")
+        build_sets = importlib.util.module_from_spec(spec)
+        sys.modules["build_sets"] = build_sets
+        spec.loader.exec_module(build_sets)
+
+        found = build_sets._find_translated_cyclers(
+            random.Random(20260914), 1, max_attempts=9000, min_t2=20
+        )
+        self.assertEqual(len(found), 1)
+        find = found[0]
+        self.assertEqual(find["machine"], "1LC1RD_1RZ0LZ_1RA1LC_0RC1RC")
+        self.assertEqual(find["certificate"], (14, 21, -1))
+        self.assertEqual(find["attempts"], 8913)
+
+    def test_frozen_sets_untouched(self):
+        for name, digest in self.FROZEN.items():
+            self.assertEqual(_sha256(SETS / name), digest, name)
+
+    def test_rebuild_writes_v04_and_keeps_v01_v03_byte_identical(self):
+        import subprocess
+
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        tmp = Path(tempfile.mkdtemp(dir=tmp_root))
+        # v0.1 ist Altbestand und wird nicht mehr gebaut; der Builder schreibt
+        # v0.2/v0.3 (unveraendert) und v0.4 (neu).
+        written = [name for name in self.FROZEN if "0.1" not in name] + [self.TIER_B_V04]
+        try:
+            subprocess.run(
+                [sys.executable, str(TOOLING / "build_sets.py"), "--out", str(tmp)],
+                check=True,
+                cwd=ROOT,
+                capture_output=True,
+            )
+            for name in written:
+                self.assertEqual((tmp / name).read_bytes(), (SETS / name).read_bytes(), name)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_harness_default_set_is_v04(self):
+        self.assertEqual(harness._TIER_B_SET, self.TIER_B_V04)
+        self.assertEqual(harness._TIER_A_SET, "tier_a_v11-a-0.3.json")
+
+
+def _sha256(path):
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 if __name__ == "__main__":

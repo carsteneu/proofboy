@@ -63,9 +63,10 @@ Aufrufe::
     python3 harness.py one --arm C --task A3-0008 --rep 1
     python3 harness.py dry --arm C --task B3-0005
 
-Die Sets kommen aus ``_TIER_A_SET``/``_TIER_B_SET`` (Default: v0.3); fuer eine
-Reproduktion alter Runden muessen diese Konstanten bewusst umgestellt werden
-(die v0.2-Dateien liegen unveraendert im Sets-Ordner).
+Die Sets kommen aus ``_TIER_A_SET``/``_TIER_B_SET`` (Default: Tier A v0.3,
+Tier B v0.4); fuer eine Reproduktion alter Runden muessen diese Konstanten
+bewusst umgestellt werden (die alten Set-Dateien liegen unveraendert im
+Sets-Ordner).
 """
 
 from __future__ import annotations
@@ -101,7 +102,7 @@ SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
 RUNS_DIR = ROOT / ".yesmem" / "tmp" / "runs"
 
 _TIER_A_SET = "tier_a_v11-a-0.3.json"
-_TIER_B_SET = "tier_b_v11-b-0.3.json"
+_TIER_B_SET = "tier_b_v11-b-0.4.json"
 
 # Runde-2-Fairness-Design: Diese Arme erhalten in der Reparaturrunde ihre
 # eigenen maschinellen Verdikte (Appendix + Befunde). K erhaelt die neutrale

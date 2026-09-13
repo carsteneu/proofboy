@@ -23,6 +23,13 @@ Runde-2-Lauf ohne Shuffle-Ausschluss gefahren.
 v0.3 (2026-09-12, Runde 3 "Haerte"): neue Aufgaben fuer die harten Zellen,
 v0.1/v0.2 bleiben eingefroren und werden weiter byte-identisch geschrieben.
 
+v0.4 (2026-09-13, Runde 4 "Lokalisierung"): die harte Zyklus-Familie wird
+erweitert -- die Marxen-Trace-Kontrolle (B3-0002), die Bindungs-/Ankerfaelle
+B3-0005/B3-0008 aus v0.3 und drei neue Uebersetzer-Zyklen: B4-0001/B4-0002
+aus einem deterministischen Suchlauf (Attempt-Zaehlung statt Wall-Clock,
+Zertifikat in ``source`` dokumentiert) und B4-0003 (die lange 5-Block-Maschine
+des bbchallenge-Wikis als Bindungs-Szenario). v0.1-v0.3 bleiben eingefroren.
+
 - Tier A-hard (16 Aufgaben): mehrstellige Arithmetik ohne Bibliotheks-Hilfe
   -- 12- bis 20-stellige Additionen/Multiplikationen, mod/mulmod auf grossen
   Zahlen, ein 12-stelliger ggT (Bibliotheks-Guard 10^12), sowie vier lange
@@ -592,6 +599,205 @@ def _trace_task(task_id, machine_text, steps, rows, source, license_text):
 
 
 # ---------------------------------------------------------------------------
+# v0.4 (Runde 4 "Lokalisierung"): erweiterte harte Zyklus-Familie.
+#
+# Der Suchlauf fuer Uebersetzer-Zyklen ist deterministisch: feste Saat, feste
+# Anzahl gescannter Maschinen (``max_attempts``, keine Wall-Clock), und jede
+# gefundene Maschine wird von ``cycle.check`` bestaetigt (der Checker bleibt
+# die einzige Instanz, die ein Zertifikat vergibt). Die Kandidatenpruefung
+# spiegelt exakt die Vergleichslogik des Checkers ueber dessen eigene
+# Fenster-Helfer; ein Kandidat ohne Bestaetigung zaehlt nicht.
+#
+# Reproduktion:
+#   python3 build_sets.py --search --seed 20260915 --min-t2 60 --max-attempts 200000
+
+
+def _tapes_equal(first, second, start, end):
+    """The checker's tape comparison (byte-wise, early exit).
+
+    Same relative coordinates in both snapshots, zero outside the written
+    extent -- exactly :func:`bemyself.claimtypes.cycle._tape_difference` ==
+    None, only cheaper for the many non-matching candidates of a search.
+    """
+    cells1, lo1 = cycle._pattern(first)
+    cells2, lo2 = cycle._pattern(second)
+    for position in range(start, end):
+        index = position - lo1
+        left = cells1[index] if 0 <= index < len(cells1) else 0
+        index = position - lo2
+        right = cells2[index] if 0 <= index < len(cells2) else 0
+        if left != right:
+            return False
+    return True
+
+
+def _first_certificate(machine, max_steps):
+    """The first (t1, t2, d) that :func:`cycle.check` confirms, or None.
+
+    Candidates come from the snapshot trace (same state, nonzero head shift,
+    equal tapes in the reachable window); the verdict itself is always the
+    checker's.
+    """
+    _result, snapshots = turing.run_checkpoints(machine, max_steps, tuple(range(max_steps + 1)))
+    reachable = [step for step in range(max_steps + 1) if snapshots.get(step) is not None]
+    if len(reachable) < 3:
+        return None
+    by_state = {}
+    for step in reachable:
+        by_state.setdefault(snapshots[step].state, []).append(step)
+    for t2 in reachable[2:]:
+        second = snapshots[t2]
+        for t1 in by_state[second.state]:
+            if t1 >= t2:
+                break
+            first = snapshots[t1]
+            d = second.head - first.head
+            if d == 0:
+                continue
+            heads = [snapshots[step].head for step in range(t1, t2 + 1)]
+            if d > 0:
+                low, high = -max(0, first.head - min(heads)), None
+            else:
+                low, high = None, max(0, max(heads) - first.head)
+            start, end = cycle._comparison_window(first, second, low, high)
+            if end - start > 1 << 16:
+                continue
+            if not _tapes_equal(first, second, start, end):
+                continue
+            if _verify_certificate(machine.source, (t1, t2, d)).verdict.value == "CONFIRMED":
+                return (t1, t2, d)
+    return None
+
+
+def _find_translated_cyclers(rng, wanted, *, max_attempts=200000, min_t2=20, max_steps=300,
+                             states_pool=(2, 2, 3, 3, 4)):
+    """Deterministic translated-cycler search over ``max_attempts`` machines.
+
+    Returns a list of finds (in scan order): ``machine`` (source text),
+    ``certificate`` (t1, t2, d -- the shortest the search sees for that
+    machine), ``attempts`` (1-based machine index, not wall-clock) and
+    ``states``. Stops early once ``wanted`` finds with ``t2 >= min_t2`` are
+    reached.
+    """
+    found = []
+    for attempt in range(1, max_attempts + 1):
+        if len(found) >= wanted:
+            break
+        states = rng.choice(states_pool)
+        text = _random_machine(rng, states)
+        machine = turing.parse(text)  # generator output always parses
+        certificate = _first_certificate(machine, max_steps)
+        if certificate is None or certificate[1] < min_t2:
+            continue
+        found.append(
+            {"machine": text, "certificate": certificate, "attempts": attempt, "states": states}
+        )
+    return found
+
+
+def _cyc_task(task_id, machine_text, certificate, given, source, license_text):
+    """One cycle task with its build-verified certificate.
+
+    Without a given certificate the prompt asks for self-determination and
+    carries no values (V13 wording); a ``---`` block gets the bbchallenge
+    convention spelled out (no transition -- halt on that pair).
+    """
+    t1, t2, d = certificate
+    result = _verify_certificate(machine_text, certificate)
+    if result.verdict.value != "CONFIRMED":
+        raise SystemExit(
+            f"cyc task certificate not confirmed for {machine_text}: {result.reason}"
+        )
+    if given:
+        prompt = (
+            "Die 2-Symbol-Turingmaschine in bbchallenge-Notation "
+            f"lautet: {machine_text}. Start: Zustand A, Kopf auf Position 0, "
+            "leeres Band. Belege, dass sie nicht haelt, mit dem "
+            f"Translationszyklus-Zeugen (t1={t1}, t2={t2}, d={d})."
+        )
+    else:
+        undef = (
+            "; --- in einem Block bedeutet: kein Uebergang (Halt bei diesem Paar)"
+            if "---" in machine_text
+            else ""
+        )
+        prompt = (
+            "Die 2-Symbol-Turingmaschine in bbchallenge-Notation "
+            f"lautet: {machine_text}. Start: Zustand A, Kopf auf Position 0, "
+            f"leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt{undef}. "
+            "Untersuche den Lauf: Halte er an, oder laeuft die Maschine in einen "
+            "Translationszyklus? Bestimme im Zyklusfall die Werte t1, t2 und d selbst."
+        )
+    return {
+        "id": task_id,
+        "tier": "B",
+        "tier_b_kind": "cyc",
+        "machine": machine_text,
+        "certificate": [t1, t2, d],
+        "certificate_given": given,
+        "prompt": prompt,
+        "notation": "v11",
+        "source": source,
+        "license": license_text,
+    }
+
+
+# (id, machine, certificate, source, license) -- die neuen Zyklus-Aufgaben.
+_V04_NEW_CYC = [
+    (
+        "B4-0001",
+        "1RB1LC_1RD0LC_1RB1LB_1LC1RD",
+        (65, 81, -2),
+        "Suchlauf v0.4 (random.Random(20260915), min_t2=60, Treffer #119578) und "
+        "per cycle.check verifiziert -- Zertifikat ohne Vorgabe (schwerer "
+        "4-Zustands-Uebersetzer-Zyklus)",
+        _LICENSE_GENERATED,
+    ),
+    (
+        "B4-0002",
+        "1LC1RD_1RZ0LZ_1RA1LC_0RC1RC",
+        (14, 21, -1),
+        "Suchlauf v0.4 (random.Random(20260914), min_t2=20, Treffer #8913) und "
+        "per cycle.check verifiziert -- Zertifikat ohne Vorgabe",
+        _LICENSE_GENERATED,
+    ),
+    (
+        "B4-0003",
+        "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC",
+        (6, 16, 2),
+        "bbchallenge-Wiki \"Translated cycler\" (Figur 44394115); Zertifikat lokal "
+        "re-deriviert und per cycle.check verifiziert -- Zertifikat ohne Vorgabe "
+        "(lange Maschinenbindung als Bindungs-Szenario)",
+        _LICENSE_CURATED,
+    ),
+]
+
+
+def build_tier_b_v04():
+    """v0.4: die erweiterte harte Zyklus-Familie mit Kontrollen.
+
+    Enthaelt die Marxen-Trace-Kontrolle (B3-0002), die v0.3-Bindungsfaelle
+    B3-0005/B3-0008 und die drei neuen Uebersetzer-Zyklen. Alle Zertifikate
+    werden zur Bauzeit per cycle.check verifiziert.
+    """
+    tasks = []
+
+    machine_text, source, steps = _HARD_TRACE[1]  # Marxen & Buntrock
+    machine = turing.parse(machine_text)
+    rows = _checkpoints(machine, steps)
+    tasks.append(_trace_task("B3-0002", machine_text, steps, rows, source, _LICENSE_CURATED))
+
+    for task_id, spec in zip(("B3-0005", "B3-0008"), (_HARD_CYC[0], _HARD_CYC[3])):
+        machine_text, certificate, given, source, license_text = spec
+        tasks.append(_cyc_task(task_id, machine_text, certificate, given, source, license_text))
+
+    for task_id, machine_text, certificate, source, license_text in _V04_NEW_CYC:
+        tasks.append(_cyc_task(task_id, machine_text, certificate, False, source, license_text))
+
+    return tasks
+
+
+# ---------------------------------------------------------------------------
 
 
 def main(argv=None):
@@ -601,7 +807,35 @@ def main(argv=None):
         default=str(ROOT / "yesdocs" / "deepseek-math-notation" / "sets"),
         help="output directory",
     )
+    parser.add_argument(
+        "--search",
+        action="store_true",
+        help="run the v0.4 translated-cycler search and print the finds (reproduces the "
+        "certificates documented in the v0.4 sources)",
+    )
+    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument("--min-t2", type=int, default=20)
+    parser.add_argument("--max-attempts", type=int, default=200000)
+    parser.add_argument("--wanted", type=int, default=5)
     args = parser.parse_args(argv)
+
+    if args.search:
+        finds = _find_translated_cyclers(
+            random.Random(args.seed),
+            args.wanted,
+            max_attempts=args.max_attempts,
+            min_t2=args.min_t2,
+        )
+        for find in finds:
+            t1, t2, d = find["certificate"]
+            print(
+                f"found attempts={find['attempts']} states={find['states']} "
+                f"t2={t2} t1={t1} d={d} {find['machine']}"
+            )
+        print(f"{len(finds)} finds for seed={args.seed} min_t2={args.min_t2} "
+              f"max_attempts={args.max_attempts}")
+        return 0
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -646,11 +880,27 @@ def main(argv=None):
         "tasks": build_tier_b_hard(),
     }
 
+    tier_b_v04 = {
+        "set_version": "v11-b-0.4",
+        "created": "2026-09-13",
+        "seed": 20260914,
+        "note": (
+            "v0.4 (Lokalisierungs-Runde): die harte Zyklus-Familie erweitert -- "
+            "Marxen-Trace-Kontrolle (B3-0002), Bindungs-/Ankerfaelle B3-0005/B3-0008 "
+            "und drei neue Uebersetzer-Zyklen (B4-0001/B4-0002 per deterministischem "
+            "Suchlauf, B4-0003 lange 5-Block-Maschine). Alle Zertifikate zur Bauzeit "
+            "per cycle.check verifiziert; wiederverwendete Aufgaben behalten ihre "
+            "B3-IDs."
+        ),
+        "tasks": build_tier_b_v04(),
+    }
+
     for name, payload in (
         ("tier_a", tier_a),
         ("tier_b", tier_b),
         ("tier_a", tier_a_hard),
         ("tier_b", tier_b_hard),
+        ("tier_b", tier_b_v04),
     ):
         path = out / f"{name}_{payload['set_version']}.json"
         text = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
@@ -663,8 +913,8 @@ def main(argv=None):
         print(f"{shown}  sha256={digest}")
     print(
         f"Tier A: {len(tier_a['tasks'])}/{len(tier_a_hard['tasks'])} Aufgaben, "
-        f"Tier B: {len(tier_b['tasks'])}/{len(tier_b_hard['tasks'])} Aufgaben "
-        "(v0.2/v0.3)"
+        f"Tier B: {len(tier_b['tasks'])}/{len(tier_b_hard['tasks'])}/"
+        f"{len(tier_b_v04['tasks'])} Aufgaben (v0.2/v0.3/v0.4)"
     )
     return 0
 

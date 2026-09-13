@@ -1,0 +1,138 @@
+{
+  "set_version": "v11-b-0.4",
+  "created": "2026-09-13",
+  "seed": 20260914,
+  "note": "v0.4 (Lokalisierungs-Runde): die harte Zyklus-Familie erweitert -- Marxen-Trace-Kontrolle (B3-0002), Bindungs-/Ankerfaelle B3-0005/B3-0008 und drei neue Uebersetzer-Zyklen (B4-0001/B4-0002 per deterministischem Suchlauf, B4-0003 lange 5-Block-Maschine). Alle Zertifikate zur Bauzeit per cycle.check verifiziert; wiederverwendete Aufgaben behalten ihre B3-IDs.",
+  "tasks": [
+    {
+      "id": "B3-0002",
+      "tier": "B",
+      "tier_b_kind": "trace",
+      "machine": "1RB0LD_1LC1RD_1LA1LC_1RZ1RE_1RA0RB",
+      "horizon": 100,
+      "checkpoints_t": [
+        10,
+        25,
+        50,
+        75,
+        100
+      ],
+      "checkpoints_gold": [
+        [
+          10,
+          "A",
+          0,
+          "11111"
+        ],
+        [
+          25,
+          "C",
+          -1,
+          "1111111"
+        ],
+        [
+          50,
+          "E",
+          2,
+          "111011011111"
+        ],
+        [
+          75,
+          "C",
+          1,
+          "11101111111111"
+        ],
+        [
+          100,
+          "D",
+          4,
+          "11111111101111"
+        ]
+      ],
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB0LD_1LC1RD_1LA1LC_1RZ1RE_1RA0RB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Simuliere den Lauf und belege die Konfigurationen nach den Schritten 10, 25, 50, 75, 100.",
+      "notation": "v11",
+      "source": "Marxen & Buntrock 1989 (bbchallenge; 23.554.764 Schritte, Score 4097)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B3-0005",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "0LA0LA",
+      "certificate": [
+        0,
+        1,
+        -1
+      ],
+      "certificate_given": false,
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 0LA0LA. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Untersuche den Lauf: Halte er an, oder laeuft die Maschine in einen Translationszyklus? Bestimme im Zyklusfall die Werte t1, t2 und d selbst.",
+      "notation": "v11",
+      "source": "Testfixture tests/test_cycle.py (Schreiber 0, laeuft nach links; jedes Schritt-Intervall ist eine Translation) -- Zertifikat ohne Vorgabe",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    },
+    {
+      "id": "B3-0008",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "1LB1LB_1RA0LB",
+      "certificate": [
+        34,
+        37,
+        -1
+      ],
+      "certificate_given": false,
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1LB1LB_1RA0LB. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Untersuche den Lauf: Halte er an, oder laeuft die Maschine in einen Translationszyklus? Bestimme im Zyklusfall die Werte t1, t2 und d selbst.",
+      "notation": "v11",
+      "source": "lokal gesucht (random.Random(20260915), Kopf-Profil) und per cycle.check verifiziert -- Zertifikat ohne Vorgabe",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "B4-0001",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "1RB1LC_1RD0LC_1RB1LB_1LC1RD",
+      "certificate": [
+        65,
+        81,
+        -2
+      ],
+      "certificate_given": false,
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB1LC_1RD0LC_1RB1LB_1LC1RD. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Untersuche den Lauf: Halte er an, oder laeuft die Maschine in einen Translationszyklus? Bestimme im Zyklusfall die Werte t1, t2 und d selbst.",
+      "notation": "v11",
+      "source": "Suchlauf v0.4 (random.Random(20260915), min_t2=60, Treffer #119578) und per cycle.check verifiziert -- Zertifikat ohne Vorgabe (schwerer 4-Zustands-Uebersetzer-Zyklus)",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "B4-0002",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "1LC1RD_1RZ0LZ_1RA1LC_0RC1RC",
+      "certificate": [
+        14,
+        21,
+        -1
+      ],
+      "certificate_given": false,
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1LC1RD_1RZ0LZ_1RA1LC_0RC1RC. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt. Untersuche den Lauf: Halte er an, oder laeuft die Maschine in einen Translationszyklus? Bestimme im Zyklusfall die Werte t1, t2 und d selbst.",
+      "notation": "v11",
+      "source": "Suchlauf v0.4 (random.Random(20260914), min_t2=20, Treffer #8913) und per cycle.check verifiziert -- Zertifikat ohne Vorgabe",
+      "license": "CC0-1.0 (selbst erzeugt)"
+    },
+    {
+      "id": "B4-0003",
+      "tier": "B",
+      "tier_b_kind": "cyc",
+      "machine": "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC",
+      "certificate": [
+        6,
+        16,
+        2
+      ],
+      "certificate_given": false,
+      "prompt": "Die 2-Symbol-Turingmaschine in bbchallenge-Notation lautet: 1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC. Start: Zustand A, Kopf auf Position 0, leeres Band; R = Kopf nach rechts, L = nach links, Z = Halt; --- in einem Block bedeutet: kein Uebergang (Halt bei diesem Paar). Untersuche den Lauf: Halte er an, oder laeuft die Maschine in einen Translationszyklus? Bestimme im Zyklusfall die Werte t1, t2 und d selbst.",
+      "notation": "v11",
+      "source": "bbchallenge-Wiki \"Translated cycler\" (Figur 44394115); Zertifikat lokal re-deriviert und per cycle.check verifiziert -- Zertifikat ohne Vorgabe (lange Maschinenbindung als Bindungs-Szenario)",
+      "license": "oeffentliche bbchallenge-Maschine; Notation frei verwendbar"
+    }
+  ]
+}
