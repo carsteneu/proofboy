@@ -333,5 +333,43 @@ class EvalsetRegenerationTest(unittest.TestCase):
         self.assertEqual(regenerated, committed)
 
 
+class SetValidationTest(unittest.TestCase):
+    """The P18 pins (expect_classes, expect_exit) are validated on load."""
+
+    def document(self, **case_fields):
+        case = {"name": "c1", "group": "genuine", "report": "x"}
+        case.update(case_fields)
+        return {
+            "version": evalset.SET_VERSION,
+            "fixture": {"base": "a" * 40, "head": "b" * 40},
+            "cases": [case],
+        }
+
+    def test_a_minimal_document_is_valid(self):
+        evalset._validate(self.document())
+
+    def test_known_classes_are_accepted(self):
+        for cause in ("defect", "environment", "limit", "unverifiable"):
+            with self.subTest(cause=cause):
+                evalset._validate(self.document(expect_classes={"halt": cause}))
+
+    def test_unknown_class_is_rejected(self):
+        with self.assertRaises(ValueError):
+            evalset._validate(self.document(expect_classes={"halt": "Defekt"}))
+
+    def test_reachable_exit_codes_are_accepted(self):
+        for code in (0, 1, 3, 5):
+            with self.subTest(code=code):
+                evalset._validate(self.document(expect_exit=code))
+
+    def test_unreachable_exit_codes_are_rejected(self):
+        # 4 and 6 exist only under --strict (set level, not per case), 2 is a
+        # usage error; a pin on them could never be satisfied.
+        for code in (2, 4, 6, True, False, "5", 1.5):
+            with self.subTest(code=code):
+                with self.assertRaises(ValueError):
+                    evalset._validate(self.document(expect_exit=code))
+
+
 if __name__ == "__main__":
     unittest.main()

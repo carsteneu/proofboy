@@ -1127,12 +1127,18 @@ def _validate(document):
             )
         expected_exit = case.get("expect_exit")
         if expected_exit is not None and (
-            isinstance(expected_exit, bool) or not isinstance(expected_exit, int)
+            isinstance(expected_exit, bool)
+            or not isinstance(expected_exit, int)
+            or expected_exit not in (0, 1, 3, 5)
         ):
-            # expect_exit pins the DEFAULT-mode code (0/1/3/5 today): eval
-            # computes the per-case code without --strict, so 4 and 6 would
-            # never be satisfiable -- that is set-level, not per-case.
-            raise ValueError(f"case {case['name']!r}: expect_exit must be an integer")
+            # expect_exit pins the DEFAULT-mode code (0 confirmed, 1 refuted,
+            # 3 nothing confirmed, 5 defect): eval computes the per-case code
+            # without --strict, so 4 and 6 are unreachable per case (that is
+            # set-level), and 2 is a usage or fixture error, not a pin.
+            raise ValueError(
+                f"case {case['name']!r}: expect_exit must be a default-mode "
+                "check code (0, 1, 3 or 5)"
+            )
         never = case.get("expect_not_confirmed", [])
         if not isinstance(never, list) or not all(isinstance(item, str) for item in never):
             raise ValueError(
