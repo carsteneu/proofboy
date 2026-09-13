@@ -870,6 +870,7 @@ def _runs_root(args):
     """
     override = getattr(args, "runs_root", None)
     root = Path(override) if override else RUNS_DIR / time.strftime("%Y%m%d-%H%M%S")
+    root = root.resolve()  # relative overrides are CWD-relative, then absolute
     root.mkdir(parents=True, exist_ok=True)
     return root
 
