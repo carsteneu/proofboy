@@ -405,7 +405,9 @@ nicht-leere Wert -- insbesondere pfadartige wie `./evil`, die elan als
 Programmpfad ausfuehren wuerde -- wird vor jedem Werkzeuglauf abgelehnt: er
 hat die geforderte Form nicht, die Behauptung kann nicht binden und ist ein
 `defect` (Exit 5, auch ohne `--strict`), geprueft bevor der Host Werkzeuge
-aufloest (host-unabhaengig). Eine angeforderte, aber nicht installierte
+aufloest und bevor das Sandbox-Gate greift (host-unabhaengig -- auch ein
+Host ohne bwrap kann den Defekt nicht zu einer Grenze machen). Eine
+angeforderte, aber nicht installierte
 Toolchain wird nicht durch eine andere ersetzt; sie bleibt `UNVERIFIABLE`
 mit dem Grund im Urteil, nie `REFUTED` (eine kaputte Umgebung ist kein
 Beweis gegen den Satz). Der
@@ -433,7 +435,12 @@ Unabhaengig vom Modus wird eine `lean-toolchain`-Datei nach dem Build erneut
 geprueft: ein pfadartiger Wert -- von elan ohne Umweg ausgefuehrt -- macht
 die Behauptung `UNVERIFIABLE` mit der Klasse `defect` (Exit 5), ein
 wohlgeformter Wert nur dann, wenn nichts ihn gegen den Host festnagelt (dann
-`environment`).
+`environment`). Die Suche nach der Datei folgt elans Weg aufwaerts und kann
+deshalb auch eine `lean-toolchain` oberhalb des Wegwerf-Checkouts finden
+(etwa ungetrackt im Arbeitsbaum des inspizierten Repos): der Lauf verweigert
+dann (fail-closed, elan wuerde den Wert zur Laufzeit ebenso finden), die
+Klasse bleibt aber `environment` -- diese Datei gehoert nicht zum gepinnten
+Commit, die gepruefte Sache verletzt keine Form.
 Eine im Ablauf nicht aufloesbare Toolchain (elans `no Lean toolchain found
 at ...`, `invalid toolchain name`, `empty toolchain file ...`,
 `no such release ...`, `no default toolchain configured`, `override

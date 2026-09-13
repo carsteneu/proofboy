@@ -796,9 +796,16 @@ Abhilfe ist ein `--tools`-Eintrag fuer `lean` oder ein gesetztes
 `ELAN_HOME`). Eine `lean-toolchain`-Datei, die erst waehrend des Builds
 auftaucht, wird vor jeder weiteren Stufe erneut geprueft: ein pfadartiger
 Wert verweigert den Lauf als Defekt (Exit 5), denn elan fuehrt ihn ohne
-Umweg aus. Jedes Urteil nennt die
-Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
-Datei, `[pinned]` bei einem Manifest-Pin:
+Umweg aus; die Formpruefung laeuft vor dem Sandbox-Gate und vor jeder
+Werkzeug-Aufloesung. Die Suche nach der Datei folgt elans Weg aufwaerts:
+auch eine `lean-toolchain` oberhalb des Wegwerf-Checkouts (etwa ungetrackt
+im Arbeitsbaum des inspizierten Repos) wird gefunden und verweigert den
+Lauf -- sie gehoert nicht zum gepinnten Commit, die Klasse bleibt dort
+`environment` (fail-closed, elan wuerde den Wert zur Laufzeit ebenso
+finden). Jedes Urteil ab der
+Werkzeug-Identifikation nennt die Werkzeug-Identitaet: Name, Version und
+die sha256-Kurzform der gestarteten Datei, `[pinned]` bei einem
+Manifest-Pin:
 
 ```
 ... 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (tools: lean 4.33.1 sha256:e0f4b30b29c5, leanchecker 4.33.1 sha256:e0f4b30b29c5 (toolchain leanprover/lean4:v4.33.1); sandboxed with bwrap)
