@@ -108,7 +108,7 @@ c1: ref h1: ref_unconfirmed (last status '+', last verdict REFUTED)
 
 - **Property (Tests, `tests/test_v14_harness.py`, 46 Tests):** synthetische Verletzungsserien über alle Legs und Bindungslücken für G0/G1/G2 — kein Gold-Token im Feedback; Klassenphrasen digit-frei; unbekannte Beleg-Arten bleiben Default-Deny-zurückgehalten; G0-Ausgabe zeilengleich mit dem rekonstruierten V13-Text.
 - **Empirie (Scan):** V14-Lauf 10 Rückmeldungstexte → **0 Verletzungen, 0 erklärte Treffer**; Querprobe V13-Lauf (`runs-v13-20260912/tier-b-hard`) 7 Texte → 0 Verletzungen, 2 erklärte Treffer (`line 0:`-Formatzeilen). Der Scan ist als Werkzeug getestet (injizierte Gold-Nennung wird gefunden; id-Kontexte erzeugen keine Fehlalarme).
-- Gesamtsuite: **863 Tests grün** (vor der Runde 818).
+- Gesamtsuite: **864 Tests grün** (vor der Runde 818).
 
 ## 6. Was belegt ist — und was nicht
 
@@ -134,5 +134,5 @@ c1: ref h1: ref_unconfirmed (last status '+', last verdict REFUTED)
 4. [05-07-denksprache-v1.1.md](05-07-denksprache-v1.1.md) — Denk-Sprache V1.1 (Tags, Status, Zeugenformen).
 5. [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, Metriken, Multiplizitätsregel.
 6. [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln).
-7. `tests/test_v14_harness.py`, `tooling/{harness,prompts,build_sets,evaluate,scan_feedback}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (863 Tests grün).
+7. `tests/test_v14_harness.py`, `tooling/{harness,prompts,build_sets,evaluate,scan_feedback}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (864 Tests grün).
 8. [../01-modellprofil/01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme.
