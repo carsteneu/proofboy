@@ -237,8 +237,10 @@ def parse_rc(text):
 def _read_rc(raw_path):
     """The full reasoning_content of one round's raw.json, or None.
 
-    Fail-safe: jede unlesbare/korrupte Datei zaehlt als fehlend (rc_missing)
-    statt die Auswertung des ganzen Lauf-Baums abzubrechen.
+    Fail-safe fuer die Denkspur: jede unlesbare/korrupte Datei und jede
+    fehlende/null ``reasoning_content`` zaehlt als fehlend (rc_missing)
+    statt die Auswertung des ganzen Lauf-Baums abzubrechen; ein *leerer*
+    String gilt dagegen als leere Denkspur.
     """
     try:
         payload = json.loads(raw_path.read_text(encoding="utf-8"))
@@ -246,9 +248,7 @@ def _read_rc(raw_path):
         if not isinstance(message, dict):
             return None
         reasoning = message.get("reasoning_content")
-        if reasoning is None:
-            return ""
-        if not isinstance(reasoning, str):
+        if reasoning is None or not isinstance(reasoning, str):
             return None
         return reasoning
     except (OSError, KeyError, IndexError, TypeError, ValueError):
@@ -260,7 +260,13 @@ def _mean(values):
 
 
 def analyze_runs(root):
-    """RC metrics for every round of a run tree (evaluate layout)."""
+    """RC metrics for every round of a run tree (evaluate layout).
+
+    Grenze der Fehlertoleranz: fehlende/korrupte ``raw.json`` sind
+    fail-safe (rc_missing), die Lauf-Metadaten (``manifest.json``/
+    ``summary.json``) dagegen fail-loud — ein kaputtes Aggregat soll nicht
+    stillschweigend ein falsches Bild erzeugen.
+    """
     from evaluate import load_runs  # same tooling dir; lazy to keep parse_rc standalone
 
     root = Path(root)

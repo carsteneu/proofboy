@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -319,6 +320,8 @@ class AnalyzeRunsTest(unittest.TestCase):
             {"choices": [{"message": None}]},
             {"choices": [{"message": {"reasoning_content": 42}}]},
             {"choices": [{"message": {"reasoning_content": {"a": 1}}}]},
+            {"choices": [{"message": {"reasoning_content": None}}]},
+            {"choices": [{"message": {"content": "ohne rc-key"}}]},
             {"choices": ["kaputt"]},
         ]
         for payload in payloads:
@@ -329,6 +332,15 @@ class AnalyzeRunsTest(unittest.TestCase):
             self.assertEqual(
                 report["per_arm"]["C1-B"]["rc_missing"], 1, str(payload)[:60]
             )
+
+    def test_large_input_stays_fast(self):
+        # Grobe Laufzeit-Schranke als Regressionswaechter fuer den linearen
+        # Scanner (gemessen: 200k Zeichen ~9 ms; 2 s lassen >200-fache Luft,
+        # fangen aber einen versehentlich eingebauten quadratischen Pfad ab).
+        text = ("a: " + "x" * 60 + "\n") * 3000
+        started = time.monotonic()
+        rcfidelity.parse_rc(text)
+        self.assertLess(time.monotonic() - started, 2.0)
 
     def test_cli_writes_json_and_markdown(self):
         root = self._root()

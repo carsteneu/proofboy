@@ -50,15 +50,15 @@ Kernfragen: **Wie weit kommt die V1.1-Notation in den Denkkanal — mit Bordmitt
 | RC-Fidelity-Metrik | `tooling/rcfidelity.py` (neu) | Heuristischer Parser des `reasoning_content`: Zeilenklassen (Tag-Köpfe g/d/a/c/h/v/q/=, v-Zeilen, Status-Mini-Zeilen, V1-Altzeilen `S<n>:`, Claim-Zeilen des Blatt-Entwurfs, Prosa), Anteile im Sinne der Metrik h (05-05), Zeichen-Proxy für den Token-Anteil, Degenerations-Marker (leere Tag-Köpfe, identische Zeilenläufe, längster Prosa-Lauf, Draft-Block). Kopf-Erkennung als linearer Scanner (keine Regex-Backtracking-Klasse); CLI `--runs/--json/--markdown`. |
 | RC-Arme C0/C1/C2 | `tooling/prompts.py` | C0 = C (byte-identisch, V13-Stand als Kontrolle); C1 = C + starker RC-Absatz (Denkspur in V1.1-Zeilen, „keine Prosa"); C2 = C1 + vollständiges RC-Beispiel (Form-Few-Shot). Adressiert wird ausschließlich der Denkkanal; sichtbare Zone, Antwortkonventionen und Rückkanal bleiben identisch zu C. |
 | Gezielte Teilmenge | `tooling/harness.py` (`--task-ids`) | Exakte, geordnete Aufgabenauswahl statt Shuffle — reproduzierbare 12-Task-Teilmenge; die C-Varianten erben den maschinellen Rückkanal und den Trace-Blattpfad (Guard-Tests). |
-| Tests | `tests/test_v15_rcfidelity.py` (14), `tests/test_v15_rc_arms.py` (13) | Synthetische RC-Fixtures (Prosa/strikt/gemischt/degeneriert), synthetischer Lauf-Baum, CLI-Pfad; Legend-Staffelung, C0≡C, Gold-Leak-Freiheit, Rückkanal-Verhalten, task-ids-Auswahl. |
+| Tests | `tests/test_v15_rcfidelity.py` (19), `tests/test_v15_rc_arms.py` (14) | Synthetische RC-Fixtures (Prosa/strikt/gemischt/degeneriert), synthetischer Lauf-Baum, CLI-Pfad, Robustheit (korrupte raw.json, Laufzeit-Schranke); Legend-Staffelung, C0≡C, Gold-Leak-Freiheit, Rückkanal-Verhalten, task-ids-Auswahl. |
 
-Engine unverändert (`bemyself/msheet/`, `bemyself/claimtypes/`); die Runde ändert Tooling, Tests, Laufdaten und Wiki. Gesamtsuite: **845 Tests grün** (818 vor dieser Runde + 27 neue).
+Engine unverändert (`bemyself/msheet/`, `bemyself/claimtypes/`); die Runde ändert Tooling, Tests, Laufdaten und Wiki. Gesamtsuite: **851 Tests grün** (818 vor dieser Runde + 33 neue).
 
 ## 3. Design-Entscheidungen
 
 ### 3.1 Kontrolle doppelt: frisch und historisch
 
-Derselbe Arm kann an zwei Tagen verschiedene Spuren ziehen (B3-0001: V13-C 51 870 Tokens, frisches C0 33 252). Darum läuft C0 **frisch neben** C1/C2 (Treatment-Effekt) — und der V13-C-Stand dient als historische Baseline für die Frage „wie treu war die Denkspur bisher" (Kontext, nicht Treatment-Kontrolle).
+Derselbe Arm kann an zwei Tagen verschiedene Spuren ziehen (B3-0001, Reasoning-Tokens: V13-C 51 870, frisches C0 32 761). Darum läuft C0 **frisch neben** C1/C2 (Treatment-Effekt) — und der V13-C-Stand dient als historische Baseline für die Frage „wie treu war die Denkspur bisher" (Kontext, nicht Treatment-Kontrolle).
 
 ### 3.2 Nur Instruktion, kein Training
 
@@ -139,7 +139,7 @@ C1 ist in Tier B nominell am billigsten — aber die Timeout-Zelle fehlt dort in
 
 Die Reparaturrunden (7 Stück über alle Arme: 1 in Tier A, 6 in Tier B) sind **in Tier B** Prosa-dominiert (Tag-Anteile 0,27–1,49 %); die einzige Tier-A-Reparaturrunde (A3-0016/C2 Runde 1) ist dagegen notation-nah — 60 % Tag-Zeilen, 0 Prosa-Zeilen, das RC spiegelt sogar das Maschinen-Verdikt als `a:`-Zeile. Auffälligster Einzelfall: B3-0002/C2 produzierte in Runde 1 einen **Zeilen-Loop** (die Zeile `101101101` 11× hintereinander — von der Metrik als `repeat_extra` gefangen) und löste die Zelle in Runde 2. Gesamtkosten der Runde: 878 638 Tokens (Tier A 30 946, Tier B 847 692) in 48 Läufen / 55 Runden, ~57 Minuten Modellzeit.
 
-Historischer Kontext (nur Größenordnung, Tag-Varianz; einheitlich Reasoning-Tokens je Runde): auf denselben 12 Aufgaben lag der V13-C-Arm bei ø 536 Tokens je Runde in Tier A und ø 36 344 in Tier B; die frische Kontrolle C0 liegt bei ø 756 (Tier A) bzw. ø 31 692 (Tier B). Die Abweichungen ±20–40 % bestätigen die doppelte Kontrolle (3.1).
+Historischer Kontext (nur Größenordnung, Tag-Varianz; einheitlich Reasoning-Tokens je Runde): auf denselben 12 Aufgaben lag der V13-C-Arm bei ø 536 Tokens je Runde in Tier A und ø 36 344 in Tier B; die frische Kontrolle C0 liegt bei ø 756 (Tier A) bzw. ø 31 692 (Tier B). Die Mittel-Abweichungen (+41 % in Tier A, −13 % in Tier B; Einzelzellen von −61 % bis +346 %) bestätigen die doppelte Kontrolle (3.1).
 
 ### 5.4 Prefill-Grenze (C3): die Denkspur ist per API nicht seedbar
 
@@ -165,12 +165,12 @@ Die API-Doku stützt den Befund: „If the request does not carry the `tools` pa
 - Die RC-Anteile sind ein Zeichen-Proxy (3.3) und enthalten Blatt-Entwurfs-Inseln (3.4); Token-genaue Treue ist damit nicht gemessen.
 - Der B3-0008/C1-Ausfall (Timeout) verzerrt die Tier-B-Kosten der Arme in unbekannter Richtung; die Kostenklasse „29–40k/Lauf" ist die belastbare Zusammenfassung, nicht die Rangfolge C1 < C0 < C2.
 - Ob der Zeilen-Loop (B3-0002/C2) oder die C1-A-Formfehler durch die RC-Instruktion *begünstigt* wurden, ist mit je einem Fall nicht entschieden; beide wurden als Anekdoten markiert, nicht als Effekt.
-- V13-Rückvergleiche sind Tag-Varianz-behaftet (±20–40 % Tokens auf denselben Zellen) und darum nur als Kontext geführt.
+- V13-Rückvergleiche sind Tag-Varianz-behaftet (Einzelzellen −61 % bis +346 %, Mittel +41 %/−13 %) und darum nur als Kontext geführt.
 
 ## 7. Offene Punkte (Kandidaten für die nächste Runde)
 
 1. **Der Widerstandskern sind die langen Spuren:** In Trace-Zellen denkt das Modell in Prosa über Simulationen — die Instruktion erreicht nur die kurzen Zellen. Kandidaten: RC-Format als *Rückkanal-Thema* (Meta-Instruktion nach einer Prosa-Runde), SFT auf RC-Notation (Trainingsweg, außerhalb dieser Runde), oder eine Analyse *welche* RC-Inhalte sich der Notation entziehen (argumentative/strategische Schritte vs. Rechen-Schritte).
-2. **Der Rückkanal hat den Denkkanal noch nie adressiert:** Reparaturrunden adressieren das Blatt; in Tier B blieb auch das RC der sechs Reparaturrunden Prosa (0,27–1,49 % Tag-Zeilen), doch die einzige Tier-A-Reparaturrunde (A3-0016/C2) war notation-nah (60 % Tag-Zeilen, 0 Prosa) — der Kanal folgt dem Rückkanal also in kurzen Zellen bereits von selbst. Ein *expliziter* Format-Rückkanal für den Denkkanal („deine letzte Denkspur war Prosa") ist der billigste nächste Test.
+2. **Der Rückkanal hat den Denkkanal noch nie adressiert:** Reparaturrunden adressieren das Blatt; in Tier B blieben die fünf RC-tragenden Reparaturrunden Prosa-dominiert (0,27–1,49 % Tag-Zeilen; die sechste, B3-0008/C1 Runde 1, lieferte wegen des Timeouts keinen RC), doch die einzige Tier-A-Reparaturrunde (A3-0016/C2) war notation-nah (60 % Tag-Zeilen, 0 Prosa) — der Kanal folgt dem Rückkanal also in kurzen Zellen bereits von selbst. Ein *expliziter* Format-Rückkanal für den Denkkanal („deine letzte Denkspur war Prosa") ist der billigste nächste Test.
 3. **C2 dosieren:** Das volle Beispiel führte zu längeren Spuren ohne Mehr-Treue in Tier B. Varianten: Beispiel nur mit Kurz-Zeilen; Gegenbeispiel (Prosa-Zeile explizit als falsch); Beispiel an die Zellgröße gekoppelt. Dazu der Wortlaut der RC-Instruktion: `v:` steht in der Kopf-Liste, obwohl v-Zeilen eigene Form haben, und das Beispiel nutzt nicht den Legenden-Klammerstil — bewusst erst für die **nächste** Arm-Generation geändert, um die Reproduzierbarkeit der V15-Arme zu erhalten.
 4. **B3-0008-Zelle sauber messen:** Der 300-s-Call-Cap reißt bei 79k-Token-Denkspuren (RC-Instruktion). Repetition mit größerem Cap (>600 s) oder Token-Cap statt Zeit-Cap, damit die Zelle nicht als Infrastruktur-Artefakt endet.
 5. **Metrik-Ausbau:** Regel-Spiegelung (Anteil Zeilen, die die Instruktion wörtlich zitieren — C1/C2 zeigten Meta-Zeilen), Sprachdetektion (DE/EN) als Spalte, Token-Proxy über den Modell-Tokenizer (01-03b), und Trace-vs-Cyc als feste Dimension im Renderer.
@@ -187,7 +187,7 @@ Die API-Doku stützt den Befund: „If the request does not carry the `tools` pa
 6. [05-07-denksprache-v1.1.md](05-07-denksprache-v1.1.md) — Denk-Sprache V1.1; RC-Empfehlung §8.
 7. [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, Metriken h/i, Multiplizitätsregel.
 8. [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln).
-9. Implementierung + Tests: `tooling/{rcfidelity,prompts,harness,evaluate}.py`, `tests/test_v15_{rcfidelity,rc_arms}.py` (845 Tests grün, 27 neu).
+9. Implementierung + Tests: `tooling/{rcfidelity,prompts,harness,evaluate}.py`, `tests/test_v15_{rcfidelity,rc_arms}.py` (851 Tests grün, 33 neu).
 10. [DeepSeek: Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode) — `reasoning_content` wird ohne `tools` nicht in den Kontext übernommen (accessed 2026-09-13).
 11. [DeepSeek: Chat Prefix Completion (Beta)](https://api-docs.deepseek.com/guides/chat_prefix_completion) — Prefix nur als Beta-Feature im Inhaltskanal (accessed 2026-09-13).
 12. [../01-modellprofil/01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme (Zeichen-Proxy-Kontext).

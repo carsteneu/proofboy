@@ -220,6 +220,13 @@ class TaskSelectionTest(unittest.TestCase):
                 self.TIER_A, self.TIER_B, self._args(task_ids="A3-9999")
             )
 
+    def test_duplicate_task_id_raises(self):
+        # Duplikate wuerden still dasselbe Lauf-Verzeichnis ueberschreiben.
+        with self.assertRaises(ValueError):
+            harness._select_tasks(
+                self.TIER_A, self.TIER_B, self._args(task_ids="A3-0001,A3-0001")
+            )
+
     def test_without_task_ids_the_shuffle_path_still_works(self):
         tasks = harness._select_tasks(
             self.TIER_A, self.TIER_B, self._args(tier_a=2, tier_b=1)

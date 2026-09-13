@@ -624,6 +624,10 @@ def _select_tasks(tier_a, tier_b, args):
     task_ids = getattr(args, "task_ids", None)
     if task_ids:
         wanted = [part.strip() for part in task_ids.split(",") if part.strip()]
+        if len(wanted) != len(set(wanted)):
+            raise ValueError(
+                f"duplicate task ids: {', '.join(sorted({t for t in wanted if wanted.count(t) > 1}))}"
+            )
         by_id = {task["id"]: task for task in tier_a["tasks"] + tier_b["tasks"]}
         missing = [task_id for task_id in wanted if task_id not in by_id]
         if missing:
@@ -740,7 +744,7 @@ def main(argv=None):
     batch = sub.add_parser("batch", help="run the pilot matrix")
     batch.add_argument("--arms", default="K,B,C")
     batch.add_argument("--reps", type=int, default=2)
-    batch.add_argument("--task-ids", default=None, help="comma list of exact task ids (in order; skips the seeded shuffle)")
+    batch.add_argument("--task-ids", default=None, help="comma list of exact task ids (in order; skips the seeded shuffle and the tier caps; empty string falls back to the shuffle)")
     batch.add_argument("--tier-a", type=int, default=None, help="max Tier-A tasks")
     batch.add_argument("--tier-b", type=int, default=None, help="max Tier-B tasks")
     batch.add_argument("--seed", type=int, default=20260912)
