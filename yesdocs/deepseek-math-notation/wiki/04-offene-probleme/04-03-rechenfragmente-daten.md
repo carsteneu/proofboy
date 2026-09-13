@@ -6,8 +6,8 @@ language: de
 status: Verifiziert
 last_updated: 2026-09-13
 created_at: 2026-09-12
-sources_count: 54
-citations_count: 65
+sources_count: 58
+citations_count: 69
 images_count: 2
 diagrams_count: 1
 related: ["04-02-kandidaten-katalog", "04-04-empfehlung", "03-formale-bruecke"]

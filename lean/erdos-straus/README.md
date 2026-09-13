@@ -71,10 +71,10 @@ python3 lean/erdos-straus/tools/gen_witnesses.py 1000
 - Die Vermutung ist **nicht** bewiesen. Die finite Brücke deckt ein Fenster
   (n ≤ 1000), die Klassentheoreme sechs Progressionen (Vielfache von
   2, 3, 5, 7, 11, 13). Unbedeckt bleiben alle n ohne Teiler in
-  {2, 3, 5, 7, 11, 13} oberhalb 1000 — zum Beispiel 1009, die kleinste der
-  840-Ausnahmen aus `yesdocs/erdos-straus/README.md` §2/§4. Der rechnerische
-  Weltstand ist 10^17 (Salez 2014) bzw. 10^18 (Preprint 2025) — in Python,
-  nicht im Kernel.
+  {2, 3, 5, 7, 11, 13} oberhalb 1000 — zum Beispiel 1009, die kleinste nicht
+  abgedeckte Primzahl der 840-Ausnahmeklassen aus
+  `yesdocs/erdos-straus/README.md` §2/§4. Der rechnerische Weltstand ist 10^17
+  (Salez 2014) bzw. 10^18 (Preprint 2025) — rechnerisch, nicht kernel-geprüft.
 - **Kernel-Grenze der finiten Brücke (gemessen 2026-09-13):** N = 1000 baut in
   ~16 s; N = 2000 überschreitet die Default-Heartbeats der Elaboration bei der
   Tabellen-Elaboration, N = 10^4 zusätzlich in `interval_cases`. Größere N

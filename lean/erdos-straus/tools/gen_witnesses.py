@@ -138,7 +138,11 @@ def main(argv=None):
     if len(args) > 1:
         print("usage: gen_witnesses.py [limit]", file=sys.stderr)
         return 2
-    limit = int(args[0]) if args else LIMIT
+    try:
+        limit = int(args[0]) if args else LIMIT
+    except ValueError:
+        print(f"usage: gen_witnesses.py [limit]: not a number: {args[0]!r}", file=sys.stderr)
+        return 2
     if limit < 2:
         print("usage: gen_witnesses.py [limit]: limit must be >= 2", file=sys.stderr)
         return 2

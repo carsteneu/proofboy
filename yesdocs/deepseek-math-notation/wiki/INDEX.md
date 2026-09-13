@@ -193,9 +193,11 @@ Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/
 |---|---|---|---|---|---|
 | [04-01-wahlkriterien.md](04-offene-probleme/04-01-wahlkriterien.md) | Wahlkriterien für das Testfeld | Verifiziert | 16 | 16 | 0 Img / 1 Diagr |
 | [04-02-kandidaten-katalog.md](04-offene-probleme/04-02-kandidaten-katalog.md) | Kandidaten-Katalog offener mathematischer Probleme | Verifiziert | 56 | 75 | 2 Img / 1 Diagr |
-| [04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md) | Rechenfragmente, Datenquellen und Communities | Verifiziert | 54 | 65 | 2 Img / 1 Diagr |
+| [04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md) | Rechenfragmente, Datenquellen und Communities | Verifiziert | 58 | 69 | 2 Img / 1 Diagr |
 | [04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md) | Empfehlung — Shortlist und Testeignung für die Notations-Hypothese | Verifiziert | 12 | 10 | 0 Img / 1 Diagr |
 | [04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md) | Brücke zum Prüfer — [HALT]/[SCORE] und die Prüfer-Doktrin | Verifiziert | 15 | 6 | 0 Img / 1 Diagr |
+
+Querverweise: [lean/erdos-straus/README.md](../../../lean/erdos-straus/README.md) — Lean-4-Kernel-Beweise der sechs P12-Klassen und der finiten Brücke 2 ≤ n ≤ 1000 (04-03, Nachtrag 2026-09-13)
 
 ## 05 — Entwurf & Testplan (Notation + Protokoll)
 
