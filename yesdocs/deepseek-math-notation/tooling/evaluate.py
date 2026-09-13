@@ -13,7 +13,13 @@ Wilson-Intervallen fuer die Einzelraten. Zwei Layouts:
 Beschreibende Statistik: der Lauf traegt keine Bestaetigungs-Etiketten
 (05-05 Abschnitt 5, Multiplizitaets-Regel).
 
-Aufruf: python3 evaluate.py --runs .yesmem/tmp/runs/<ts> [--json out.json]
+Runde 4 (V14): die Gruppen tragen das Feedback-Level (``G0`` laeuft unter dem
+alten Label ``arm-tier``, ``G1``/``G2`` unter ``arm-level-tier``), und mit
+uebergebenen Aufgaben-Sets werden je Gruppe die Bindungs-Metrik (Runde 0 mit
+maschinengueltigem Zertifikat, aber ungeloest -- "geschuetzt" heisst final
+geloest) und das Klassen-Histogramm der Feedback-Leiter berichtet.
+
+Aufruf: python3 evaluate.py --runs .yesmem/tmp/runs/<ts> [--sets DIR] [--json out.json]
 """
 
 from __future__ import annotations
@@ -27,10 +33,76 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
+SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 _HEAD_RE = re.compile(r"\A(S[0-9]+|g[0-9]*|d[0-9]*|a[0-9]*|c[0-9]*|h[0-9]*|q[0-9]*|=[0-9]*):")
 _STATUS_RE = re.compile(r"\A[a-zA-Z=][a-zA-Z0-9]*[0-9][+\-?!]\Z")
 _VLINE_RE = re.compile(r"\Av[0-9]*\s+[a-zA-Z=][a-zA-Z0-9]*\s*:")
+
+
+def load_tasks(sets_dir=None):
+    """``{task_id: task}`` over every set file; spaetere Versionen gewinnen."""
+    tasks = {}
+    for path in sorted(Path(sets_dir or SETS_DIR).glob("tier_*_v11-*-0.*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for task in payload.get("tasks", []):
+            tasks[task["id"]] = task
+    return tasks
+
+
+_CYC_WITNESS_RE = re.compile(r"cyc\(\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*,\s*(-?[0-9]+)\s*\)")
+
+
+def _to_int(text):
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_certificate(record):
+    """The cycle certificate a round stated (v-witness text or claim field)."""
+    for row in record.get("v") or []:
+        match = _CYC_WITNESS_RE.search(row.get("witness") or "")
+        if match:
+            values = tuple(_to_int(part) for part in match.groups())
+            if all(value is not None for value in values):
+                return values
+    claimed = record.get("certificate_claimed")
+    if isinstance(claimed, list) and len(claimed) == 3 and all(v is not None for v in claimed):
+        return tuple(claimed)
+    return None
+
+
+def certificate_valid(machine_text, values):
+    """cycle.check on the stated certificate -- the machine decides (V13)."""
+    from bemyself.claimtypes import cycle
+    from bemyself.model import Claim
+
+    t1, t2, d = (str(value) for value in values)
+    claim = Claim(
+        kind="cycle",
+        line=0,
+        raw="eval-check",
+        fields={
+            "machine": machine_text,
+            "values": f"{t1},{t2},{d}",
+            "t1": t1,
+            "t2": t2,
+            "d": d,
+        },
+    )
+
+    class _Ctx:
+        cycle_limit = cycle.DEFAULT_CYCLE_LIMIT
+
+    try:
+        return cycle.check(claim, _Ctx()).verdict.value == "CONFIRMED"
+    except Exception:  # noqa: BLE001 -- a broken certificate is never protected
+        return False
 
 
 def wilson(successes, total, z=1.959963984540054):
@@ -87,8 +159,12 @@ def _refuted_ids(record):
     return ids
 
 
-def summarize_runs(runs):
-    """Runde-2-Aggregat je Arm-Tier (deskriptiv, ohne Signifikanz-Claims)."""
+def summarize_runs(runs, sets=None):
+    """Runde-2-Aggregat je Arm(-Level)-Tier (deskriptiv, ohne Signifikanz-Claims).
+
+    ``sets`` (optional, ``{task_id: task}``) schaltet die Bindungs-Metrik der
+    V14-Runde frei; das Klassen-Histogramm wird immer berichtet.
+    """
     groups = {}
     for run in runs:
         summary = run["summary"]
@@ -102,10 +178,12 @@ def summarize_runs(runs):
                 "rounds_to_ok": 0 if record.get("solved") else None,
             }
             run = {"summary": summary, "rounds": run["rounds"], "path": run["path"]}
-        groups.setdefault((summary["arm"], summary["tier"]), []).append(run)
+        groups.setdefault((summary["arm"], summary.get("feedback"), summary["tier"]), []).append(run)
 
     out = {}
-    for (arm, tier), rows in sorted(groups.items()):
+    for (arm, level, tier), rows in sorted(
+        groups.items(), key=lambda item: (item[0][0], item[0][1] or "", item[0][2])
+    ):
         n = len(rows)
         r0_solved = sum(
             1
@@ -161,8 +239,46 @@ def summarize_runs(runs):
         )
         low, high = wilson(final_solved, n)
         r0_low, r0_high = wilson(r0_solved, n)
-        out[f"{arm}-{tier}"] = {
+        # Bindungs-Metrik (nur mit uebergebenen Sets): ein "Fall" ist eine
+        # Zyklus-Runde 0 mit maschinengueltigem Zertifikat, aber ungeloestem
+        # Endzustand; "geschuetzt" heisst final geloest. Das Klassen-
+        # Histogramm zaehlt die Feedback-Klassen aller Runden der Gruppe.
+        protection = {"cases": 0, "protected": 0}
+        classes = {}
+        for run in rows:
+            run_summary = run["summary"]
+            rounds = run["rounds"]
+            if (
+                sets is not None
+                and run_summary.get("tier") == "B"
+                and rounds
+                and rounds[0] is not None
+            ):
+                task = sets.get(run_summary["task_id"])
+                if (
+                    task is not None
+                    and task.get("tier_b_kind") == "cyc"
+                    and not rounds[0].get("solved")
+                ):
+                    certificate = _extract_certificate(rounds[0])
+                    if certificate is not None and certificate_valid(
+                        task["machine"], certificate
+                    ):
+                        protection["cases"] += 1
+                        if run_summary.get("final_solved"):
+                            protection["protected"] += 1
+            for record in rounds:
+                for row in (record or {}).get("feedback_classes") or []:
+                    key = row.get("class")
+                    classes[key] = classes.get(key, 0) + 1
+                    if row.get("leg"):
+                        leg_key = f"{key}:{row['leg']}"
+                        classes[leg_key] = classes.get(leg_key, 0) + 1
+        label = f"{arm}-{tier}" if level in (None, "G0") else f"{arm}-{level}-{tier}"
+        r0_unsolved = n - r0_solved
+        out[label] = {
             "arm": arm,
+            "feedback": level or "G0",
             "tier": tier,
             "n": n,
             "r0_solved": r0_solved,
@@ -188,6 +304,9 @@ def summarize_runs(runs):
             "repairs_used_mean": round(
                 sum(run["summary"].get("repairs_used", 0) for run in rows) / n, 2
             ) if n else None,
+            "hard_case_repair_rate": round(repaired / r0_unsolved, 4) if r0_unsolved else None,
+            "binding_protection": protection if sets is not None else None,
+            "feedback_classes": classes,
         }
     return out
 
@@ -249,6 +368,32 @@ def render_round_markdown(summary, manifest):
         "die in Runde r+1 nicht mehr refutiert sind; `Tokens` = completion über "
         "alle Runden (enthaelt reasoning). Keine Signifikanzaussagen."
     )
+    protections = [
+        (label, entry)
+        for label, entry in summary.items()
+        if entry.get("binding_protection") and entry["binding_protection"]["cases"]
+    ]
+    if protections:
+        lines.append("")
+        lines.append(
+            "**Bindungsschutz (Zyklus-Aufgaben):** Fälle = Runde 0 mit maschinengültigem "
+            "Zertifikat, aber ungelöstem Endzustand; geschützt = final gelöst."
+        )
+        for label, entry in protections:
+            protection = entry["binding_protection"]
+            lines.append(
+                f"- {label}: {protection['protected']}/{protection['cases']} geschützt"
+            )
+    if any(entry.get("feedback_classes") for entry in summary.values()):
+        lines.append("")
+        lines.append("**Feedback-Klassen je Gruppe** (Klassen der Leiter, inkl. Leg):")
+        for label, entry in summary.items():
+            if entry.get("feedback_classes"):
+                counts = ", ".join(
+                    f"{key} {value}"
+                    for key, value in sorted(entry["feedback_classes"].items())
+                )
+                lines.append(f"- {label}: {counts}")
     return "\n".join(lines)
 
 
@@ -389,13 +534,26 @@ def render_markdown(summary, manifest):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--runs", required=True)
+    parser.add_argument("--runs", required=True, help="run root(s), comma-separated")
     parser.add_argument("--json", default=None)
     parser.add_argument("--markdown", default=None)
+    parser.add_argument(
+        "--sets",
+        default=None,
+        help="sets directory for the binding metric (default: the repository sets dir)",
+    )
     args = parser.parse_args(argv)
-    manifest, runs = load_runs(args.runs)
+    sets = load_tasks(args.sets) if args.sets is not None else None
+    runs_roots = [part.strip() for part in args.runs.split(",") if part.strip()]
+    manifest = {}
+    runs = []
+    for root in runs_roots:
+        manifest_part, runs_part = load_runs(root)
+        if not manifest:
+            manifest = manifest_part
+        runs.extend(runs_part)
     if any(run["summary"] is not None for run in runs):
-        summary = summarize_runs(runs)
+        summary = summarize_runs(runs, sets=sets)
         markdown = render_round_markdown(summary, manifest)
     else:
         summary = summarize([run["rounds"][0] for run in runs])

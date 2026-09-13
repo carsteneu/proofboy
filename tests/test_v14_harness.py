@@ -45,6 +45,7 @@ def _load(name):
 
 harness = _load("harness")
 prompts = _load("prompts")
+evaluate = _load("evaluate")
 
 from bemyself.claimtypes import cycle  # noqa: E402
 from bemyself.model import Claim  # noqa: E402
@@ -440,6 +441,156 @@ class RunIntegrationTest(unittest.TestCase):
         self.assertTrue(summary["final_solved"])
         self.assertEqual(summary["feedback"], "G0")
         self.assertTrue((root / _HARD["id"] / "D-rep1" / "round0" / "parsed.json").exists())
+
+
+_ANCHOR = {
+    "id": "B3-0005",
+    "tier": "B",
+    "tier_b_kind": "cyc",
+    "machine": "0LA0LA",
+    "certificate": [0, 1, -1],
+    "certificate_given": False,
+    "prompt": "Untersuche den Lauf.",
+}
+
+
+class EvaluateV14Test(unittest.TestCase):
+    """Level-Gruppierung, Bindungs-Metrik und Klassen-Histogramm."""
+
+    def _root(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(dir=tmp_root))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def test_g2_label_and_binding_protection(self):
+        root = self._root()
+        fixed = _cyc_sheet((34, 37, -1))
+        # Ein Bindungsfall, der in R1 gerettet wird (Wert gueltig, Bindung fehlte).
+        harness.run_rounds(
+            "D", _HARD, 1, root, _FakeArgs(feedback="G2"),
+            call=_FakeCall([_cyc_sheet((34, 37, -1), binding=False), fixed]),
+        )
+        # Ein Bindungsfall, der offen bleibt (gueltiger Fund, nie geschuetzt).
+        harness.run_rounds(
+            "D", _HARD, 2, root, _FakeArgs(feedback="G2"),
+            call=_FakeCall(
+                [
+                    _cyc_sheet((34, 37, -1), binding=False),
+                    _cyc_sheet((5, 9, 2)),
+                    _cyc_sheet((5, 9, 2)),
+                ]
+            ),
+        )
+        # Ein REFUTED-Fall (Bindung vorhanden, Werte widerlegt) auf G2.
+        harness.run_rounds(
+            "D", _HARD, 3, root, _FakeArgs(feedback="G2"),
+            call=_FakeCall([_cyc_sheet((5, 9, 2)), fixed]),
+        )
+        # Ein G0-Lauf derselben Aufgabe: eigenes Label, keine G2-Klassen.
+        harness.run_rounds(
+            "D", _HARD, 4, root, _FakeArgs(),
+            call=_FakeCall([fixed]),
+        )
+        manifest, runs = evaluate.load_runs(root)
+        summary = evaluate.summarize_runs(runs, sets={_HARD["id"]: _HARD})
+        self.assertIn("D-G2-B", summary)
+        self.assertIn("D-B", summary)
+        g2 = summary["D-G2-B"]
+        self.assertEqual(g2["feedback"], "G2")
+        self.assertEqual(g2["n"], 3)
+        self.assertEqual(g2["binding_protection"]["cases"], 2)
+        self.assertEqual(g2["binding_protection"]["protected"], 1)
+        self.assertEqual(g2["feedback_classes"].get("binding_missing"), 2)
+        self.assertEqual(g2["feedback_classes"].get("values_refuted"), 2)
+        self.assertIsNotNone(g2["hard_case_repair_rate"])
+        markdown = evaluate.render_round_markdown(summary, manifest)
+        self.assertIn("Bindungsschutz", markdown)
+        self.assertIn("D-G2-B", markdown)
+
+    def test_g0_label_stays_legacy_shaped(self):
+        root = self._root()
+        harness.run_rounds(
+            "C", _HARD, 1, root, _FakeArgs(),
+            call=_FakeCall([_cyc_sheet((34, 37, -1), binding=False), _cyc_sheet((34, 37, -1))]),
+        )
+        _manifest, runs = evaluate.load_runs(root)
+        summary = evaluate.summarize_runs(runs, sets={_HARD["id"]: _HARD})
+        self.assertIn("C-B", summary)
+        self.assertEqual(summary["C-B"]["feedback"], "G0")
+
+
+class ScanFeedbackTest(unittest.TestCase):
+    """Der empirische Leck-Scan: injizierte Verletzung wird gefunden,
+    saubere Laeufe melden 0, modell-eigene ids sind keine Verletzung."""
+
+    def _load_scan(self):
+        return _load("scan_feedback")
+
+    def _root(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(dir=tmp_root))
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        return root
+
+    def _binding_run(self, root, rep=1):
+        harness.run_rounds(
+            "D", _HARD, rep, root, _FakeArgs(feedback="G2"),
+            call=_FakeCall([_cyc_sheet((3, 6, -1), binding=False), _cyc_sheet((3, 6, -1))]),
+        )
+
+    def test_clean_run_has_zero_violations(self):
+        scan = self._load_scan()
+        root = self._root()
+        self._binding_run(root)
+        report = scan.scan_run(str(root), {_HARD["id"]: _HARD})
+        self.assertGreaterEqual(report["scanned"], 1)
+        self.assertEqual(report["violations"], [])
+
+    def test_injected_gold_value_is_found(self):
+        scan = self._load_scan()
+        root = self._root()
+        self._binding_run(root)
+        path = root / _HARD["id"] / "D-G2-rep1" / "round0" / "parsed.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["next_feedback"] += "\nv1: das Zertifikat (34,37,-1) traegt doch"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        report = scan.scan_run(str(root), {_HARD["id"]: _HARD})
+        self.assertTrue(report["violations"], "die injizierte Gold-Nennung fehlt")
+
+    def test_model_owned_ids_are_not_violations(self):
+        scan = self._load_scan()
+        root = self._root()
+        # Gold (0,1,-1): die Ziffern 0/1 kollidieren mit ids ("v1", "h1") --
+        # der Scan darf daraus keine Verletzung machen.
+        harness.run_rounds(
+            "D", _ANCHOR, 1, root, _FakeArgs(feedback="G2"),
+            call=_FakeCall(
+                [
+                    "h1: M zyklisch (Translation)\nv h1: cyc(0,1,-1)\nh1+\n"
+                    "CLAIM c1: M zyklisch (Translation)\nWITNESS c1: ref h1\n[HALT] c1",
+                    "a: M = 0LA0LA\nh1: M zyklisch (Translation)\nv h1: cyc(0,1,-1)\nh1+\n"
+                    "CLAIM c1: M zyklisch (Translation)\nWITNESS c1: ref h1\n[HALT] c1",
+                ]
+            ),
+        )
+        report = scan.scan_run(str(root), {_ANCHOR["id"]: _ANCHOR})
+        self.assertEqual(report["violations"], [])
+
+    def test_legacy_layout_runs_are_scannable(self):
+        # Der Scan arbeitet auf next_feedback-Feldern; ein Lauf ohne Feedback
+        # (Runde 0 geloest) zaehlt einfach nichts.
+        scan = self._load_scan()
+        root = self._root()
+        harness.run_rounds(
+            "D", _HARD, 1, root, _FakeArgs(),
+            call=_FakeCall([_cyc_sheet((34, 37, -1))]),
+        )
+        report = scan.scan_run(str(root), {_HARD["id"]: _HARD})
+        self.assertEqual(report["scanned"], 0)
+        self.assertEqual(report["violations"], [])
 
 
 class SetsV04Test(unittest.TestCase):
