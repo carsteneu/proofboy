@@ -212,8 +212,13 @@ class StandardSetTest(unittest.TestCase):
         self.assertEqual(hostile["group"], "false")
         self.assertEqual(hostile["targets"], ["lean"])
         # The refusal holds on every host: the request is refused before any
-        # tool runs, so the verdict is pinned, not host-dependent.
+        # tool runs, so the verdict and its class are pinned, not
+        # host-dependent. P18b: the path-like request violates the form a
+        # toolchain request must have -- a defect (exit 5), not an
+        # environment boundary.
         self.assertEqual(hostile["expect_verdicts"], {"lean": "UNVERIFIABLE"})
+        self.assertEqual(hostile["expect_classes"], {"lean": "defect"})
+        self.assertEqual(hostile["expect_exit"], 5)
         self.assertIn("lean/Proof.lean -> fixture_proven", hostile["report"])
 
     def test_merge_and_artifact_cases_pin_their_evidence(self):
