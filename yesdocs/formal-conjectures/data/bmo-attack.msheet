@@ -1,0 +1,25 @@
+g: BMO#1-Maschine: Laufzeugen + A34693-Schranken (alles endlich)
+d: isprime = Primzahltest der V1-Bibliothek (Guard 10^12); ** = Potenz
+a: M = 1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE
+h1: t=13 cp 13: (E,1,101)
+v h1: sim(0..13)
+h1+
+h2: t=1000 cp 1000: (A,12,010101010101010101010010111111111)
+v h2: sim(0..1000)
+h2+
+=: M lief 1000 Schritte ohne Halt (h2+)
+h3: fuer jedes n in 2..1000 existiert k<n mit k*n+1 prim
+v h3: range n in 2..1000: (exists k in 1..999: ((k < n) & isprime(((k * n) + 1))))
+h3+
+h4: fuer jedes n in 2..1000 existiert k mit (k-1)^4<n^3 und k*n+1 prim
+v h4: range n in 2..1000: (exists k in 1..999: ((((k - 1) ** 4) < (n ** 3)) & isprime(((k * n) + 1))))
+h4+
+CLAIM c1: M erreicht t=13 (E,1,101)
+WITNESS c1: ref h1
+CLAIM c2: M erreicht t=1000 (A,12,010101010101010101010010111111111)
+WITNESS c2: ref h2
+CLAIM c3: (forall n in 2..1000: (exists k in 1..999: ((k < n) & isprime(((k * n) + 1)))))
+WITNESS c3: ref h3
+CLAIM c4: (forall n in 2..1000: (exists k in 1..999: ((((k - 1) ** 4) < (n ** 3)) & isprime(((k * n) + 1)))))
+WITNESS c4: ref h4
+[HALT] c1 c2 c3 c4

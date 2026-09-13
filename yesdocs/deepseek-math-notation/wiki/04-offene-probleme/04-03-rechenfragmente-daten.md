@@ -6,8 +6,8 @@ language: de
 status: Verifiziert
 last_updated: 2026-09-13
 created_at: 2026-09-12
-sources_count: 58
-citations_count: 69
+sources_count: 62
+citations_count: 71
 images_count: 2
 diagrams_count: 1
 related: ["04-02-kandidaten-katalog", "04-04-empfehlung", "03-formale-bruecke"]
@@ -177,6 +177,39 @@ Das ist die nächste Phase, nicht E1. Präzedenz für den Weg „KI-gestützt, L
 den Forum-Regeln (KI-Offenlegung, unabhängige Prüfung, möglichst fehlerfreie
 Lean-Formalisierung) ([Erdős Problem #728](https://erdosproblems.com/728, accessed 2026-09-13)).
 
+**Katalog-Scan und Shortlist (E2, 2026-09-13).** Der oben angekündigte Scan ist
+gelaufen — statisch, deterministisch, am Klon `a2f4a1b`: 1268 `.lean`-Dateien,
+5445 kategorie-annotierte Deklarationen, **1466 `research open`** (der Korpus ist
+seit dem Paper mit „1029“ gewachsen), 1661 `research solved`, 901 `answer(sorry)`
+auf Statement-Ebene; Schwerpunkte: ErdosProblems (660 offen), Wikipedia (264),
+OEIS (208). **Erdős–Straus ist im Katalog enthalten**: `ErdosProblems/242.lean`
+(`erdos_242`, `research open`) — damit ist die E1-Frage positiv beantwortet; der
+Prüfpfad `[IDENT]`/`[COMPUTE]` ist genau auf diese Form gebaut (`bemyself.experiments.erdos_straus`).
+Shortlist für unsere Kette (Gates aus [04-01](04-01-wahlkriterien.md): K2 ≥ 1, K4 = 2; nur
+offene Kandidaten): **BMO#1** (BB(6)-Holdout `1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE`;
+2-Symbol-Maschine — endliche Fragmente über `[HALT]`/`[SEARCHED]` und
+V1.1-`sim`-Checkpoints), **BMO#5** (Rocq-verifizierte Maschine↔Reformulierung-
+Äquivalenz), **BMO#2 Antihydra** (Collatz-artig), **OEIS A34693** (kleinste `k`
+mit `k·n+1` prim; endlicher Zeuge je `n`, im msheet per `range`-Zeuge geprüft),
+**Rule 30** (`Other/Rule30.lean`: Zentralspalten-Prize 1+2, Definitionen im Repo)
+und **Erdős–Straus** (`erdos_242`, Kette gebaut, in dieser Runde nur eingeordnet).
+Erster umgrenzter Angriff (bounded, reproduzierbar): Reproduktionsprobe
+(BMO#1-Erstwerte exakt; keine Gleichheit `a_i = b_i` bis 10^6 Iterationen;
+Maschinen BMO#1/#2/#5/#8 je 2·10^6 Schritte ohne Halt; BMO#4-Closed-Form exakt
+bis `n = 10^4` und nie `≡ 1 (mod 3)`; Rule-30-Bits 0..101 == OEIS A051023, zwei
+unabhängige Implementierungen bis 256 Bit gleich, keine Periode `p ≤ 128` in
+4096 Bits; A34693-Sweep `2..10^4` ohne Verletzung der
+`k < n`- und der `(k−1)^4 < n^3`-Schranke) plus ein V1.1-Denk-Sprache-Blatt mit
+acht runner-bestätigten Zeilen (`#ok: v1 v2 v3 v4 c1 c2 c3 c4`) — Details,
+Grenzen und Reproduktionsbefehle:
+[yesdocs/formal-conjectures/README.md](../../../formal-conjectures/README.md).
+Der vollständige `lake build` des Klons lief mit dem vorhandenen mathlib-Cache
+in ~11 min durch (`Build completed successfully (10180 jobs)`, EXIT 0): der
+Toolchain-/Mathlib-Pin ist lokal voll reproduzierbar. Die kalte Abnahme
+(5.2) fand zwei Korrekturen, die eingearbeitet sind: das Erdős–Straus-Statement
+existierte doch (s. o.) und 25 Deklarationen mit geteilten Attribut-Klammern
+(`@[simp, category API, …]`) fehlten im Scan.
+
 ## Quellen
 
 Alle Abrufe am 2026-09-12.
@@ -223,3 +256,9 @@ Alle Abrufe am 2026-09-12.
 - [Neue modulare Gleichungen, Prüfung bis N = 10^17 (arXiv:1406.6307)](https://arxiv.org/abs/1406.6307) — Salez 2014.
 - [Erdős Problem #728](https://erdosproblems.com/728) — Forum-Regeln: KI-Offenlegung, unabhängige Prüfung, möglichst fehlerfreie Lean-Formalisierung (Abruf 2026-09-13).
 - Lokal: `lean/erdos-straus/` (Lean 4.33.1 + mathlib `v4.33.1`) — Kernel-Beweise der sechs P12-Klassen und der finiten Brücke `2 ≤ n ≤ 1000`.
+
+**Nachtrag 2026-09-13 (E2, Katalog-Scan/Shortlist)**
+- [formal-conjectures (GitHub)](https://github.com/google-deepmind/formal-conjectures) — Klon-Commit `a2f4a1b`; Kennzahlen, Shortlist und Reproduktion in `yesdocs/formal-conjectures/` (Abruf 2026-09-13).
+- [Beaver Math Olympiad (BusyBeaverWiki)](https://wiki.bbchallenge.org/wiki/Beaver_Math_Olympiad) — BMO-Probleme 1–11, gelöste Fälle, Rocq-Verweis (Abruf 2026-09-13).
+- [`1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE` (BusyBeaverWiki)](https://wiki.bbchallenge.org/wiki/1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE) — Modell, Startkonfiguration, 10^8-Iterationen (Abruf 2026-09-13).
+- [OEIS A34693](https://oeis.org/A34693) — kleinste `k` mit `k·n+1` prim (Abruf 2026-09-13).
