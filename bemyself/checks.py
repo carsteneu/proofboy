@@ -451,15 +451,20 @@ def find_bwrap():
     return os.path.abspath(path) if path else None
 
 
-def _sandbox_prefix(program, checkout):
+def _sandbox_prefix(program, checkout, extra_ro_binds=(), cwd=None):
     """The bwrap wrapper for one test run.
 
     The filesystem root is bound read-only; only the throwaway checkout is
     writable. The command gets its own network, PID and UTS namespaces, so it
     can neither reach the host network nor see host processes. ``--die-with-parent``
-    keeps a sandbox from outliving the verifier.
+    keeps a sandbox from outliving the verifier. ``extra_ro_binds`` stacks
+    further read-only mounts (source, target) over the root bind; the [LEAN]
+    checker uses them to carry a working-tree dependency cache into the
+    throwaway checkout under the same path. ``cwd`` is the working directory
+    inside the sandbox (default: the checkout); [LEAN] runs lake in the
+    project directory.
     """
-    return [
+    prefix = [
         program,
         "--die-with-parent",
         "--ro-bind",
@@ -478,13 +483,18 @@ def _sandbox_prefix(program, checkout):
         "--bind",
         checkout,
         checkout,
+    ]
+    for source, target in extra_ro_binds:
+        prefix += ["--ro-bind", source, target]
+    prefix += [
         "--unshare-net",
         "--unshare-pid",
         "--unshare-uts",
         "--chdir",
-        checkout,
+        cwd or checkout,
         "--",
     ]
+    return prefix
 
 
 def _sandbox_display(command_str):

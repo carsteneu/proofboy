@@ -561,6 +561,15 @@ class CliTest(unittest.TestCase):
         self.assertIn("--repo is required", proc.stderr)
         self.assertIn("compute", proc.stderr)
 
+    def test_lean_only_report_without_repo_is_a_usage_error(self):
+        report = self.write_report(
+            "[LEAN: lean/Proof.lean -> fixture_proven]\n", name="lean-only.txt"
+        )
+        proc = self.invoke_without_repo("--report", report)
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--repo is required", proc.stderr)
+        self.assertIn("lean", proc.stderr)
+
     # --- --repo: required only for claim kinds that need it ----------------
     def invoke_without_repo(self, *args):
         return subprocess.run(
