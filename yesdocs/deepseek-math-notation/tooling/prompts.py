@@ -270,7 +270,7 @@ def _k_selfcheck(task):
     )
 
 
-def build_repair_message(arm, task, verdict_lines, note_lines, format_errors):
+def build_repair_message(arm, task, verdict_lines, note_lines, format_errors, hint_lines=()):
     """The user turn of a repair round (round >= 1).
 
     K gets the neutral self-check: prose has no machine verdicts, and none may
@@ -278,10 +278,15 @@ def build_repair_message(arm, task, verdict_lines, note_lines, format_errors):
     sheet (the runner's appendix), the runner's findings and the format errors
     -- the notes arrive already sanitized from the harness: error texts stay,
     computed reference values never do (no gold leak).
+
+    ``hint_lines`` (V14) carries cross-cutting instructions of the feedback
+    ladder, e.g. the binding protection ("only add the binding; do not change
+    the values, they were not refuted"). Empty for G0 and for arms without a
+    binding case.
     """
     if arm == "K":
         return _k_selfcheck(task)
-    if not (verdict_lines or note_lines or format_errors):
+    if not (verdict_lines or note_lines or hint_lines or format_errors):
         # Nichts wurde maschinell geprueft (z. B. Arm B auf dem Zyklus-Pfad,
         # der kein Blatt auswertet): kein "Blatt geprueft" behaupten.
         return (
@@ -295,6 +300,9 @@ def build_repair_message(arm, task, verdict_lines, note_lines, format_errors):
     if note_lines:
         parts.append("Befunde:")
         parts.extend(note_lines)
+    if hint_lines:
+        parts.append("Hinweise:")
+        parts.extend(hint_lines)
     if format_errors:
         parts.append("Formfehler:")
         parts.extend(format_errors)
