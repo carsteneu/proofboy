@@ -9,9 +9,13 @@ Liest jeden Runden-Record eines Lauf-Baums, sammelt die Feedback-Texte
 
 Eine Nennung ist eine Verletzung, wenn sie nicht erkennbar modell-eigen ist:
 Ein Ziffern-Token direkt hinter einem Buchstaben (``v1``, ``h1``, ``c1``,
-``ref h1``, ``Schritt 5``, ``cp 5``) gilt als id-/Schritt-Kontext und ist
-erklaert; alles andere (Werte in Klammern, hinter ``=``, freistehend) zaehlt.
-Beide Kategorien werden berichtet -- der Scan behauptet nichts, er legt offen.
+``ref h1``) gilt als id-Kontext, ein Token hinter den Woertern
+``Schritt``/``Step``/``Line``/``Zeile`` als Schritt-/Zeilen-Referenz, und ein
+Token in einer Zeugen-Klammer (``sim(0..2)``, ``cyc(...)``) als Beleg-
+Parameter des Modells. Alles andere (Werte in Aufgaben-Klammern wie
+``(34,37,-1)``, hinter ``=``, freistehend) zaehlt als Verletzung -- lieber ein
+Fehlalarm zur Sichtpruefung als ein uebersehenes Leck. Beide Kategorien
+werden berichtet; der Scan behauptet nichts, er legt offen.
 
 Aufruf::
 
@@ -35,7 +39,7 @@ def load_tasks(sets_dir):
     """``{task_id: task}`` over every set file; spaetere Versionen gewinnen."""
     tasks = {}
     for path in sorted(Path(sets_dir).glob("tier_*_v11-*-0.*.json")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = _load_json(path)
         for task in payload.get("tasks", []):
             tasks[task["id"]] = task
     return tasks
@@ -62,24 +66,43 @@ def _token_matches(text, value):
 
 # Nur diese Kontexte gelten als modell-eigen: ids wie ``v1``/``h1`` (Ziffer
 # direkt an einem Buchstaben), Zaehl-/Schritt-Kontexte mit Wort davor und
-# die Schritt-Angaben in Klammern (``sim(0..2)``). Alles andere -- etwa eine
-# Zahl nach einem normalen Wort -- zaehlt als Verletzung (konservativ: lieber
-# ein Fehlalarm zur Sichtpruefung als ein uebersehenes Leck).
+# Beleg-Klammern (``sim(0..2)``, ``cyc(3,4,1)``). Alles andere -- etwa eine
+# Zahl nach einem normalen Wort oder in einer Aufgaben-Klammer -- zaehlt als
+# Verletzung (konservativ: lieber ein Fehlalarm zur Sichtpruefung als ein
+# uebersehenes Leck).
 _BENIGN_WORDS = frozenset({"schritt", "step", "line", "zeile"})
-_WORD_BEFORE_RE = re.compile(r"([A-Za-z]+)\s*$")
+_BELEG_WORDS = frozenset({"sim", "cyc"})
+
+
+def _load_json(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit(f"cannot read {path}: {error}") from error
+
+
+def _word_before(text, end):
+    """The alphabetic word ending at ``end`` (linear scan, no backtracking)."""
+    index = end - 1
+    while index >= 0 and text[index].isalpha():
+        index -= 1
+    return text[index + 1 : end]
 
 
 def _explained(text, start):
     before = text[:start]
     if before and before[-1].isalpha():
         return True  # v1, h1, S0, cp5, ref h1 -- Ziffer klebt am Buchstaben
-    stripped = before.rstrip()
-    if stripped.endswith("("):
-        return True  # sim(0..2), cyc(3,4,1) -- Beleg-Parameter des Modells
-    word = _WORD_BEFORE_RE.search(stripped)
-    if word and word.group(1).lower() in _BENIGN_WORDS:
-        return True
-    return False
+    index = len(before) - 1
+    while index >= 0 and before[index].isspace():
+        index -= 1
+    if index < 0:
+        return False
+    if before[index] == "(":
+        # Nur Zeugen-Klammern des Modells (sim(0..2), cyc(3,4,1)); eine
+        # Aufgaben-Klammer wie "(34,37,-1)" ist eine Verletzung.
+        return _word_before(before, index).lower() in _BELEG_WORDS
+    return _word_before(before, index + 1).lower() in _BENIGN_WORDS
 
 
 def _snippet(text, start, length=40):
@@ -102,8 +125,12 @@ def scan_run(runs_root, tasks):
         part = part.strip()
         if not part:
             continue
+        if not Path(part).is_dir():
+            # Nicht still 0 melden: ein fehlender Pfad darf nicht wie
+            # "nichts gefunden = sauber" aussehen.
+            raise SystemExit(f"runs path does not exist: {part}")
         for parsed_path in sorted(Path(part).glob("*/[!_]*-rep*/round*/parsed.json")):
-            record = json.loads(parsed_path.read_text(encoding="utf-8"))
+            record = _load_json(parsed_path)
             text = record.get("next_feedback")
             if not text:
                 continue

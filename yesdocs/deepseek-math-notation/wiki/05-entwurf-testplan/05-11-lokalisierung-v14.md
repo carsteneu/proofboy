@@ -63,7 +63,7 @@ Zwei Fragen: **(1) Leckfrei lokalisieren** — kann der Rückkanal sagen, *welch
 
 - **Lauf:** `.yesmem/tmp/runs/20260913-095428` (Modell `deepseek-flash`, Arme K/B/C/D, 1 Wiederholung, `max_repairs 2`, Timeout 300 s je Call, Saat 20260913; Set v0.4 sha256 `cafc8aa8…`; Tier A unverändert v0.3, keine A-Aufgaben gelaufen).
 - **Zellen:** G0-Matrix = 6 Aufgaben × 4 Arme (B4-0001 nur C/D versucht, beide Timeouts); Leiter-Zellen = C@G1 × {B3-0008, B4-0003}, C@G2 × {B3-0008, B4-0003}, D@G2 × {B4-0003}. **25 gültige Läufe, 1 776 851 Completion-Tokens, 6 403 s Modellzeit (107 min).**
-- **Abweichungen (offengelegt):** (a) **B4-0001 ist nicht messbar**: alle vier Versuche (C, D, je zweimal) liefen in den 300-s-Call-Timeout ohne Tokens; K/B wurden aus Budgetgründen nicht gefahren. Der Fall bleibt im Set (nächste Runde: höherer Timeout). (b) **4 Timeout-Läufe** insgesamt; zwei wurden erfolgreich wiederholt (B3-0008/B, B4-0003/C), zwei bleiben ungültig (B4-0001 C/D, als Artefakt unter `.yesmem/tmp/runs-invalid-20260913/` gesichert). (c) Zeitweise lief ein **paralleler Fremdlauf** (anderer Worktree, gleicher Modell-Endpunkt) — plausibler Mitverursacher der Timeouts; dokumentiert, nicht weggerechnet. (d) Ein Hintergrund-Start des Laufs wurde vom Shell-Timeout mitgekillt; der Lauf wurde mit neuem `--runs-root`/`--tasks`/`one`-Resume in Chunks gefahren (Harness dafür um `--runs-root` und Task-Filter erweitert).
+- **Abweichungen (offengelegt):** (a) **B4-0001 ist nicht messbar**: die gesicherten Endgenerationen der C-/D-Versuche (je zweimal angetreten, K/B aus Budgetgründen nie gestartet) endeten im 300-s-Call-Timeout; die Artefakte liegen unter `.yesmem/tmp/runs-invalid-20260913/`. Der Fall bleibt im Set (nächste Runde: höherer Timeout). (b) **4 Timeout-Generationen** insgesamt; zwei wurden erfolgreich wiederholt (B3-0008/B, B4-0003/C), zwei bleiben ungültig (B4-0001 C/D). (c) Zeitweise lief ein **paralleler Fremdlauf** (anderer Worktree, gleicher Modell-Endpunkt) — plausibler Mitverursacher der Timeouts; dokumentiert, nicht weggerechnet. (d) Ein Hintergrund-Start des Laufs wurde vom Shell-Timeout mitgekillt; der Lauf wurde mit neuem `--runs-root`/`--tasks`/`one`-Resume in Chunks gefahren (Harness dafür um `--runs-root` und Task-Filter erweitert).
 - **Kostenlage:** 107 min gültige Modellzeit liegen unter dem Runden-Budget von 2,5 h; die Wanduhr des Laufblocks betrug 09:54–13:10 (inkl. Chunk-Neustarts und Fremdlauf-Kontention).
 
 ## 5. Ergebnisse
@@ -83,7 +83,7 @@ Aggregat (Assets): C: R0 3/5, final **5/5** (+40 pp Reparaturgewinn); D: R0 4/5,
 
 ### 5.2 Die V13-Regression ist weg — vorerst
 
-Alle drei G0-Reparaturfälle dieser Runde (B3-0008/C, B4-0003/C, B4-0003/D) starteten exakt im V13-Muster: maschinengültiges Zertifikat, keine `a: M = …`-Zeile, Rückmeldung „`v1: cyc: no machine binding in the sheet (expected 'a: M = <machine>')`“ plus Ketten-Note — und **behielten die Werte**; nach Ergänzen der Bindung war die Runde gelöst. Der in V13 beobachtete Wertverlust trat in dieser Runde nicht auf (Zellgröße 1 — ein Beleg für „tritt nicht deterministisch auf“, kein Beweis für „behoben“). Die Bindungsschutz-Metrik zählt genau solche Fälle: **G0: C 2/2, D 1/1 geschützt.**
+Alle drei G0-Reparaturfälle dieser Runde (B3-0008/C, B4-0003/C, B4-0003/D) starteten exakt im V13-Muster: maschinengültiges Zertifikat, keine `a: M = …`-Zeile, Rückmeldung „`v1: cyc: no machine binding in the sheet (expected 'a: M = <machine>')`“ plus Ketten-Note. **Kein Wertverlust**: alle drei endeten gelöst. Präzise formuliert: nur B4-0003/C behielt exakt seine R0-Werte (5,15,−1); B3-0008/C und B4-0003/D formulierten auf *andere, ebenfalls maschinengültige* Zertifikate um (3,6,−1)→(6,9,−1) bzw. (6,16,2)→(7,17,2) — nachgeprüft per `cycle.check`, beide CONFIRMED. Der in V13 beobachtete Verlust eines gültigen Fundes trat also nicht auf; die Auswertung zählt das über die Bindungsschutz-Metrik: **G0: C 2/2, D 1/1 geschützt** („geschützt“ = final gelöst; ein Wechsel auf ein anderes gültiges Zertifikat zählt hier als geschützt im Sinne des Messziels „Lauf endet bestätigt“, nicht als wörtliche Werttreue).
 
 ### 5.3 Leitervergleich (die Reparaturfälle, Zellgröße 1)
 
@@ -93,7 +93,7 @@ Alle drei G0-Reparaturfälle dieser Runde (B3-0008/C, B4-0003/C, B4-0003/D) star
 | B4-0003 · C | 2 Runden, 403 s, 114 k Tok | 1 Runde, 169 s, 47 k Tok | 1 Runde, 173 s, 44 k Tok |
 | B4-0003 · D | 2 Runden, 552 s, 175 k Tok | — | 1 Runde, 133 s, 34 k Tok |
 
-Kein Rückschritt in keiner Zelle; alle sieben Leiter-Zellen final gelöst. Interessant: Die R0-Fehlbilder **wechseln** zwischen Wiederholungen derselben Zelle — B3-0008/C scheiterte unter G0 als `binding_missing` (gültiger Fund ohne Bindung, repariert) und unter G1 als `values_refuted:state` (echt falscher Wert, ebenfalls repariert). Die Klassen treffen also beide Fehlbilder, die der V13-Sanitizer beide nur als „trägt nicht“ zeigte.
+Kein Rückschritt in keiner Zelle; alle fünf Leiterzellen (G1/G2) und die drei zugehörigen G0-Anker endeten gelöst. Interessant: Die R0-Fehlbilder **wechseln** zwischen Wiederholungen derselben Zelle — B3-0008/C scheiterte unter G0 als `binding_missing` (gültiger Fund ohne Bindung, repariert) und unter G1 als `values_refuted:state` (echt falscher Wert, ebenfalls repariert). Die Klassen treffen also beide Fehlbilder, die der V13-Sanitizer beide nur als „trägt nicht“ zeigte.
 
 ### 5.4 Der Live-G1-Text (wörtlich)
 
@@ -108,7 +108,7 @@ c1: ref h1: ref_unconfirmed (last status '+', last verdict REFUTED)
 
 - **Property (Tests, `tests/test_v14_harness.py`, 41 Tests):** synthetische Verletzungsserien über alle Legs und Bindungslücken für G0/G1/G2 — kein Gold-Token im Feedback; Klassenphrasen digit-frei; unbekannte Beleg-Arten bleiben Default-Deny-zurückgehalten; G0-Ausgabe zeilengleich mit dem rekonstruierten V13-Text.
 - **Empirie (Scan):** V14-Lauf 10 Rückmeldungstexte → **0 Verletzungen, 0 erklärte Treffer**; Querprobe V13-Lauf (`runs-v13-20260912/tier-b-hard`) 7 Texte → 0 Verletzungen, 2 erklärte Treffer (`line 0:`-Formatzeilen). Der Scan ist als Werkzeug getestet (injizierte Gold-Nennung wird gefunden; id-Kontexte erzeugen keine Fehlalarme).
-- Gesamtsuite: **859 Tests grün** (vor der Runde 818).
+- Gesamtsuite: **863 Tests grün** (vor der Runde 818).
 
 ## 6. Was belegt ist — und was nicht
 
@@ -124,6 +124,7 @@ c1: ref h1: ref_unconfirmed (last status '+', last verdict REFUTED)
 4. **Rückkanal-Varianten (05-10 §7.2):** „nur `#xx`/`#?`-Zeilen ohne Befunde“ ist jetzt abgedeckt (G0 vs. G1/G2), offen bleibt „frischer Versuch mit Appendix“.
 5. **Formfehler-Trigger (05-09 §7.1, weiter offen):** Formverletzungen als eigene Metrik ziehen.
 6. **Grenzen der Lokalisierung:** Was der Checker strukturell nicht weiß, kann er nicht lokalisieren (t1-Eintrittszeit; Ursachen jenseits der Vergleichs-Bedingungen). Die nächste Stufe wäre eine *abgeleitete* Position („Differenz zeigt nach links/rechts“) — nach denselben Regeln: aus Checker-Semantik, digit-frei, property-getestet.
+7. **Aus der Review-Runde (alle niedrig, teils behoben):** behoben — ReDoS-Muster im Scan ersetzt (lineare Rückwärtssuche statt verankertem Regex; Regressionstest), `--runs-root` außerhalb des Repos crasht nicht mehr (Anzeige-Helfer), `cmd_one`-Logpfad trägt das Level, fehlender `--runs`-Pfad des Scans ist jetzt ein Fehler statt „0 gescannt“, Klassen-/Leg-Doppelzählung dokumentiert, Docstrings/Kommentare an Code und Checker angeglichen (§5.2-Wortlaut korrigiert: Wertwechsel auf andere *gültige* Zertifikate). Offen (bewusst): `binding_wrong`-Note nur bei leerer Notizenliste (eine Runde Verzögerung möglich), Bindungs-Metrik ohne Arm-Filter (strukturell auch für K/B denkbar; in den Daten 0 Fälle), lexikografische Set-Sortierung bei zweistelligen Minors (`0.10`), Scan blind für alternative Wert-Schreibweisen (führende Null, gesplittet, Unicode-Minus) — für die aktuellen digit-freien Texte ohne Wirkung, für künftige Leck-Bugs als Fehlalarm-Kandidaten bewusst konservativ.
 
 ## Quellen
 

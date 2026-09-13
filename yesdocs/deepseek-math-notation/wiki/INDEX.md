@@ -27,7 +27,7 @@ Zahlen-Regime, tiefe Läufe, Zyklus-Suche) und die Lokalisierungs-Runde (05-11: 
 G0/G1/G2, Bindungsschutz, Sets v0.4) sind erfolgt; die nächsten Runden
 sind in 05-11 §7 skizziert.
 
-**Umfang:** 35 Dateien in 5 Clustern · 79472 Wörter ·
+**Umfang:** 35 Dateien in 5 Clustern · 79622 Wörter ·
 728 Quellenangaben (Datei-Summen) · 1098 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte

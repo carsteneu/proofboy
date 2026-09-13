@@ -484,6 +484,15 @@ class RunIntegrationTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, generated, ignore_errors=True)
         self.assertTrue(str(generated).startswith(str(harness.RUNS_DIR)))
 
+    def test_display_and_run_dir_helpers(self):
+        # Review-Findings: Logpfad darf ausserhalb ROOT nicht crashen und
+        # muss das Level tragen.
+        outside = Path("/tmp/opencode/outside-root")
+        self.assertEqual(harness._display_path(outside), str(outside))
+        self.assertEqual(harness._display_path(ROOT / "x"), "x")
+        self.assertEqual(harness._run_dir_name("C", 1, "G0"), "C-rep1")
+        self.assertEqual(harness._run_dir_name("C", 2, "G2"), "C-G2-rep2")
+
 
 _ANCHOR = {
     "id": "B3-0005",
@@ -628,6 +637,28 @@ class ScanFeedbackTest(unittest.TestCase):
         self.assertTrue(scan._explained("sim(0..2)", 4))
         self.assertTrue(scan._explained("line 0: no CLAIM zone", 5))
         self.assertFalse(scan._explained("der Wert lautet 34", 16))
+
+    def test_paren_certificate_is_not_explained(self):
+        # Eine Aufgaben-Klammer mit Werten ist eine Verletzung; nur die
+        # Zeugen-Klammern des Modells (sim/cyc) gelten als erklaert.
+        scan = self._load_scan()
+        self.assertFalse(scan._explained("das Zertifikat (34,37,-1) traegt", 16))
+        self.assertTrue(scan._explained("cyc(34,37,-1)", 4))
+
+    def test_explained_is_linear_on_long_letter_runs(self):
+        # Lineare Rueckwaertssuche statt verankertem Regex (ReDoS-Lehre).
+        import time as _time
+
+        scan = self._load_scan()
+        text = "x" * 60000 + " 34"
+        start = _time.perf_counter()
+        self.assertFalse(scan._explained(text, len(text) - 2))
+        self.assertLess(_time.perf_counter() - start, 0.5)
+
+    def test_missing_runs_path_is_an_error_not_zero(self):
+        scan = self._load_scan()
+        with self.assertRaises(SystemExit):
+            scan.scan_run(str(ROOT / "does-not-exist-xyz"), {})
 
     def test_model_owned_ids_are_not_violations(self):
         scan = self._load_scan()

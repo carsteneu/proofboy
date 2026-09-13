@@ -509,8 +509,10 @@ _CLASS_BINDING_WRONG = (
 )
 _CLASS_VALUES_REFUTED = "das Zertifikat ist widerlegt (es traegt fuer diese Maschine nicht)"
 
-# Die Positions-Klassen (G2): welche Vergleichs-Bedingung des Checkers traegt
-# nicht? Reihenfolge = Pruefreihenfolge; alle Phrasen sind digit-frei.
+# Die Positions-Klassen (G2): welche *Vergleichs*-Bedingung des Checkers
+# traegt nicht? Die Liste spiegelt die Vergleichs-Branches (Zustand, Kopf,
+# Band); der Halt-Zweig steht vor allen Vergleichen im Checker und ist hier
+# als eigener Fall dabei. Alle Phrasen sind digit-frei.
 _LEG_CYC = {
     "state": (
         "widerlegt an der Zustands-Bedingung: die Zustaende an den beiden "
@@ -733,9 +735,7 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
         raise ValueError(f"unknown feedback level {level!r}")
     # G0 laeuft unter dem V13-Verzeichnisnamen (Bestandslogs bleiben lesbar);
     # die Level-Zellen tragen ihr Level im Namen.
-    base = runs_root / task["id"] / (
-        f"{arm}-rep{rep}" if level == "G0" else f"{arm}-{level}-rep{rep}"
-    )
+    base = runs_root / task["id"] / _run_dir_name(arm, rep, level)
     base.mkdir(parents=True, exist_ok=True)
     system, user = build_messages(arm, task)
     messages = [
@@ -875,6 +875,19 @@ def _runs_root(args):
     return root
 
 
+def _display_path(path):
+    """Path for log lines: relative to the repo when possible, else absolute."""
+    try:
+        return str(Path(path).relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _run_dir_name(arm, rep, level):
+    """The run directory of one cell: G0 keeps the V13 name (no level)."""
+    return f"{arm}-rep{rep}" if level == "G0" else f"{arm}-{level}-rep{rep}"
+
+
 def cmd_batch(args):
     tier_a = _load_set(_TIER_A_SET)
     tier_b = _load_set(_TIER_B_SET)
@@ -900,7 +913,7 @@ def cmd_batch(args):
     (runs_root / "manifest.json" if not (runs_root / "manifest.json").exists()
      else runs_root / f"manifest-{time.strftime('%H%M%S')}.json").write_text(
         json.dumps(manifest, indent=2), encoding="utf-8")
-    print(f"runs root: {runs_root.relative_to(ROOT)}")
+    print(f"runs root: {_display_path(runs_root)}")
     print(f"tasks: {len(tasks)} ({len([t for t in tasks if t['tier']=='A'])} A, "
           f"{len([t for t in tasks if t['tier']=='B'])} B), arms {arms}, reps {args.reps}, "
           f"max_repairs {args.max_repairs}")
@@ -945,9 +958,13 @@ def cmd_one(args):
     tasks = {t["id"]: t for t in tier_a["tasks"] + tier_b["tasks"]}
     task = tasks[args.task]
     runs_root = _runs_root(args)
+    level = getattr(args, "feedback", "G0")
     summary = run_rounds(args.arm.upper(), task, args.rep, runs_root, args)
     print(json.dumps(summary, indent=2))
-    print(f"logs: {(runs_root / task['id'] / f'{args.arm.upper()}-rep{args.rep}').relative_to(ROOT)}")
+    print(
+        "logs: "
+        + _display_path(runs_root / task["id"] / _run_dir_name(args.arm.upper(), args.rep, level))
+    )
     return 0
 
 

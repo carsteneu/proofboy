@@ -387,7 +387,10 @@ def render_round_markdown(summary, manifest):
             )
     if any(entry.get("feedback_classes") for entry in summary.values()):
         lines.append("")
-        lines.append("**Feedback-Klassen je Gruppe** (Klassen der Leiter, inkl. Leg):")
+        lines.append(
+            "**Feedback-Klassen je Gruppe** (Zeilen mit Leg zählen doppelt — als Klasse "
+            "und als Klasse:Leg; Summe > Rundenzahl):"
+        )
         for label, entry in summary.items():
             if entry.get("feedback_classes"):
                 counts = ", ".join(
@@ -541,7 +544,8 @@ def main(argv=None):
     parser.add_argument(
         "--sets",
         default=None,
-        help="sets directory for the binding metric (default: the repository sets dir)",
+        help="sets directory for the binding metric (default: none = metric off; "
+        "pass the repository sets dir to enable it)",
     )
     args = parser.parse_args(argv)
     sets = load_tasks(args.sets) if args.sets is not None else None
