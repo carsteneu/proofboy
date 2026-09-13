@@ -68,7 +68,7 @@ gelesene Zeile sind nicht unterscheidbar. Siehe README, Abschnitt
 | MERGE | Commit existiert, genau zwei Parents, ein Parent ist der Tip des genannten Branches, der andere liegt auf der Zielbranch; Widerspruch nennt die echten Parents |
 | ARTIFACT | Datei existiert unter der Artefakt-Wurzel und ihr SHA-256 stimmt; Pfad per realpath konfiniert, Streaming mit Groessenlimit |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
-| Unbekannter Marker | Kein Checker noetig: das Kuerzel beansprucht kein registrierter Typ -- der Bericht ist schuld (`DEFECT`, Exit 5 in beiden Modi); ein Platzhalter-Rumpf bleibt Vorlage |
+| Unbekannter Marker | Kein Checker noetig: das Kuerzel beansprucht kein registrierter Typ -- eine Formverletzung (`DEFECT`, Exit 5 in beiden Modi); ein Platzhalter-Rumpf bleibt Vorlage |
 | Profilpflicht fehlt | Kein Checker noetig: `--profile` fordert eine Behauptungsklasse, die die Meldung nicht hergibt (`DEFECT`, Exit 5 in beiden Modi); das Urteil nennt Profilname und fehlende Klasse(n) |
 | Deploy erfolgt | Kein Checker (absichtlich): ein generischer Deploy-Begriff fehlt; `[ARTIFACT]` ist die pruefbare Form |
 
@@ -416,10 +416,15 @@ geprueften Repository. Eine `lean-toolchain`-Datei ist eine Bitte: befolgt
 wird nur elans native Form `authority/name:version`, und nur wenn diese
 Toolchain unter `<ELAN_HOME>/toolchains` installiert ist. Jeder andere
 nicht-leere Wert -- insbesondere pfadartige wie `./evil`, die elan als
-Programmpfad ausfuehren wuerde -- wird vor jedem Werkzeuglauf abgelehnt; eine
-angeforderte, aber nicht installierte Toolchain wird nicht durch eine andere
-ersetzt. Beide Faelle bleiben `UNVERIFIABLE` mit dem Grund im Urteil, nie
-`REFUTED` (eine kaputte Umgebung ist kein Beweis gegen den Satz). Der
+Programmpfad ausfuehren wuerde -- wird vor jedem Werkzeuglauf abgelehnt: er
+hat die geforderte Form nicht, die Behauptung kann nicht binden und ist ein
+`defect` (Exit 5, auch ohne `--strict`), geprueft bevor der Host Werkzeuge
+aufloest und bevor das Sandbox-Gate greift (host-unabhaengig -- auch ein
+Host ohne bwrap kann den Defekt nicht zu einer Grenze machen). Eine
+angeforderte, aber nicht installierte
+Toolchain wird nicht durch eine andere ersetzt; sie bleibt `UNVERIFIABLE`
+mit dem Grund im Urteil, nie `REFUTED` (eine kaputte Umgebung ist kein
+Beweis gegen den Satz). Der
 abgelehnte Wert selbst wird nicht zitiert (die Datei kann ein Symlink auf
 eine beliebige vom Pruefer lesbare Host-Datei sein; die Datei wird bounded
 und verlustbehaftet gelesen) -- zitiert wird nur ein Wert, der die
@@ -442,8 +447,14 @@ die Behauptung `UNVERIFIABLE` (Grenze: das trifft auch Hosts mit echten
 Werkzeugen ohne elan, sobald das Repo eine `lean-toolchain` mitbringt).
 Unabhaengig vom Modus wird eine `lean-toolchain`-Datei nach dem Build erneut
 geprueft: ein pfadartiger Wert -- von elan ohne Umweg ausgefuehrt -- macht
-die Behauptung `UNVERIFIABLE`, ein wohlgeformter Wert nur dann, wenn nichts
-ihn gegen den Host festnagelt.
+die Behauptung `UNVERIFIABLE` mit der Klasse `defect` (Exit 5), ein
+wohlgeformter Wert nur dann, wenn nichts ihn gegen den Host festnagelt (dann
+`environment`). Die Suche nach der Datei folgt elans Weg aufwaerts und kann
+deshalb auch eine `lean-toolchain` oberhalb des Wegwerf-Checkouts finden
+(etwa ungetrackt im Arbeitsbaum des inspizierten Repos): der Lauf verweigert
+dann (fail-closed, elan wuerde den Wert zur Laufzeit ebenso finden), die
+Klasse bleibt aber `environment` -- diese Datei gehoert nicht zum gepinnten
+Commit, die gepruefte Sache verletzt keine Form.
 Eine im Ablauf nicht aufloesbare Toolchain (elans `no Lean toolchain found
 at ...`, `invalid toolchain name`, `empty toolchain file ...`,
 `no such release ...`, `no default toolchain configured`, `override
@@ -460,14 +471,16 @@ optional `version` und `digest` als `sha256:<64 hex>`). Unbekannte
 Werkzeugnamen oder Felder, ein fehlendes oder unlesbares Manifest sind
 Ladefehler (Exit 2). Ein Eintrag gewinnt **immer** gegen eine
 Repo-Anforderung -- eine wohlgeformte Bitte wird mit Pin nicht mehr
-befolgt (eine pfadartige Bitte wird unabhaengig davon immer abgelehnt); ein
+befolgt (eine pfadartige Bitte wird unabhaengig davon immer als `defect`
+abgelehnt); ein
 Digest- oder Versionsbruch und ein fehlender Pfad bleiben `UNVERIFIABLE`. Ein Werkzeug,
 das das Manifest nicht nennt, laeuft nicht; es gibt keinen stillen
 `PATH`-Rueckfall. Jeder Lauf bekommt ein pruefereigenes Bin-Verzeichnis
 (Symlinks auf die identifizierten Werkzeuge) als ersten `PATH`-Eintrag:
 `leanchecker` und `lake` rufen `lean` ueber `PATH` auf, und ohne diese
 Pinnung koennte dieser Aufruf einen elan-Shim treffen, der die Toolchain
-wieder aus dem geprueften Baum aufloest. Jedes Urteil nennt die
+wieder aus dem geprueften Baum aufloest. Jedes Urteil ab der
+Werkzeug-Identifikation nennt die
 Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
 Datei, `[pinned]` bei Manifest-Pin; die Identitaetsangabe ersetzt keine
 Zusicherung ueber die Abhaengigkeits-Artefakte. Ohne Manifest gilt der
@@ -609,7 +622,7 @@ und ARTIFACT loest seine Pfade gegen die Artefakt-Wurzel auf
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
 - Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run` als leeres tmpfs (Socket-Pfade des Rechners fehlen). Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt), ist keine vollstaendige Isolationsgrenze gegen feindlichen Code (sichtbare Dateien bleiben lesbar) und schuetzt nicht gegen Kernel-Exploits.
 - Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT-, SEARCHED- und CYCLE-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
-- LEAN prueft in einem Wegwerf-Checkout mit der Toolchain aus dem `PATH` (`lean`, `leanchecker` und, fuer Lake-Projekte, `lake`; `ELAN_HOME` wird abgeleitet; mit `--tools <manifest>` stattdessen genau die gepinnten Werkzeuge, Pfad/Version/Digest, und ein Manifest-Eintrag gewinnt gegen jede Repo-Anforderung). Eine `lean-toolchain`-Datei des Projekts ist eine Bitte: nur `authority/name:version`, nur installiert, pfadartige Werte werden abgelehnt; nicht aufloesbare Toolchains und ungepinnte Toolchain-Dateien bleiben `UNVERIFIABLE`, nie `REFUTED` (Toolchain-Vertrauensmodell). Bauen und Elaborieren verlangen denselben bwrap-Sandkasten wie COMPUTE, aber ohne stillen Rueckfall: `auto` verhaelt sich wie `require` (die Elaboration fuehrt Code aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz nachladen); nur `--sandbox=off` laeuft ohne Sandkasten und nennt das im Urteil. Ein `.lake/packages`-Cache des Arbeitsbaums wird nur read-only in den Checkout gebunden und im Urteil benannt; fehlende Abhaengigkeiten bleiben `UNVERIFIABLE`. Das Urteil nennt den Kernel-Recheck des Artefakts mit Toolchain-Version, die Werkzeug-Identitaet (Name, Version, sha256-Kurzform der gestarteten Datei) und die Axiomliste; es behauptet keinen Recheck der Abhaengigkeits-Artefakte und keine unabhaengige Nachpruefung ausserhalb von Lean.
+- LEAN prueft in einem Wegwerf-Checkout mit der Toolchain aus dem `PATH` (`lean`, `leanchecker` und, fuer Lake-Projekte, `lake`; `ELAN_HOME` wird abgeleitet; mit `--tools <manifest>` stattdessen genau die gepinnten Werkzeuge, Pfad/Version/Digest, und ein Manifest-Eintrag gewinnt gegen jede Repo-Anforderung). Eine `lean-toolchain`-Datei des Projekts ist eine Bitte: nur `authority/name:version`, nur installiert, pfadartige Werte werden als `defect` abgelehnt (Exit 5, auch ohne `--strict`; die Formpruefung laeuft vor der Werkzeug-Aufloesung und ist damit host-unabhaengig); nicht aufloesbare Toolchains und ungepinnte Toolchain-Dateien bleiben `UNVERIFIABLE`, nie `REFUTED` (Toolchain-Vertrauensmodell). Bauen und Elaborieren verlangen denselben bwrap-Sandkasten wie COMPUTE, aber ohne stillen Rueckfall: `auto` verhaelt sich wie `require` (die Elaboration fuehrt Code aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz nachladen); nur `--sandbox=off` laeuft ohne Sandkasten und nennt das im Urteil. Ein `.lake/packages`-Cache des Arbeitsbaums wird nur read-only in den Checkout gebunden und im Urteil benannt; fehlende Abhaengigkeiten bleiben `UNVERIFIABLE`. Das Urteil nennt den Kernel-Recheck des Artefakts mit Toolchain-Version, die Werkzeug-Identitaet (Name, Version, sha256-Kurzform der gestarteten Datei) und die Axiomliste; es behauptet keinen Recheck der Abhaengigkeits-Artefakte und keine unabhaengige Nachpruefung ausserhalb von Lean.
 - Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`. Fuer COMPUTE heisst das: kein Lauf ohne Allowlist, kein Lauf ohne aufloesbaren Commit, ausdrueckliche Vorabpruefung des Programms, Ausgabe- und Zeitlimits statt Kuerzung, und ein Urteil nur ueber den Hash des stdout.
 
 ## Strict-Modus
@@ -626,12 +639,12 @@ Jede Behauptung, die nicht `bestaetigt` endet, traegt genau eine maschinenlesbar
 
 | Klasse | Bedeutung | Wirkung |
 |---|---|---|
-| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte, ein Marker mit unbekanntem Kuerzel, eine von `--profile` geforderte Klasse, die fehlt. | scheitert immer, Exit 5, auch ohne `--strict` |
+| `defect` | Eine geforderte Form ist verletzt: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando, `lean-toolchain`), ein eingebettetes NUL-Byte, ein Marker mit unbekanntem Kuerzel, eine von `--profile` geforderte Klasse, die fehlt -- im Bericht oder in der geprueften Sache. | scheitert immer, Exit 5, auch ohne `--strict` |
 | `environment` | Es fehlt eine Faehigkeit der Umgebung: kein Remote, kein `bwrap`, kein Werkzeug oder Modul, kein `--repo`/`--artifact-root`/`--base`, Kommando nicht auf der Allowlist. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 4) |
 | `limit` | Ein Budget war ausgeschoepft, bevor die Behauptung laufen konnte: Schritt-/Suchzahl, Zeit, Ausgabe- und Tape-Grenzen, Artefaktgroesse. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 6) |
 | `unverifiable` | Der Rest (echte Unwissenheit): der Versuch lief und konnte nicht entscheiden (Fetch/Clone/Diff fehlgeschlagen, Branch-Tip wanderte weiter, Prosa-Zahl, kein Checker fuer `[DEPLOY]`). Default, wenn nichts anderes zutrifft. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 4) |
 
-Die Grenze zwischen `defect` und dem Rest ist bewusst eng: ein Wert, den das Werkzeug nicht interpretieren kann (eine Prosa-Zahl wie `2^^^5`, eine Maschine ausserhalb der bbchallenge-Notation, ein unsicheres Zertifikat wie `t2 <= t1`), ist kein Defekt -- der Bericht kann ehrlich sein, die Behauptung bleibt `UNVERIFIABLE` (Doktrin aus P7/P10/P12). `defect` heisst: die Behauptung kann so, wie sie dasteht, nicht einmal gebunden oder ausgefuehrt werden (fehlende oder formlose Bindung, Platzhalter als Wert, Pfad ausserhalb des Vertrauensraums, NUL). Seit P19 zaehlen zwei Berichtsfaehigkeiten dazu, die frueher still durchgingen: ein Marker, dessen Kuerzel kein registrierter Typ beansprucht (Form: Grossbuchstaben-Token, Doppelpunkt, klammerfreier Rumpf; ein Platzhalter-Rumpf bleibt Vorlage), und eine von `--profile` geforderte Behauptungsklasse, die die Meldung nicht hergibt. `defect` ist der einzige klassenbedingte Fehlschlag ohne `--strict`.
+Die Grenze zwischen `defect` und dem Rest ist bewusst eng: ein Wert, den das Werkzeug nicht interpretieren kann (eine Prosa-Zahl wie `2^^^5`, eine Maschine ausserhalb der bbchallenge-Notation, ein unsicheres Zertifikat wie `t2 <= t1`), ist kein Defekt -- der Bericht kann ehrlich sein, die Behauptung bleibt `UNVERIFIABLE` (Doktrin aus P7/P10/P12). `defect` heisst: die Behauptung kann so, wie sie dasteht, nicht einmal gebunden oder ausgefuehrt werden (fehlende oder formlose Bindung, Platzhalter als Wert, Pfad ausserhalb des Vertrauensraums, NUL). Die Grenze laeuft zwischen Abwesenheit und Formverletzung: Abwesenheit (kein Werkzeug, kein Remote, keine Allowlist-Freigabe, eine angeforderte, aber nicht installierte Toolchain) bleibt `environment`; Anwesenheit mit falscher Form ist `defect`, egal ob der Wert aus dem Bericht oder aus der geprueften Sache stammt -- die Klasse beantwortet die Frage, ob die Behauptung ueberhaupt gebildet oder gebunden werden konnte. Seit P19 zaehlen zwei Berichtsfaehigkeiten dazu, die frueher still durchgingen: ein Marker, dessen Kuerzel kein registrierter Typ beansprucht (Form: Grossbuchstaben-Token, Doppelpunkt, klammerfreier Rumpf; ein Platzhalter-Rumpf bleibt Vorlage), und eine von `--profile` geforderte Behauptungsklasse, die die Meldung nicht hergibt. `defect` ist der einzige klassenbedingte Fehlschlag ohne `--strict`.
 
 Praezedenz der Exit-Codes: `REFUTED` (1) > `defect` (5) > nur mit `--strict`: `limit` (6) > nichts bestaetigt (3) > `environment`/`unverifiable` (4) > OK (0). Ohne Defekt und ohne ausgeschoepftes Budget behalten die Codes 0-4 exakt ihre bisherige Bedeutung; ein `REFUTED` dominiert auch den Defekt.
 

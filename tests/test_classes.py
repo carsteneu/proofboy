@@ -1,10 +1,10 @@
 """P18: defect vs. boundary -- the machine-readable class of unconfirmed claims.
 
-Every UNVERIFIABLE result carries exactly one class: ``defect`` (the report is
-at fault), ``environment`` (a capability is missing), ``limit`` (a budget was
-exceeded) or ``unverifiable`` (the residual). A defect fails the run in both
-modes; a limit gets its own exit code under ``--strict``. The old exit-code
-matrix (0-4) is pinned unchanged.
+Every UNVERIFIABLE result carries exactly one class: ``defect`` (the report or
+the checked thing violates a required form), ``environment`` (a capability is
+missing), ``limit`` (a budget was exceeded) or ``unverifiable`` (the
+residual). A defect fails the run in both modes; a limit gets its own exit
+code under ``--strict``. The old exit-code matrix (0-4) is pinned unchanged.
 """
 
 import json
@@ -208,8 +208,8 @@ class ClassEndToEndTest(unittest.TestCase):
         return {claim["kind"]: claim for claim in json.loads(stdout)["claims"]}
 
     def test_unpinnable_report_fails_without_strict(self):
-        # A tests claim whose report names no commit cannot be checked; the
-        # report is at fault, so the run fails even without --strict.
+        # A tests claim whose report names no commit cannot be checked: that
+        # is a defect in the report, so the run fails even without --strict.
         report = self.write_report("Tests run: python3 -m unittest test_ok -> exit 0\n")
         proc = self.invoke("--report", report, "--json")
         self.assertEqual(proc.returncode, 5, proc.stdout + proc.stderr)
@@ -277,7 +277,7 @@ class ClassEndToEndTest(unittest.TestCase):
 
     def test_merge_claim_with_a_malformed_branch_is_a_defect(self):
         # "-bad" is neither a status token nor a valid branch name: the claim
-        # cannot bind, so the report is at fault and the run fails without
+        # cannot bind -- a defect in the report -- so the run fails without
         # --strict. ([MERGE: no] by contrast stays residual.)
         report = self.write_report(
             f"**send_to payload:** `[COMMIT: {self.repo['good']}] [MERGE: -bad]`\n"

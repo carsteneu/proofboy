@@ -1027,15 +1027,20 @@ def standard_set(fixture):
             "Boesartig: das Repo committet lean-toolchain='./evil' samt Attrappe "
             "lean/evil/bin/lean -- elan wuerde den Pfad direkt ausfuehren. Der "
             "Pruefer lehnt die Anfrage vor jedem Werkzeuglauf ab (nur "
-            "authority/name:version, nur installiert), das Urteil ist UNVERIFIABLE "
-            "und nennt den Grund (den Wert selbst zitiert es nicht: die Datei "
-            "kann ein Symlink sein) -- nie CONFIRMED, nie REFUTED.",
+            "authority/name:version, nur installiert). P18b: die pfadartige "
+            "Bitte verletzt die geforderte Form an der geprueften Sache selbst "
+            "-- die Behauptung kann nicht binden, also Klasse defect und Exit 5 "
+            "auch ohne --strict. Das Urteil nennt den Grund (den Wert selbst "
+            "zitiert es nicht: die Datei kann ein Symlink sein) -- nie "
+            "CONFIRMED, nie REFUTED.",
             done(
                 payload("[DONE]", f"[COMMIT: {commits['lean-toolchain-path']}]"),
                 "[LEAN: lean/Proof.lean -> fixture_proven]",
             ),
             targets=["lean"],
             expect_verdicts={"lean": "UNVERIFIABLE"},
+            expect_classes={"lean": "defect"},
+            expect_exit=5,
         ),
         case(
             "f28-tests-without-commit-binding",

@@ -54,7 +54,10 @@ environment is no error of the claim -- such a run is never a compile error
 of the file), timeout, a failed kernel re-check, a missing fresh artifact, a
 file the dependency build changed, an unreadable answer, and any dependency
 problem -- a missing dependency is never evidence against the theorem, and a
-failed build that does not name the checked file is never a refutation.
+failed build that does not name the checked file is never a refutation. A
+claim that cannot bind at all -- no commit, a path-like ``lean-toolchain``
+request, an unusable file name -- carries the DEFECT class instead: it fails
+the run with exit 5, with and without ``--strict``.
 
 Execution policy. Building the dependencies runs repository code and cannot
 be avoided. Sources that visibly execute code at elaboration time
@@ -80,10 +83,11 @@ throwaway checkout. ``ELAN_HOME`` points at the toolchain root so the elan
 shim works with ``HOME=<checkout>``. A ``lean-toolchain`` file in the checked
 repository is a request, not an authority: only elan's native
 ``authority/name:version`` form is accepted, and only when that toolchain is
-installed under ``<ELAN_HOME>/toolchains`` -- a path-like or uninstalled
-request leaves the claim UNVERIFIABLE, because elan would execute a path
-directly and the checker does not substitute a toolchain the project did not
-ask for. A run that cannot recognize a host elan root next to its tools (a
+installed under ``<ELAN_HOME>/toolchains``: a path-like value is a form
+violation in the checked thing, so it is a DEFECT (elan would execute the
+path directly), while an uninstalled request stays UNVERIFIABLE (the checker
+does not substitute a toolchain the project did not ask for). A run that
+cannot recognize a host elan root next to its tools (a
 copied or wrapped elan binary looks like a plain one) gets a neutral, empty
 ``ELAN_HOME`` instead of ``HOME=<checkout>``, so nothing can be resolved from
 the inspected tree -- which repository code could also plant while the build
@@ -372,6 +376,43 @@ def _project_toolchain_file(start_dir):
         if parent == current:
             return None
         current = parent
+
+
+def _inside(path, root):
+    """Whether ``path`` lies inside ``root`` (directories resolved, the leaf not).
+
+    The final component stays unresolved: a committed ``lean-toolchain`` that
+    is a symlink to a host file is still a file of the checked tree -- only
+    its target lies outside.
+    """
+    resolved_root = os.path.realpath(root)
+    resolved = os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))
+    return resolved == resolved_root or resolved.startswith(resolved_root + os.sep)
+
+
+def _part_of_the_commit(ctx, commit, path, checkout):
+    """Whether the found ``lean-toolchain`` belongs to what the claim was pinned to.
+
+    Inside the throwaway checkout it always does. Above it, only a file the
+    repository committed at that path counts: the checkout lives under the
+    tested repository (``--tmp``), so a repository can commit the very
+    directory the checkout is made in -- that file is still the checked
+    thing's doing, not the host's. Everything else above the checkout is host
+    state and stays the environment's.
+    """
+    if _inside(path, checkout):
+        return True
+    if not ctx.repo or not _inside(path, ctx.repo):
+        return False
+    from bemyself import checks  # lazy: checks imports the type registry
+
+    root = os.path.realpath(ctx.repo)
+    candidate = os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))
+    proc = checks._run_git(
+        ["git", "-C", ctx.repo, "cat-file", "-e", f"{commit}:{os.path.relpath(candidate, root)}"],
+        checks.GIT_TIMEOUT,
+    )
+    return proc.returncode == 0
 
 
 def _toolchain_dir(value):
@@ -699,34 +740,15 @@ def check(claim, ctx):
             f"{path!r} is not a file in commit {commit[:12]} (object type {object_type!r})",
         )
 
-    lean, lean_pin, reason = _resolve_tool(ctx, "lean")
-    if lean is None:
-        return Result(
-            Verdict.UNVERIFIABLE,
-            reason=reason
-            or "lean is not available in PATH; the Lean proof cannot be checked",
-            cause=Cause.ENVIRONMENT,
-        )
-    leanchecker, checker_pin, reason = _resolve_tool(ctx, "leanchecker")
-    if leanchecker is None:
-        return Result(
-            Verdict.UNVERIFIABLE,
-            reason=reason
-            or "leanchecker is not available in PATH; the compiled proof cannot be "
-            "re-checked with Lean's kernel",
-            cause=Cause.ENVIRONMENT,
-        )
-    if not os.path.isfile(_QUERY_PROGRAM):
-        return Result(
-            Verdict.UNVERIFIABLE,
-            reason=f"the axiom query program is missing: {_QUERY_PROGRAM}",
-            cause=Cause.ENVIRONMENT,
-        )
-
     # `auto` deliberately behaves like `require` here: building and elaborating
     # Lean source executes code and a run outside the sandbox could fetch
     # dependencies over the network. Only an explicit --sandbox=off leaves the
-    # sandbox.
+    # sandbox. The gate itself fires after the form check below: whether the
+    # claim can be bound at all is a property of the checked thing, not of the
+    # host's sandbox capability -- a defect stays a defect on a host without
+    # bwrap. Everything that starts a Lean tool stays behind the gate; the
+    # throwaway checkout is made before it, because the form question needs
+    # the tree (making a checkout runs no repository code).
     mode = ctx.sandbox
     if mode not in checks.SANDBOX_MODES:
         return Result(
@@ -735,42 +757,25 @@ def check(claim, ctx):
             cause=Cause.ENVIRONMENT,
         )
     bwrap = None if mode == "off" else checks.find_bwrap()
+    gate_reason = None
     if mode != "off" and bwrap is None:
-        return Result(
-            Verdict.UNVERIFIABLE,
-            reason="a working sandbox is required to build Lean source "
+        gate_reason = (
+            "a working sandbox is required to build Lean source "
             "(it executes code and lake may fetch dependencies); bwrap is not "
-            "available in PATH. Pass --sandbox=off to run unsandboxed",
-            cause=Cause.ENVIRONMENT,
+            "available in PATH. Pass --sandbox=off to run unsandboxed"
         )
-    note = "sandboxed with bwrap" if bwrap is not None else "not sandboxed: --sandbox=off"
+    if mode == "off":
+        note = "not sandboxed: --sandbox=off"
+    elif bwrap is None:
+        note = "not sandboxed: bwrap is not available"
+    else:
+        note = "sandboxed with bwrap"
     note_suffix = f" ({note})"
 
-    # Every verdict names the tools that judged: the identity is the file's
-    # content digest, its version once known, and whether a manifest pinned
-    # it. The hash is cheap (the binaries are small) and it is the anchor the
-    # verdict text carries.
-    lean_tool, reason = _identify_tool("lean", lean, lean_pin)
-    if lean_tool is None:
-        return Result(
-            Verdict.UNVERIFIABLE, reason=reason + note_suffix, cause=Cause.ENVIRONMENT
-        )
-    checker_tool, reason = _identify_tool("leanchecker", leanchecker, checker_pin)
-    if checker_tool is None:
-        return Result(
-            Verdict.UNVERIFIABLE, reason=reason + note_suffix, cause=Cause.ENVIRONMENT
-        )
+    sandboxed = bwrap is not None
     lake_tool = None
     toolchain_pin = None
     tool_bin = None
-
-    def refresh_identity_note():
-        nonlocal note_suffix
-        tools = [tool for tool in (lean_tool, checker_tool, lake_tool) if tool is not None]
-        note_suffix = f" ({_tools_note(tools, toolchain_pin)}; {note})"
-
-    refresh_identity_note()
-
     try:
         os.makedirs(ctx.tmp_dir, exist_ok=True)
         checkout = tempfile.mkdtemp(prefix="lean-", dir=ctx.tmp_dir)
@@ -830,6 +835,106 @@ def check(claim, ctx):
         imports = _imports_of(source_text)
 
         project = _lake_project(checkout, os.path.dirname(real_file))
+        # A `lean-toolchain` file is a request, not an authority. A path-like
+        # value is refused whenever it is seen -- elan would execute the path
+        # directly, and that holds with or without an elan root. A value inside
+        # the checkout is present but violates the form a toolchain request
+        # must have, and that violation lies in the checked thing itself: the
+        # claim cannot bind, so it is a defect, never an environment boundary --
+        # and the form question is answered before the host's tools (and before
+        # the sandbox gate) decide whether the run can proceed at all. The
+        # lookup follows elan's upward search, so it can also find a file
+        # *above* the checkout (an untracked one in the tree the throwaway
+        # checkout lives in): that file is not part of the pinned commit, so
+        # the refusal stays the environment's -- but it still refuses, elan
+        # would find the value at run time. A well-formed request is only
+        # followed when an elan root can resolve it to an installed toolchain;
+        # with a manifest pin for lean, the request is not followed (the pin
+        # settles the toolchain).
+        toolchain_file = _project_toolchain_file(project or os.path.dirname(real_file))
+        request = None
+        value = ""
+        if toolchain_file is not None:
+            value = _toolchain_value(toolchain_file)
+            if value and not _TOOLCHAIN_RE.match(value):
+                # Never quote the value: the file may be a symlink to a host
+                # file outside the repository, and the verdict travels.
+                if not _part_of_the_commit(ctx, commit, toolchain_file, checkout):
+                    return Result(
+                        Verdict.UNVERIFIABLE,
+                        command_desc,
+                        "",
+                        f"a lean-toolchain file above the checkout (not part of the "
+                        f"pinned commit) holds a value of {len(value)} characters that is "
+                        f"not a toolchain name (authority/name:version); elan would "
+                        f"still find it, so the proof was not checked (the value is not "
+                        f"quoted: the file may point outside the repository)" + note_suffix,
+                        sandboxed=sandboxed,
+                        cause=Cause.ENVIRONMENT,
+                    )
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the project's lean-toolchain does not hold a toolchain name "
+                    f"(authority/name:version) but a value of {len(value)} characters; a "
+                    f"repository asks for a toolchain, it does not choose one (the value "
+                    f"is not quoted: the file may point outside the repository)" + note_suffix,
+                    sandboxed=sandboxed,
+                    cause=Cause.DEFECT,
+                )
+        if gate_reason is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                reason=gate_reason,
+                cause=Cause.ENVIRONMENT,
+            )
+        lean, lean_pin, reason = _resolve_tool(ctx, "lean")
+        if lean is None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                reason=reason
+                or "lean is not available in PATH; the Lean proof cannot be checked",
+                cause=Cause.ENVIRONMENT,
+            )
+        leanchecker, checker_pin, reason = _resolve_tool(ctx, "leanchecker")
+        if leanchecker is None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                reason=reason
+                or "leanchecker is not available in PATH; the compiled proof cannot be "
+                "re-checked with Lean's kernel",
+                cause=Cause.ENVIRONMENT,
+            )
+        if not os.path.isfile(_QUERY_PROGRAM):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                reason=f"the axiom query program is missing: {_QUERY_PROGRAM}",
+                cause=Cause.ENVIRONMENT,
+            )
+
+        # Every verdict names the tools that judged: the identity is the file's
+        # content digest, its version once known, and whether a manifest pinned
+        # it. The hash is cheap (the binaries are small) and it is the anchor the
+        # verdict text carries.
+        lean_tool, reason = _identify_tool("lean", lean, lean_pin)
+        if lean_tool is None:
+            return Result(
+                Verdict.UNVERIFIABLE, reason=reason + note_suffix, cause=Cause.ENVIRONMENT
+            )
+        checker_tool, reason = _identify_tool("leanchecker", leanchecker, checker_pin)
+        if checker_tool is None:
+            return Result(
+                Verdict.UNVERIFIABLE, reason=reason + note_suffix, cause=Cause.ENVIRONMENT
+            )
+
+        def refresh_identity_note():
+            nonlocal note_suffix
+            tools = [tool for tool in (lean_tool, checker_tool, lake_tool) if tool is not None]
+            note_suffix = f" ({_tools_note(tools, toolchain_pin)}; {note})"
+
+        refresh_identity_note()
+
         lake = None
         module = None
         build_dir = os.path.join(checkout, _BUILD_DIR)
@@ -929,8 +1034,6 @@ def check(claim, ctx):
             if os.path.isdir(packages) and not os.path.exists(packages_dest):
                 extra_binds.append((packages, packages_dest))
 
-        sandboxed = bwrap is not None
-
         def wrapped(argv, display, cwd):
             """(argv to run, display text) with the sandbox and its note."""
             if sandboxed:
@@ -984,31 +1087,7 @@ def check(claim, ctx):
                     sandboxed=sandboxed,
                     cause=Cause.ENVIRONMENT,
                 )
-        # A `lean-toolchain` file is a request, not an authority. A path-like
-        # value is refused whenever it is seen -- elan would execute the path
-        # directly, and that holds with or without an elan root. A well-formed
-        # request is only followed when an elan root can resolve it to an
-        # installed toolchain; with a manifest pin for lean, the request is
-        # not followed (the pin settles the toolchain).
-        toolchain_file = _project_toolchain_file(project or os.path.dirname(real_file))
-        request = None
-        if toolchain_file is not None:
-            value = _toolchain_value(toolchain_file)
-            if value and not _TOOLCHAIN_RE.match(value):
-                # Never quote the value: the file may be a symlink to a host
-                # file outside the repository, and the verdict travels.
-                return Result(
-                    Verdict.UNVERIFIABLE,
-                    command_desc,
-                    "",
-                    f"the project's lean-toolchain does not hold a toolchain name "
-                    f"(authority/name:version) but a value of {len(value)} characters; a "
-                    f"repository asks for a toolchain, it does not choose one (the value "
-                    f"is not quoted: the file may point outside the repository)" + note_suffix,
-                    sandboxed=sandboxed,
-                    cause=Cause.ENVIRONMENT,
-                )
-            request = (value or None) if lean_pin is None else None
+        request = (value or None) if lean_pin is None else None
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
             # The operator's explicit choice wins. Otherwise the request is
@@ -1367,35 +1446,43 @@ def check(claim, ctx):
         # elan executes a path-like value directly -- without consulting
         # ELAN_HOME. So the file is looked up once more before anything is
         # judged; the refusal mirrors the check above (a path-like value is
-        # never legitimate, a well-formed value only matters while nothing
-        # settles the toolchain).
+        # never legitimate -- a form violation in the checked thing, so a
+        # defect; a well-formed value only matters while nothing settles the
+        # toolchain -- that absence stays the environment's).
         late_file = _project_toolchain_file(project or os.path.dirname(real_file))
-        if late_file is not None and not neutral_elan:
+        if late_file is not None:
             late_value = _toolchain_value(late_file)
             if late_value and not _TOOLCHAIN_RE.match(late_value):
+                if _part_of_the_commit(ctx, commit, late_file, checkout):
+                    return Result(
+                        Verdict.UNVERIFIABLE,
+                        command_desc,
+                        "",
+                        f"the checkout holds a lean-toolchain file with a path-like value "
+                        f"that the run cannot be pinned against; elan would execute the "
+                        f"path, so the proof was not checked" + note_suffix,
+                        sandboxed=sandboxed,
+                        cause=Cause.DEFECT,
+                    )
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"the checkout holds a lean-toolchain file with a path-like value that "
-                    f"the run cannot be pinned against; elan would execute the path, so the "
-                    f"proof was not checked" + note_suffix,
+                    f"a lean-toolchain file above the checkout (not part of the pinned "
+                    f"commit) holds a path-like value elan would execute; the proof was "
+                    f"not checked" + note_suffix,
                     sandboxed=sandboxed,
                     cause=Cause.ENVIRONMENT,
                 )
-        if late_file is not None and neutral_elan:
-            late_value = _toolchain_value(late_file)
-            if late_value and (
-                not _TOOLCHAIN_RE.match(late_value) or lean_pin is None
-            ):
+            if neutral_elan and late_value and lean_pin is None:
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
                     f"the checkout holds a lean-toolchain file the run cannot be pinned "
-                    f"against (a path-like value, or no host-side elan root next to the "
-                    f"tools); elan would resolve the toolchain from the inspected tree, so "
-                    f"the proof was not checked" + note_suffix,
+                    f"against (no host-side elan root next to the tools); elan would "
+                    f"resolve the toolchain from the inspected tree, so the proof was "
+                    f"not checked" + note_suffix,
                     sandboxed=sandboxed,
                     cause=Cause.ENVIRONMENT,
                 )

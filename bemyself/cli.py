@@ -31,8 +31,9 @@ EXIT_REFUTED = 1
 EXIT_ERROR = 2
 EXIT_NOTHING = 3
 EXIT_STRICT = 4
-# A defective claim (the report's own fault) fails in both modes: the gate
-# must see "the report is broken", not a boundary of the run.
+# A defective claim -- the report or the checked thing violates a required
+# form -- fails in both modes: the gate must see "the claim cannot bind",
+# not a boundary of the run.
 EXIT_DEFECT = 5
 # A claim a budget kept from being executed fails only under --strict, but
 # with its own code: "could not check" is not "checked and failed".
@@ -116,8 +117,9 @@ def build_parser():
             "1 = at least one REFUTED; 2 = error; 3 = nothing CONFIRMED; "
             "4 = --strict, nothing REFUTED, at least one CONFIRMED and at "
             "least one UNVERIFIABLE; 5 = at least one defective claim (the "
-            "report is at fault: an unknown marker, a class its profile "
-            "requires, a malformed binding; fails with and without --strict); "
+            "report or the checked thing violates a required form - an "
+            "unknown marker, a class its profile requires, a malformed "
+            "binding; fails with and without --strict); "
             "6 = --strict, nothing REFUTED and at least one claim a budget "
             "kept from being executed. "
             "Exit 0 does not mean every claim was proven - read the summary "
@@ -379,8 +381,9 @@ def class_summary(results):
 def executed_count(results):
     """Claims whose check ran: everything but defects and exhausted budgets.
 
-    A defect names nothing to execute and a limit stopped the execution; the
-    environment and residual classes had their check attempted.
+    A defect leaves nothing to judge -- the claim cannot bind -- and a limit
+    stopped the execution; the environment and residual classes had their
+    check attempted.
     """
     return sum(
         1 for _, result in results if result.cause not in (Cause.DEFECT, Cause.LIMIT)
@@ -392,8 +395,8 @@ def exit_code(results, strict=False):
     if Verdict.REFUTED in verdicts:
         return EXIT_REFUTED
     if any(result.cause is Cause.DEFECT for _, result in results):
-        # A defective report fails in both modes; the defect is the report's
-        # own fault, not a boundary of the run.
+        # A defect fails in both modes; it is a form violation in the report
+        # or in the checked thing, not a boundary of the run.
         return EXIT_DEFECT
     if strict and any(result.cause is Cause.LIMIT for _, result in results):
         # "Could not check because of a budget" is not "checked and could not

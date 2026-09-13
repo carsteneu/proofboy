@@ -1352,7 +1352,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
 
 
 def check_unknown_marker(claim: Claim, ctx: Ctx) -> Result:
-    """A marker token no registered claim type claims: the report is at fault.
+    """A marker token no registered claim type claims: a form violation.
 
     The report parser (bemyself/report.py) emits this claim; nothing about it
     can be checked against the world, so the verdict is the defect itself.
