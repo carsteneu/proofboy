@@ -29,7 +29,7 @@ from bemyself.claimtypes import lean
 from bemyself.checks import Ctx, kind_needs_repo, run_claim
 from bemyself.model import Verdict
 from bemyself.report import parse_report
-from tests.fixtures import commit_probe, make_repo
+from tests.fixtures import _git, commit_probe, make_repo
 
 _ELAN_BIN = os.path.join(os.path.expanduser("~"), ".elan", "bin")
 _LEAN = shutil.which("lean")
@@ -79,7 +79,7 @@ case "$1" in
     ;;
 esac
 if [ "$mode" = version ]; then
-  printf '%s\\n' 'Lean (version 4.33.1, fake, Release)'
+  if [ -f "$dir/version.out" ]; then cat "$dir/version.out"; else printf '%s\\n' 'Lean (version 4.33.1, fake, Release)'; fi
   exit 0
 fi
 if [ "$mode" = libdir ]; then
@@ -98,6 +98,11 @@ if [ "$mode" = build ] && [ -d .lake/build ]; then
 fi
 if [ "$mode" = query ] && [ -f "$dir/dump.env" ]; then
   printf '%s|%s|%s|%s\\n' "$ELAN_HOME" "$ELAN_TOOLCHAIN" "$LEAN_PATH" "$HOME" >> "$dir/env.copy"
+fi
+if [ "$mode" = recheck ] && [ -f "$dir/derive.path" ]; then
+  # The launcher resolves `lean` by name from PATH; the test asserts where
+  # that lookup lands.
+  command -v lean > "$dir/derive.path" 2>/dev/null || true
 fi
 [ -f "$dir/$f.sleep" ] && sleep 30
 [ -f "$dir/$f.out" ] && cat "$dir/$f.out"
@@ -968,8 +973,11 @@ class LeanCheckTest(unittest.TestCase):
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("./evil", result.reason)
-        self.assertIn("is not a toolchain name", result.reason)
+        # The value itself is never quoted into the verdict: the committed
+        # file may be a symlink to any host file the checker can read.
+        self.assertNotIn("./evil", result.reason)
+        self.assertIn("does not hold a toolchain name", result.reason)
+        self.assertIn("is not quoted", result.reason)
 
     def test_a_toolchain_request_that_is_not_installed_is_refused(self):
         # P17 (a): only a request that resolves to an installed toolchain is
@@ -1041,8 +1049,11 @@ class LeanCheckTest(unittest.TestCase):
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("./evil", result.reason)
-        self.assertIn("is not a toolchain name", result.reason)
+        # The value itself is never quoted into the verdict: the committed
+        # file may be a symlink to any host file the checker can read.
+        self.assertNotIn("./evil", result.reason)
+        self.assertIn("does not hold a toolchain name", result.reason)
+        self.assertIn("is not quoted", result.reason)
 
     def test_a_toolchain_resolution_failure_at_the_build_stage_is_unverifiable(self):
         # P17 (b) at stage 1: the lake build fails because the toolchain
@@ -1113,9 +1124,12 @@ class LeanCheckTest(unittest.TestCase):
         return _sha256(path)
 
     def test_a_manifest_pin_beats_the_repositorys_toolchain_request(self):
-        # P17 (c): the manifest is host authority. The repository asks for
-        # ./evil; the pinned tools run, the request is not even consulted.
-        repo, commit = self.toolchain_repo("manifest-wins", "./evil", decoy=True)
+        # P17 (c): the manifest is host authority. The repository requests a
+        # toolchain that is not installed; the manifest settles the toolchain,
+        # so the request is not even consulted and the claim is judged.
+        repo, commit = self.toolchain_repo(
+            "manifest-wins", "leanprover/lean4:v9.99.9", decoy=True
+        )
         bin_dir = self.answering(self.fake())
         tools = self.write_manifest(
             {
@@ -1129,7 +1143,182 @@ class LeanCheckTest(unittest.TestCase):
             )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         self.assertIn("[pinned]", result.reason)
-        self.assertNotIn("not a toolchain name", result.reason)
+        self.assertNotIn("not installed", result.reason)
+
+    def test_a_path_like_request_is_refused_even_with_a_manifest_pin(self):
+        # A path-like value is never a legitimate toolchain request, so it is
+        # refused before the manifest is consulted at all.
+        repo, commit = self.toolchain_repo("manifest-path", "./evil", decoy=True)
+        bin_dir = self.answering(self.fake())
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(bin_dir, "lean"), None, None),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("does not hold a toolchain name", result.reason)
+
+    def test_elan_is_recognized_through_a_shim_beside_a_concrete_lean(self):
+        # Fix for the review finding: with lean pinned to a concrete binary
+        # and leanchecker left on an elan shim, the toolchain root must still
+        # be handed over -- otherwise the shim resolves its toolchain through
+        # HOME=<checkout>, which the repository owns.
+        repo, commit = self.probe_repo("shim-beside-pin", _PROOF)
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        concrete = os.path.join(self._tmp.name, "concrete-bin", self._testMethodName)
+        os.makedirs(concrete, exist_ok=True)
+        shutil.copyfile(os.path.join(bin_dir, "lean"), os.path.join(concrete, "lean"))
+        os.chmod(os.path.join(concrete, "lean"), 0o755)
+        with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
+            handle.write("dump\n")
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(concrete, "lean"), None, None),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_HOME", None)
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
+            elan_home, toolchain = handle.read().splitlines()[-1].split("|")[:2]
+        self.assertEqual(elan_home, os.path.dirname(bin_dir))
+        self.assertEqual(toolchain, "leanprover/lean4:v4.33.1")
+
+    def test_a_version_pin_without_a_readable_version_is_unverifiable(self):
+        # A pinned version must be confirmed by the running tool; a tool that
+        # reports nothing parseable cannot confirm anything.
+        repo, commit = self.probe_repo("version-unreadable", _PROOF)
+        bin_dir = self.answering(
+            self.fake(**{"version.out": "Lean (development build)\n"})
+        )
+        tools = self.write_manifest(
+            {
+                "lean": (
+                    os.path.join(bin_dir, "lean"),
+                    "4.33.1",
+                    self.sha(os.path.join(bin_dir, "lean")),
+                ),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("no parseable version", result.reason)
+
+    def test_a_leanchecker_version_pin_is_confirmed_by_the_toolchain(self):
+        # leanchecker has no version probe; a pinned version counts when it
+        # matches the toolchain beside lean, and the verdict names it.
+        repo, commit = self.probe_repo("checker-version-pin", _PROOF)
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(bin_dir, "lean"), None, None),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), "4.33.1", None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("leanchecker 4.33.1 sha256:", result.reason)
+        self.assertIn("[pinned]", result.reason)
+
+    def test_the_launchers_resolve_lean_through_the_checker_owned_path(self):
+        # The launchers call `lean` by name; that lookup must land on the
+        # identified tool, not on whatever PATH offers.
+        repo, commit = self.probe_repo("derive-path", _PROOF)
+        bin_dir = self.answering(self.fake())
+        probe = os.path.join(bin_dir, "derive.path")
+        with open(probe, "w", encoding="utf-8") as handle:
+            handle.write("")
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(probe, encoding="utf-8") as handle:
+            derived = handle.read().strip()
+        self.assertEqual(os.path.basename(derived), "lean")
+        self.assertNotEqual(os.path.dirname(derived), bin_dir)
+        # The run's own tool directory (cleaned up afterwards) was the one
+        # that answered the lookup.
+        self.assertIn("lean-tool-bin-", os.path.dirname(derived))
+
+    def test_a_file_quoting_a_toolchain_phrase_is_still_refuted(self):
+        # The review finding: quoting one of elan's lines must not turn a
+        # refutation into UNVERIFIABLE. The file's own error wins.
+        repo, commit = self.probe_repo("phrase-dodge", _SORRY)
+        output = (
+            "error: lean/Proof.lean:3:9: Application type mismatch\n"
+            '  exact "error: invalid toolchain name"\n'
+            "error: invalid toolchain name\n"
+        )
+        bin_dir = self.fake(**{"build.out": output, "build.rc": "1\n"})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+
+    def test_a_symlinked_toolchain_file_does_not_leak_host_content(self):
+        # The committed file may be a symlink to any host file the checker
+        # can read; its content must never reach the verdict.
+        repo, commit = self.probe_repo("symlink-leak", _PROOF)
+        secret = os.path.join(self._tmp.name, "host-secret.txt")
+        with open(secret, "w", encoding="utf-8") as handle:
+            handle.write("P17-CANARY-SECRET=sk-live-abcdef123456\n")
+        link = os.path.join(repo.path, "lean", "lean-toolchain")
+        if os.path.exists(link):
+            os.unlink(link)
+        os.symlink(secret, link)
+        _git(repo.path, "add", "-A")
+        _git(repo.path, "commit", "-q", "-m", "toolchain file as a symlink")
+        commit = _git(repo.path, "rev-parse", "HEAD").stdout.strip()
+        bin_dir = self.answering(self.fake())
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertNotIn("P17-CANARY-SECRET", result.reason)
+        self.assertIn("does not hold a toolchain name", result.reason)
+
+    def test_tool_bin_dir_cleans_up_after_a_failed_link(self):
+        # A half-built tool directory must not stay behind: the second link
+        # fails (its name has a path part), the first one is already there.
+        before = set(os.listdir(self._tmp.name))
+        with self.assertRaises(OSError):
+            lean._tool_bin_dir(
+                self._tmp.name,
+                [
+                    lean._Tool("lean", "/bin/echo", "sha256:" + "a" * 64, None, False),
+                    lean._Tool("sub/lake", "/bin/true", "sha256:" + "b" * 64, None, False),
+                ],
+            )
+        left = [
+            name
+            for name in set(os.listdir(self._tmp.name)) - before
+            if name.startswith("lean-tool-bin-")
+        ]
+        self.assertEqual(left, [])
 
     def test_a_manifest_pin_names_the_pinned_digest_in_the_verdict(self):
         repo, commit = self.probe_repo("manifest-identity", _PROOF)
@@ -1413,23 +1602,71 @@ class LeanLiveTest(unittest.TestCase):
             "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="off")
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("./evil", result.reason)
+        self.assertNotIn("./evil", result.reason)
+        self.assertIn("does not hold a toolchain name", result.reason)
         self.assertEqual(self.marker_lines(marker), [])
 
     def test_a_manifest_pin_keeps_the_decoy_out_of_the_run(self):
-        # P17 (b): the pinned toolchain launchers resolve `lean` through PATH;
-        # the run's own tool directory must keep that lookup away from the
-        # elan shim, which would otherwise read the repository's toolchain
-        # file and run the decoy. Unsandboxed so the marker is observable.
-        marker = os.path.join(self._tmp.name, "decoy-marker-manifest.txt")
+        # The review finding, live: lean is pinned to a concrete toolchain
+        # binary while leanchecker stays an elan shim, and the repository
+        # ships .elan/settings.toml pointing its default toolchain at its own
+        # decoy. Left to itself, the shim would resolve through
+        # HOME=<checkout> and run it; the run must hand over the host root
+        # instead. Unsandboxed so the marker is observable.
+        marker = os.path.join(self._tmp.name, "decoy-marker-settings.txt")
         self.clear_marker(marker)
         bin_dir = self.toolchain_bin()
         if bin_dir is None:
             self.skipTest("the toolchain's own bin directory is not derivable")
-        repo, commit = self.hostile_repo("live-toolchain-manifest", marker)
+        checker_shim = os.path.join(os.path.dirname(os.path.realpath(_LEAN)), "leanchecker")
+        if not os.path.isfile(checker_shim):
+            self.skipTest("no leanchecker beside the lean shim")
+        repo = make_repo(os.path.join(self._tmp.name, "live-toolchain-settings"))
+        self.clear_marker(marker)
+        commit_probe(repo, "evil/bin/lean", self.decoy(marker))
+        os.chmod(os.path.join(repo.path, "evil/bin/lean"), 0o755)
+        commit_probe(repo, "evil/bin/leanchecker", self.decoy(marker))
+        os.chmod(os.path.join(repo.path, "evil/bin/leanchecker"), 0o755)
+        commit_probe(repo, ".elan/settings.toml", 'default_toolchain = "./evil"\n')
+        commit_probe(repo, "lean/Proof.lean", _PROOF)
+        commit = commit_probe(
+            repo, "lean/lean-toolchain", f"leanprover/lean4:v{self.toolchain}\n"
+        )
         manifest = _write_manifest(
             os.path.join(self._tmp.name, "live-manifests"),
             "pins.toml",
+            {
+                "lean": (
+                    os.path.join(bin_dir, "lean"),
+                    self.toolchain,
+                    _sha256(os.path.join(bin_dir, "lean")),
+                ),
+                "leanchecker": (
+                    checker_shim,
+                    None,
+                    _sha256(checker_shim),
+                ),
+            },
+        )
+        result = self.check_report(
+            "lean/Proof.lean",
+            "fixture_proven",
+            commit,
+            self.ctx(repo.path, sandbox="off", tools=toolmanifest.load(manifest)),
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("[pinned]", result.reason)
+        self.assertEqual(self.marker_lines(marker), [])
+
+    def test_a_shim_manifest_pin_judges_inside_the_sandbox(self):
+        # The common host setup: the manifest pins the elan shims themselves.
+        repo, commit = self.probe_repo("live-shim-manifest", _PROOF)
+        if _BWRAP is None:
+            self.skipTest("bwrap is not available")
+        bin_dir = os.path.dirname(os.path.realpath(_LEAN))
+        manifest = _write_manifest(
+            os.path.join(self._tmp.name, "live-manifests"),
+            "shims.toml",
             {
                 name: (
                     os.path.join(bin_dir, name),
@@ -1443,11 +1680,11 @@ class LeanLiveTest(unittest.TestCase):
             "lean/Proof.lean",
             "fixture_proven",
             commit,
-            self.ctx(repo.path, sandbox="off", tools=toolmanifest.load(manifest)),
+            self.ctx(repo.path, sandbox="auto", tools=toolmanifest.load(manifest)),
         )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("sandboxed with bwrap", result.reason)
         self.assertIn("[pinned]", result.reason)
-        self.assertEqual(self.marker_lines(marker), [])
 
     def test_a_lake_projects_toolchain_request_is_refused_before_any_build(self):
         marker = os.path.join(self._tmp.name, "decoy-marker-lake.txt")
@@ -1459,7 +1696,8 @@ class LeanLiveTest(unittest.TestCase):
             "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("./evil", result.reason)
+        self.assertNotIn("./evil", result.reason)
+        self.assertIn("does not hold a toolchain name", result.reason)
         self.assertEqual(self.marker_lines(marker), [])
 
     # --- the acceptance matrix --------------------------------------------

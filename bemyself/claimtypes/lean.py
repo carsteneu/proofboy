@@ -171,11 +171,14 @@ _TOOLCHAIN_RE = re.compile(
 )
 # elan's failure lines when a toolchain cannot be resolved: an environment
 # defect, never evidence against the claim -- such a run stays UNVERIFIABLE
-# in every stage, it is never reported as a compile error of the file.
+# in every stage, it is never reported as a compile error of the file. The
+# patterns are anchored to elan's own diagnostic shape (`error: ...` at the
+# start of a line) so that compile output quoting one of the phrases inside a
+# checked file cannot dress a refutation up as an environment failure.
 _TOOLCHAIN_FAILURE_RE = re.compile(
-    r"no Lean toolchain found at '|invalid toolchain name|no such release: '|"
-    r"no default toolchain configured|override toolchain is not installed|"
-    r"toolchain does not contain binary"
+    r"(?m)^(?:error: )?(?:no Lean toolchain found at '|invalid toolchain name|"
+    r"empty toolchain file '|no such release: '|no default toolchain configured|"
+    r"override toolchain is not installed|toolchain does not contain binary)"
 )
 # Commands that execute code while the file is elaborated. A file containing
 # them cannot be vouched for: the build it drives may write artifacts or
@@ -306,19 +309,28 @@ def _missing_dependency(text, imports):
     return None
 
 
-def _elan_home(lean_path):
-    """The elan root for the toolchain, when the binary is an elan shim.
+def _elan_home(tool_path):
+    """The elan root behind a tool path, when the file is an elan shim.
 
-    The shim resolves its toolchains through ``$HOME/.elan``; runs use
-    ``HOME=<checkout>`` for isolation, so the root must be passed explicitly.
+    A shim resolves its toolchains through ``ELAN_HOME`` (falling back to
+    ``$HOME/.elan``); runs use ``HOME=<checkout>`` for isolation, so the root
+    must be passed explicitly -- otherwise a repository could ship its own
+    ``.elan/settings.toml``. A tool path is an elan shim when the ``elan``
+    binary sits next to it. Every resolved tool is checked, not only ``lean``:
+    a run that pins ``lean`` to a concrete binary still hands ``leanchecker``
+    and ``lake`` to elan when those are shims.
     """
     candidate = os.environ.get("ELAN_HOME")
     if candidate and os.path.isdir(candidate):
         return candidate
-    binary = os.path.realpath(lean_path)
+    binary = os.path.realpath(tool_path)
     bin_dir = os.path.dirname(binary)
     root = os.path.dirname(bin_dir)
-    if os.path.basename(bin_dir) == "bin" and os.path.isdir(os.path.join(root, "toolchains")):
+    if os.path.basename(bin_dir) != "bin":
+        return None
+    if os.path.isfile(os.path.join(bin_dir, "elan")):
+        return root
+    if os.path.isdir(os.path.join(root, "toolchains")):
         return root
     return None
 
@@ -362,11 +374,17 @@ def _toolchain_dir(value):
     return value.replace("/", "--").replace(":", "---")
 
 
-def _toolchain_value(toolchain_file):
-    """The first-line value of a ``lean-toolchain`` file, else ""."""
+def _toolchain_value(toolchain_file, limit=512):
+    """The first-line value of a ``lean-toolchain`` file, else "".
+
+    Read bounded and lossily: the committed file may be a symlink to any host
+    file the checker can read (``/proc/self/environ`` included), so a long or
+    non-UTF-8 first "line" must neither exhaust memory nor raise. The value is
+    only ever quoted into a verdict once it passed the toolchain-name pattern.
+    """
     try:
-        with open(toolchain_file, encoding="utf-8") as handle:
-            return handle.readline().strip()
+        with open(toolchain_file, encoding="utf-8", errors="replace") as handle:
+            return handle.readline(limit).strip()
     except OSError:
         return ""
 
@@ -409,7 +427,12 @@ def _resolve_tool(ctx, name):
 
 
 class _Tool(namedtuple("_ToolBase", "name path digest version pinned")):
-    """One identified tool: the file that ran, and what it provably is."""
+    """One identified tool: the file that ran, and what it provably is.
+
+    ``version`` is the observed version (or the one derived from the
+    toolchain), never the manifest's claim -- a pin is enforced against it,
+    not displayed for it.
+    """
 
     __slots__ = ()
 
@@ -441,7 +464,7 @@ def _identify_tool(name, path, pin=None):
             f"{toolmanifest.DIGEST_PREFIX}{toolmanifest.short_digest(digest)}; the tool "
             f"that would judge is not the pinned one"
         )
-    return _Tool(name, path, digest, pin.version if pin is not None else None, pin is not None), None
+    return _Tool(name, path, digest, None, pin is not None), None
 
 
 def _tools_note(tools, toolchain):
@@ -462,8 +485,16 @@ def _tool_bin_dir(tmp_dir, tools):
     every name points at exactly the tool the verdict names.
     """
     directory = tempfile.mkdtemp(prefix="lean-tool-bin-", dir=tmp_dir)
-    for tool in tools:
-        os.symlink(tool.path, os.path.join(directory, tool.name))
+    try:
+        if os.pathsep in directory:
+            raise OSError(
+                f"the temporary directory name contains {os.pathsep!r}: {directory!r}"
+            )
+        for tool in tools:
+            os.symlink(tool.path, os.path.join(directory, tool.name))
+    except OSError:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
     return directory
 
 
@@ -718,7 +749,7 @@ def check(claim, ctx):
     except OSError as exc:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}",
+            reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}" + note_suffix,
         )
     command_desc = f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && "
     try:
@@ -731,7 +762,7 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 checks._output(clone),
-                reason="could not create a clean checkout",
+                reason="could not create a clean checkout" + note_suffix,
             )
         co = checks._run_git(
             ["git", "-C", checkout, "checkout", "--quiet", commit], checks.GIT_TIMEOUT
@@ -741,7 +772,7 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 checks._output(co),
-                reason=f"could not check out {commit}",
+                reason=f"could not check out {commit}" + note_suffix,
             )
 
         file_path = os.path.join(checkout, path)
@@ -752,14 +783,14 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
-                f"the path {path!r} resolves outside the checkout",
+                f"the path {path!r} resolves outside the checkout" + note_suffix,
             )
         if not os.path.isfile(real_file):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
-                f"the file {path!r} is not in the checkout",
+                f"the file {path!r} is not in the checkout" + note_suffix,
             )
         with open(real_file, encoding="utf-8", errors="replace") as handle:
             source_text = handle.read()
@@ -777,16 +808,17 @@ def check(claim, ctx):
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    reason
+                    (reason
                     or f"the file is part of a Lake project at "
-                    f"{os.path.relpath(project, checkout)!r} but lake is not available in PATH",
+                    f"{os.path.relpath(project, checkout)!r} but lake is not available in PATH")
+                    + note_suffix,
                 )
             if module is None:
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"cannot derive the Lake module name of {path!r}",
+                    f"cannot derive the Lake module name of {path!r}" + note_suffix,
                 )
             lake_tool, reason = _identify_tool("lake", lake, lake_pin)
             if lake_tool is None:
@@ -799,7 +831,7 @@ def check(claim, ctx):
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"the file name of {path!r} is not a Lean module name",
+                    f"the file name of {path!r} is not a Lean module name" + note_suffix,
                 )
             try:
                 os.makedirs(build_dir, exist_ok=True)
@@ -808,7 +840,7 @@ def check(claim, ctx):
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"cannot create the build directory in the checkout: {exc}",
+                    f"cannot create the build directory in the checkout: {exc}" + note_suffix,
                 )
 
         # Elaboration-time code execution makes the build uncontrollable: the
@@ -834,7 +866,8 @@ def check(claim, ctx):
                     command_desc,
                     "",
                     f"{what} executes code at elaboration time ({match.group(0).strip()!r}); "
-                    f"a build of it cannot be vouched for, so the proof is not checked",
+                    f"a build of it cannot be vouched for, so the proof is not checked"
+                    + note_suffix,
                 )
 
         # A working-tree dependency cache is bound read-only when the fresh
@@ -875,7 +908,16 @@ def check(claim, ctx):
                 f"cannot prepare the tool directory for the run: {exc}" + note_suffix,
             )
         env["PATH"] = tool_bin + os.pathsep + env["PATH"]
-        elan_home = _elan_home(lean)
+        # Any shim among the resolved tools puts elan in play: ELAN_HOME must
+        # then point at the host root, or the shim would resolve its toolchain
+        # through HOME=<checkout>, where the repository owns .elan/settings.toml.
+        elan_home = None
+        for tool in (lean_tool, checker_tool, lake_tool):
+            if tool is None:
+                continue
+            elan_home = _elan_home(tool.path)
+            if elan_home is not None:
+                break
         # A `lean-toolchain` file is a request, not an authority. A path-like
         # value is refused whenever it is seen -- elan would execute the path
         # directly, and that holds with or without an elan root. A well-formed
@@ -884,19 +926,24 @@ def check(claim, ctx):
         # request is then not even read.
         toolchain_file = _project_toolchain_file(project or os.path.dirname(real_file))
         request = None
-        if toolchain_file is not None and lean_pin is None:
+        if toolchain_file is not None:
             value = _toolchain_value(toolchain_file)
             if value and not _TOOLCHAIN_RE.match(value):
+                # Never quote the value: the file may be a symlink to a host
+                # file outside the repository, and the verdict travels.
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"the project's lean-toolchain requests the toolchain {value!r}, which is "
-                    f"not a toolchain name (authority/name:version); a repository asks for a "
-                    f"toolchain, it does not choose one" + note_suffix,
+                    f"the project's lean-toolchain does not hold a toolchain name "
+                    f"(authority/name:version) but a value of {len(value)} characters; a "
+                    f"repository asks for a toolchain, it does not choose one (the value "
+                    f"is not quoted: the file may point outside the repository)" + note_suffix,
                     sandboxed=sandboxed,
                 )
-            request = value or None
+            # A manifest pin for lean settles the toolchain, so the file is
+            # then not even read.
+            request = (value or None) if lean_pin is None else None
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
             # The operator's explicit choice wins. Otherwise the request is
@@ -986,15 +1033,24 @@ def check(claim, ctx):
             )
         toolchain = _toolchain_name(run.head) or _toolchain_name(run.tail) or "Lean"
         lean_version = _tool_version(run.head) or _tool_version(run.tail)
-        if lean_pin is not None and lean_pin.version and lean_version and not _same_version(
-            lean_version, lean_pin.version
-        ):
-            return unverifiable(
-                run,
-                shown,
-                f"the tool manifest pins lean to version {lean_pin.version}, but {lean} "
-                f"reports {lean_version}; the tool that would judge is not the pinned one",
-            )
+        if lean_pin is not None and lean_pin.version:
+            # A pinned version must be confirmed by the running tool; a tool
+            # that reports nothing parseable cannot confirm anything.
+            if not lean_version:
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the tool manifest pins lean to version {lean_pin.version}, but {lean} "
+                    f"reported no parseable version; the tool that would judge cannot be "
+                    f"confirmed as the pinned one",
+                )
+            if not _same_version(lean_version, lean_pin.version):
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the tool manifest pins lean to version {lean_pin.version}, but {lean} "
+                    f"reports {lean_version}; the tool that would judge is not the pinned one",
+                )
         if lean_version:
             lean_tool = lean_tool._replace(version=lean_version)
             # leanchecker has no usable version probe (`leanchecker --version`
@@ -1007,6 +1063,23 @@ def check(claim, ctx):
             ):
                 checker_tool = checker_tool._replace(version=lean_version)
             refresh_identity_note()
+        if checker_pin is not None and checker_pin.version:
+            # leanchecker reports no version of its own, so a pinned version
+            # can only be confirmed when it could be derived from lean --
+            # otherwise the checker would display an unverified version.
+            if not (
+                checker_tool.version
+                and _same_version(checker_tool.version, checker_pin.version)
+            ):
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the tool manifest pins leanchecker to version {checker_pin.version}, "
+                    f"but no version could be derived for {leanchecker!r} "
+                    f"({'lean reports ' + lean_version if lean_version else 'lean reports no parseable version'}"
+                    f", or leanchecker is not the toolchain beside lean); the tool that "
+                    f"would judge cannot be confirmed as the pinned one",
+                )
         # The toolchain's own library directory is the first LEAN_PATH entry:
         # the inspected tree must not be able to shadow the toolchain modules
         # the query program imports.
@@ -1050,19 +1123,23 @@ def check(claim, ctx):
                     f"the Lake toolchain could not run ({lake_preflight[0]} --version): {detail}",
                 )
             lake_version = _tool_version(run.head) or _tool_version(run.tail)
-            if (
-                lake_pin is not None
-                and lake_pin.version
-                and lake_version
-                and not _same_version(lake_version, lake_pin.version)
-            ):
-                return unverifiable(
-                    run,
-                    shown,
-                    f"the tool manifest pins lake to version {lake_pin.version}, but "
-                    f"{lake} reports {lake_version}; the tool that would judge is not "
-                    f"the pinned one",
-                )
+            if lake_pin is not None and lake_pin.version:
+                if not lake_version:
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"the tool manifest pins lake to version {lake_pin.version}, but "
+                        f"{lake} reported no parseable version; the tool that would judge "
+                        f"cannot be confirmed as the pinned one",
+                    )
+                if not _same_version(lake_version, lake_pin.version):
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"the tool manifest pins lake to version {lake_pin.version}, but "
+                        f"{lake} reports {lake_version}; the tool that would judge is not "
+                        f"the pinned one",
+                    )
             if lake_version:
                 lake_tool = lake_tool._replace(version=lake_version)
                 refresh_identity_note()
@@ -1080,7 +1157,7 @@ def check(claim, ctx):
                     command_desc,
                     "",
                     f"the build directory {build_root!r} resolves outside the checkout; "
-                    f"it was not touched",
+                    f"it was not touched" + note_suffix,
                 )
             build = [lake, "build", module]
             cwd = project
@@ -1100,15 +1177,6 @@ def check(claim, ctx):
                 if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
                     return unverifiable(
                         run, shown, f"the sandbox could not run the command: {first}"
-                    )
-                if _TOOLCHAIN_FAILURE_RE.search(combined):
-                    # A toolchain that cannot be resolved is an environment
-                    # defect, never evidence against the claim.
-                    return unverifiable(
-                        run,
-                        shown,
-                        f"the Lean toolchain could not be resolved; the build was not "
-                        f"checked: {first}",
                     )
                 if extra_binds and _READONLY_CACHE_RE.search(combined):
                     return unverifiable(
@@ -1132,6 +1200,15 @@ def check(claim, ctx):
                         shown,
                         f"the file does not compile: {first}",
                         output=checks._last_lines(combined),
+                    )
+                if _TOOLCHAIN_FAILURE_RE.search(combined):
+                    # Unresolvable toolchain, no file blamed: an environment
+                    # defect, never evidence against the claim.
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"the Lean toolchain could not be resolved; the build was not "
+                        f"checked: {first}",
                     )
                 return unverifiable(
                     run,
@@ -1178,7 +1255,7 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
-                f"the file name of {path!r} is not a Lean module name",
+                f"the file name of {path!r} is not a Lean module name" + note_suffix,
             )
         if not _discard_path(build_dir, checkout):
             return Result(
@@ -1186,7 +1263,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"the build directory {build_dir!r} resolves outside the checkout; "
-                f"it was not touched",
+                f"it was not touched" + note_suffix,
             )
         evidence_dir = os.path.join(build_dir, "evidence")
         evidence_file = os.path.join(evidence_dir, f"{evidence_name}.lean")
@@ -1199,7 +1276,7 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
-                f"cannot prepare the evidence directory in the checkout: {exc}",
+                f"cannot prepare the evidence directory in the checkout: {exc}" + note_suffix,
             )
         compile_cmd = [lean, "-R", evidence_dir, "-o", artifact, evidence_file]
         cwd = evidence_dir
@@ -1223,9 +1300,13 @@ def check(claim, ctx):
                 return unverifiable(
                     run, shown, f"the sandbox could not run the command: {first}"
                 )
-            if _TOOLCHAIN_FAILURE_RE.search(combined):
+            if _TOOLCHAIN_FAILURE_RE.search(combined) and not _blames_the_file(
+                first, real_file, checkout, project
+            ):
                 # A toolchain that cannot be resolved is an environment
-                # defect, never a compile error of the file.
+                # defect, never a compile error of the file. The blame gate
+                # keeps it that way: a checked file quoting one of elan's
+                # phrases must not turn its own refutation into UNVERIFIABLE.
                 return unverifiable(
                     run,
                     shown,

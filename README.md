@@ -613,6 +613,11 @@ lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/c
 
 Die sha256-Kurzformen sind die der gestarteten Dateien -- hier der
 elan-Shims, die dieselbe Datei sind; die Toolchain selbst steht daneben.
+Einen Digest der aufgeloesten Toolchain-Binaries gibt es nur, wenn das
+Manifest sie direkt pinnt. Ein abgelehnter Toolchain-Wert wird im Urteil
+**nicht zitiert** (nur seine Laenge): die committete Datei kann ein Symlink
+auf eine beliebige vom Pruefer lesbare Host-Datei sein, deren erste Zeile
+sonst im Urteil landen wuerde.
 ```
 
 Urteile: `bestaetigt` nur, wenn die Abfrage mit Exit 0 genau fuer diese

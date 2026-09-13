@@ -405,15 +405,26 @@ nicht-leere Wert -- insbesondere pfadartige wie `./evil`, die elan als
 Programmpfad ausfuehren wuerde -- wird vor jedem Werkzeuglauf abgelehnt; eine
 angeforderte, aber nicht installierte Toolchain wird nicht durch eine andere
 ersetzt. Beide Faelle bleiben `UNVERIFIABLE` mit dem Grund im Urteil, nie
-`REFUTED` (eine kaputte Umgebung ist kein Beweis gegen den Satz).
+`REFUTED` (eine kaputte Umgebung ist kein Beweis gegen den Satz). Der
+abgelehnte Wert selbst wird nicht zitiert (die Datei kann ein Symlink auf
+eine beliebige vom Pruefer lesbare Host-Datei sein; die Datei wird bounded
+und verlustbehaftet gelesen).
 `ELAN_TOOLCHAIN` des Operators hat Vorrang, sonst wird die einzige
 installierte Toolchain gepinnt; bringt das Projekt eine Toolchain-Datei mit
 und laesst sich host-seitig nichts bestimmen, wird der Lauf verweigert statt
-elan aus dem geprueften Baum aufloesen zu lassen. Eine im Ablauf nicht
-aufloesbare Toolchain (elans `no Lean toolchain found at ...`, `invalid
-toolchain name`, `no such release ...`, `no default toolchain configured`,
-`override toolchain is not installed`, `toolchain does not contain binary`)
-macht jede Stufe `UNVERIFIABLE` -- sie ist nie ein Kompilierfehler der Datei.
+elan aus dem geprueften Baum aufloesen zu lassen. Ein jeder elan-Shim unter
+den aufgeloesten Werkzeugen (nicht nur `lean`) fuehrt dazu, dass
+`ELAN_HOME` auf den Host-Wurzelpfad gesetzt wird -- sonst loeste der Shim
+seine Toolchain ueber `HOME=<checkout>` auf, das dem Repository gehoert.
+Eine im Ablauf nicht aufloesbare Toolchain (elans `no Lean toolchain found
+at ...`, `invalid toolchain name`, `empty toolchain file ...`,
+`no such release ...`, `no default toolchain configured`, `override
+toolchain is not installed`, `toolchain does not contain binary`) macht jede
+Stufe `UNVERIFIABLE` -- sie ist nie ein Kompilierfehler der Datei; die
+Muster sind an elans eigene Diagnoseform (`error: ...` am Zeilenanfang)
+gebunden und greifen nur, wenn der Fehler nicht die geprueste Datei nennt,
+damit eine Datei ihre eigene Widerlegung nicht durch ein Zitat einer dieser
+Zeilen in ein `UNVERIFIABLE` umdrehen kann.
 
 Tool-Manifest (`--tools <manifest>`): eine TOML-Datei pinnt `lean`,
 `leanchecker` und `lake` (je `[tool.<name>]`; `path` absolut und Pflicht,
