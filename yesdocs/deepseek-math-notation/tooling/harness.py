@@ -78,6 +78,7 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -142,9 +143,18 @@ def target_config(name=None):
     return config
 
 
-def model_name():
-    """Die Modell-ID des gewaehlten Ziels."""
-    return target_config()["model"]
+def display_url(url):
+    """Die URL ohne Zugangsdaten -- fuer Manifest und Protokollzeilen.
+
+    ``BEMYSELF_PROXY_URL`` darf Userinfo tragen (``http://user:pass@host``);
+    im Manifest hat weder Passwort noch Token etwas zu suchen.
+    """
+    parts = urllib.parse.urlsplit(url)
+    if parts.username or parts.password:
+        host = parts.hostname or ""
+        netloc = host if parts.port is None else f"{host}:{parts.port}"
+        parts = parts._replace(netloc=netloc)
+    return urllib.parse.urlunsplit(parts)
 
 
 def _int_env(name, default):
@@ -752,6 +762,11 @@ def cmd_batch(args):
     runs_root.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
     transport = target_config()
+    print(
+        f"transport: {target_name()} -> {display_url(transport['url'])}"
+        f" ({transport['model']}, max_tokens={max_tokens()},"
+        f" reasoning_effort={reasoning_effort() or 'default'})"
+    )
     manifest = {
         "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "model": transport["model"],
@@ -759,7 +774,7 @@ def cmd_batch(args):
         "max_repairs": args.max_repairs,
         "transport": {
             "target": target_name(),
-            "url": transport["url"],
+            "url": display_url(transport["url"]),
             "model": transport["model"],
             "max_tokens": max_tokens(),
             "reasoning_effort": reasoning_effort() or None,

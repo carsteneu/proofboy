@@ -121,6 +121,11 @@ class TargetResolutionTest(_TransportEnvTest):
         os.environ["BEMYSELF_TARGET"] = " DeepSeek "
         self.assertEqual(harness.target_name(), "deepseek")
 
+    def test_target_config_accepts_an_explicit_name(self):
+        self.assertEqual(harness.target_config("cluster")["model"], "privateTomMax")
+        os.environ["BEMYSELF_TARGET"] = "bogus"
+        self.assertEqual(harness.target_config("deepseek")["url"], _DEEPSEEK_URL)
+
     def test_unknown_target_aborts(self):
         os.environ["BEMYSELF_TARGET"] = "bogus"
         with self.assertRaises(SystemExit):
@@ -148,6 +153,12 @@ class ApiKeyTest(_TransportEnvTest):
         with self.assertRaises(SystemExit) as caught:
             harness._api_key()
         self.assertNotIn(_TEST_DEEPSEEK_KEY, str(caught.exception))
+
+    def test_non_object_auth_json_aborts_without_traceback(self):
+        self.write_auth(["kein", "objekt"])
+        with self.assertRaises(SystemExit) as caught:
+            harness._api_key()
+        self.assertNotIn("Traceback", str(caught.exception))
 
 
 class _FakeUrlopen:
@@ -267,6 +278,20 @@ class ManifestTest(_TransportEnvTest):
         self.assertNotIn(_TEST_DEEPSEEK_KEY, text)
         self.assertNotIn(_TEST_GATEWAY_KEY, text)
         self.assertNotIn("sk-", text)
+
+    def test_manifest_strips_credentials_from_proxy_url(self):
+        manifest_path = self._run_manifest({
+            "BEMYSELF_TARGET": "proxy",
+            "BEMYSELF_PROXY_URL": "http://user:secret@127.0.0.1:9999/v1/chat/completions",
+        })
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            manifest["transport"]["url"], "http://127.0.0.1:9999/v1/chat/completions"
+        )
+        self.assertNotIn("secret", json.dumps(manifest))
+
+    def test_display_url_leaves_plain_urls_untouched(self):
+        self.assertEqual(harness.display_url(_DEEPSEEK_URL), _DEEPSEEK_URL)
 
 
 if __name__ == "__main__":

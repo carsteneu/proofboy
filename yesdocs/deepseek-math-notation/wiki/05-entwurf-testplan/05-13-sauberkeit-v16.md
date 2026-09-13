@@ -29,7 +29,10 @@ Drei Fragen der V16-Runde, alle drei empirisch, keine Modelländerung:
   (Default: Feld wird nicht gesendet) steuern den Request-Body. Keys kommen
   aus `~/.local/share/opencode/auth.json` (`deepseek` bzw. `gateway`);
   das Lauf-Manifest dokumentiert den Transport als Objekt
-  `{target, url, model, max_tokens, reasoning_effort}` — ohne Key.
+  `{target, url, model, max_tokens, reasoning_effort}` — ohne Key und ohne
+  Zugangsdaten aus der URL. Hinweis: `manifest["transport"]` war bis V15 ein
+  String (`"proxy-9099"`) und ist jetzt ein Objekt; der Wert `max_tokens` im
+  Manifest ist der *gesendete* Wert (über den Proxy ohne Wirkung, s. §5.1).
 - **Arm H** (`tooling/prompts.py`): `FORCE_BLOCK` auf `LEGEND_C`;
   Antwortkonventionen und der maschinelle Reparatur-Rückkanal bleiben
   identisch zu C. `H` ist in `MACHINE_FEEDBACK_ARMS` und im Trace-Eval-Pfad.
@@ -128,7 +131,7 @@ H-Matrix (direct, mt=65536, effort=max; 30 Läufe):
 |---|---|---|---|---|---|
 | C0 | 9/10 | 166 857 | 0,1632 | 0,0873 | 484,8 |
 | C1 | 10/10 | 78 773 | 0,2503 | 0,2059 | 361,5 |
-| H | 10/10 | 94 908 | 0,1968 | 0,0938 | 414,9 |
+| H | 10/10 | 94 621 | 0,1968 | 0,0938 | 414,9 |
 
 - **Kurze Zellen:** In der Zyklus-Zelle B3-0005 zog H enorm an
   (rep1: 28 552 RC-Tokens und Tag-Anteil 0,4113; rep2: 10 161/0,1637) —
@@ -144,6 +147,13 @@ H-Matrix (direct, mt=65536, effort=max; 30 Läufe):
   auf den expliziten Zwang.
 - **Kosten/Solve:** C0 scheiterte bei B3-0001 nach 3 Runden und 127 815
   Tokens (der einzige Fehlschlag der Matrix); C1 und H je 10/10.
+
+Fußnoten: Die Spalte „Prosa-Lauf max ø" mittelt die Ordnermittel der beiden
+B-Läufe (hshort/hlong), nicht laufgewichtet. Die im `FORCE_BLOCK` angedrohte
+Sanktion („Prosa-Zeile → Aufgabe gilt als NICHT gelöst") ist eine rhetorische
+Intervention: Der Harness wertet Formatfehler nur als Rückkanal-Material, nie
+als Fehlschlag — geprüft wurden also die *Texteffekte*, nicht die angedrohte
+Konsequenz.
 
 ### 5.5 Cross-Modell: `privateTomMax` (Cluster)
 
@@ -179,6 +189,9 @@ H-Matrix (direct, mt=65536, effort=max; 30 Läufe):
   aber das ist keine Zelle der Matrix).
 - Der Cluster-Datenpunkt ist von ganz anderer Modellfamilie; Vergleiche
   deepseek-flash ↔ privateTomMax sind keine Arm-Ergebnisse im engen Sinn.
+- Bekannte, seit V12 akzeptierte Grenze: `urllib` reicht den
+  `Authorization`-Header bei Redirects auch cross-origin weiter; unter dem
+  hiesigen Bedrohungsmodell (https-Ziele, lokaler Proxy) nicht ausnutzbar.
 
 ## 7. Offene Punkte (Kandidaten für die nächste Runde)
 
@@ -199,7 +212,8 @@ H-Matrix (direct, mt=65536, effort=max; 30 Läufe):
    `20260913-124209` [proxy], `-125200` [direct 8192], `-125730`
    [direct-parity], `-130623`/`-131245` [H-Matrix], `-132653`/`-132723`
    [Cluster]), gesichert unter `.yesmem/tmp/runs-v16-20260913/`; Auswertung
-   `analyze16.py` + `report-data.json` in `.yesmem/tmp/v16-logs/`; Assets
+   `analyze16.py` + `report-data.json` in `.yesmem/tmp/v16-logs/`; Sonden zu
+   Limit/Injektion: `probe_transport.py` + `probe_transport.log`; Assets
    [05-13-rc-proxy.md](assets/05-13-rc-proxy.md),
    [05-13-rc-parity.md](assets/05-13-rc-parity.md),
    [05-13-rc-hshort.md](assets/05-13-rc-hshort.md),
