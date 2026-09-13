@@ -442,6 +442,48 @@ class RunIntegrationTest(unittest.TestCase):
         self.assertEqual(summary["feedback"], "G0")
         self.assertTrue((root / _HARD["id"] / "D-rep1" / "round0" / "parsed.json").exists())
 
+    def test_batch_task_filter_selects_named_tasks(self):
+        class _Args:
+            seed = 1
+            tier_a = None
+            tier_b = None
+            tasks = "B4-0001,B3-0008"
+
+        tier_a = {"tasks": [{"id": "A-0001"}]}
+        tier_b = {"tasks": [{"id": "B3-0008"}, {"id": "B3-0002"}, {"id": "B4-0001"}]}
+        selected = harness._select_tasks(tier_a, tier_b, _Args())
+        self.assertEqual([task["id"] for task in selected], ["B4-0001", "B3-0008"])
+
+    def test_batch_task_filter_rejects_unknown_ids(self):
+        class _Args:
+            seed = 1
+            tier_a = None
+            tier_b = None
+            tasks = "NOPE"
+
+        with self.assertRaises(SystemExit):
+            harness._select_tasks({"tasks": []}, {"tasks": [{"id": "B3-0008"}]}, _Args())
+
+    def test_runs_root_override_is_honoured(self):
+        tmp_root = ROOT / ".yesmem" / "tmp"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        base = Path(tempfile.mkdtemp(dir=tmp_root))
+        self.addCleanup(shutil.rmtree, base, ignore_errors=True)
+
+        class _Override:
+            runs_root = str(base / "resume-root")
+
+        target = harness._runs_root(_Override())
+        self.assertEqual(target, base / "resume-root")
+        self.assertTrue(target.is_dir())
+
+        class _Default:
+            runs_root = None
+
+        generated = harness._runs_root(_Default())
+        self.addCleanup(shutil.rmtree, generated, ignore_errors=True)
+        self.assertTrue(str(generated).startswith(str(harness.RUNS_DIR)))
+
 
 _ANCHOR = {
     "id": "B3-0005",

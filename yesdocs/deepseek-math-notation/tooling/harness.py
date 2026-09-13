@@ -836,6 +836,19 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
 
 
 def _select_tasks(tier_a, tier_b, args):
+    wanted = [
+        name.strip()
+        for name in (getattr(args, "tasks", None) or "").split(",")
+        if name.strip()
+    ]
+    if wanted:
+        # Explizite Aufgaben-Liste (Operator-Eingabe): Auswahl in der
+        # angegebenen Reihenfolge, die Tier-Limits entfallen.
+        by_id = {task["id"]: task for task in tier_a["tasks"] + tier_b["tasks"]}
+        missing = [name for name in wanted if name not in by_id]
+        if missing:
+            raise SystemExit(f"unknown task id(s): {', '.join(missing)}")
+        return [by_id[name] for name in wanted]
     rng = random.Random(args.seed)
     a_tasks = list(tier_a["tasks"])
     b_tasks = list(tier_b["tasks"])
@@ -848,13 +861,25 @@ def _select_tasks(tier_a, tier_b, args):
     return a_tasks + b_tasks
 
 
+def _runs_root(args):
+    """The run root of a batch/one invocation (override for resuming runs).
+
+    Without ``--runs-root`` every invocation opens a fresh timestamped root;
+    with it, chunks can be re-run into the same root (replacing exactly the
+    (task, arm) cells they name).
+    """
+    override = getattr(args, "runs_root", None)
+    root = Path(override) if override else RUNS_DIR / time.strftime("%Y%m%d-%H%M%S")
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def cmd_batch(args):
     tier_a = _load_set(_TIER_A_SET)
     tier_b = _load_set(_TIER_B_SET)
     tasks = _select_tasks(tier_a, tier_b, args)
     arms = [arm.strip().upper() for arm in args.arms.split(",") if arm.strip()]
-    runs_root = RUNS_DIR / time.strftime("%Y%m%d-%H%M%S")
-    runs_root.mkdir(parents=True, exist_ok=True)
+    runs_root = _runs_root(args)
     rng = random.Random(args.seed)
     manifest = {
         "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -871,7 +896,9 @@ def cmd_batch(args):
         "tasks": [task["id"] for task in tasks],
         "seed": args.seed,
     }
-    (runs_root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (runs_root / "manifest.json" if not (runs_root / "manifest.json").exists()
+     else runs_root / f"manifest-{time.strftime('%H%M%S')}.json").write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"runs root: {runs_root.relative_to(ROOT)}")
     print(f"tasks: {len(tasks)} ({len([t for t in tasks if t['tier']=='A'])} A, "
           f"{len([t for t in tasks if t['tier']=='B'])} B), arms {arms}, reps {args.reps}, "
@@ -916,7 +943,7 @@ def cmd_one(args):
     tier_b = _load_set(_TIER_B_SET)
     tasks = {t["id"]: t for t in tier_a["tasks"] + tier_b["tasks"]}
     task = tasks[args.task]
-    runs_root = RUNS_DIR / time.strftime("%Y%m%d-%H%M%S")
+    runs_root = _runs_root(args)
     summary = run_rounds(args.arm.upper(), task, args.rep, runs_root, args)
     print(json.dumps(summary, indent=2))
     print(f"logs: {(runs_root / task['id'] / f'{args.arm.upper()}-rep{args.rep}').relative_to(ROOT)}")
@@ -951,12 +978,23 @@ def main(argv=None):
             help="repair-feedback ladder: G0 = V13 text, G1 = value-free classes, "
             "G2 = G1 + checker leg classes (default G0)",
         )
+        p.add_argument(
+            "--runs-root",
+            default=None,
+            help="write into an existing run root (resume chunks) instead of a new "
+            "timestamped one; naming a (task, arm, level) cell again replaces it",
+        )
 
     batch = sub.add_parser("batch", help="run the pilot matrix")
     batch.add_argument("--arms", default="K,B,C")
     batch.add_argument("--reps", type=int, default=2)
     batch.add_argument("--tier-a", type=int, default=None, help="max Tier-A tasks")
     batch.add_argument("--tier-b", type=int, default=None, help="max Tier-B tasks")
+    batch.add_argument(
+        "--tasks",
+        default="",
+        help="comma-separated task ids (overrides the tier limits; order is kept)",
+    )
     batch.add_argument("--seed", type=int, default=20260912)
     batch.add_argument("--skip-warmup", action="store_true")
     _common(batch)
