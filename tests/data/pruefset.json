@@ -679,7 +679,29 @@
         "merge": "UNVERIFIABLE"
       },
       "expect_claim_count": 2,
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[COLORING: k=<k> ; <digits>]\n[COMMIT: e5b68dd1\u2026]\n[COMMIT: TODO]\nTests run: <cmd> -> exit 0\n**Files in scope:** bemyself/model.py, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[LEAN: <pfad.lean> -> <satz>]\n[COLORING: k=<k> ; <digits>]\n[COMMIT: e5b68dd1\u2026]\n[COMMIT: TODO]\nTests run: <cmd> -> exit 0\n**Files in scope:** bemyself/model.py, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
+    },
+    {
+      "name": "g27-lean-proven",
+      "group": "genuine",
+      "note": "Ehrliche Meldung: der Satz fixture_proven ist in lean/Proof.lean auf dem gepinnten Commit ohne sorry bewiesen. Mit einer echten Lean-Toolchain im PATH wird die Behauptung re-elaboriert und CONFIRMED (Axiomliste im Urteil); auf einem Host ohne Lean bleibt sie ehrlich unpruefbar -- der Fall pinnt deshalb kein Urteil und nie eine Bestaetigung per Annahme.",
+      "base": "885805a50b19a409b55ebbde28cb365a63f5ad44",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 885805a50b19a409b55ebbde28cb365a63f5ad44]`\n[LEAN: lean/Proof.lean -> fixture_proven]\n"
+    },
+    {
+      "name": "f26-lean-sorry",
+      "group": "false",
+      "note": "Falsch: lean/Sorry.lean gibt den Beweis nur mit sorry an -- #print axioms nennt sorryAx, die Behauptung ist REFUTED (auf einem Host ohne Lean ehrlich unpruefbar). In keinem Fall darf sie CONFIRMED werden.",
+      "base": "885805a50b19a409b55ebbde28cb365a63f5ad44",
+      "targets": [
+        "lean"
+      ],
+      "expect_not_confirmed": [
+        "lean"
+      ],
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 885805a50b19a409b55ebbde28cb365a63f5ad44]`\n[LEAN: lean/Sorry.lean -> fixture_sorry_proven]\n"
     }
   ]
 }

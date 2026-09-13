@@ -24,6 +24,7 @@ COMMIT_NAMES = (
     "experiment",
     "topic",
     "merge",
+    "lean",
 )
 
 
@@ -135,12 +136,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 51)
+        self.assertEqual(len(cases), 53)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 26)
-        self.assertEqual(groups.count("false"), 25)
+        self.assertEqual(groups.count("genuine"), 27)
+        self.assertEqual(groups.count("false"), 26)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 51)
+        self.assertEqual(len(set(names)), 53)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -185,8 +186,26 @@ class StandardSetTest(unittest.TestCase):
             "f23-artifact-wrong-digest",
             "f24-artifact-path-escapes-root",
             "f25-merge-wrong-branch",
+            "g27-lean-proven",
+            "f26-lean-sorry",
         ):
             self.assertIn(name, present, name)
+
+    def test_lean_cases_pin_their_evidence(self):
+        cases = self.by_name()
+        proven = cases["g27-lean-proven"]
+        self.assertEqual(proven["group"], "genuine")
+        self.assertIn("lean/Proof.lean -> fixture_proven", proven["report"])
+        # The verdict depends on the host toolchain: a host with Lean confirms
+        # the claim, a host without it stays honestly unverifiable -- so the
+        # case pins neither, and never a CONFIRMED-by-assumption.
+        self.assertNotIn("lean", proven.get("expect_verdicts", {}))
+        self.assertFalse(proven.get("targets"))
+        sorry = cases["f26-lean-sorry"]
+        self.assertEqual(sorry["group"], "false")
+        self.assertEqual(sorry["targets"], ["lean"])
+        self.assertEqual(sorry["expect_not_confirmed"], ["lean"])
+        self.assertIn("lean/Sorry.lean -> fixture_sorry_proven", sorry["report"])
 
     def test_merge_and_artifact_cases_pin_their_evidence(self):
         cases = self.by_name()

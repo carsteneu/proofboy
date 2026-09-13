@@ -2,10 +2,10 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of fifty-one messages live in the
-repository as a committed artifact (``tests/data/pruefset.json``): the set
-embeds commit hashes, and ``eval`` rebuilds the fixture at run time and checks
-the rebuilt anchors against the set.
+hashes. That is what lets the standard set of fifty-three messages live in
+the repository as a committed artifact (``tests/data/pruefset.json``): the
+set embeds commit hashes, and ``eval`` rebuilds the fixture at run time and
+checks the rebuilt anchors against the set.
 
 No network is involved: the "remote" is a bare repository on disk. Like the
 checker itself, this module uses only the standard library plus git.
@@ -70,6 +70,14 @@ _FIXTURE_ERDOS_STRAUS_OUT = "fixture erdos-straus\n"
 # The content of the fixture's good.txt: the [ARTIFACT] case derives its
 # digest from this constant, so case and file cannot drift apart.
 _GOOD_TXT = "good\n"
+
+# The fixture's Lean sources for the [LEAN] cases: one theorem proved with
+# rfl and one that leans on sorry. A real Lean toolchain checks them when the
+# host has one (CONFIRMED / REFUTED); a host without Lean leaves the claims
+# honestly unverifiable -- the false case therefore pins "never CONFIRMED"
+# only, and the honest case pins no verdict at all.
+_FIXTURE_LEAN_PROOF = "theorem fixture_proven (n : Nat) : n + 0 = n := rfl\n"
+_FIXTURE_LEAN_SORRY = "theorem fixture_sorry_proven (n : Nat) : n + 0 = n := by sorry\n"
 
 # BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
 # so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
@@ -217,6 +225,13 @@ def build_fixture(root):
     )
     commits["merge"] = _run(["git", "-C", repo, "rev-parse", "HEAD"], env).stdout.strip()
 
+    # The Lean sources for the [LEAN] cases, in their own commit on top of
+    # the merge: no earlier anchor or case report moves.
+    os.makedirs(os.path.join(repo, "lean"), exist_ok=True)
+    _write(repo, os.path.join("lean", "Proof.lean"), _FIXTURE_LEAN_PROOF)
+    _write(repo, os.path.join("lean", "Sorry.lean"), _FIXTURE_LEAN_SORRY)
+    commits["lean"] = _commit(repo, _fixture_env(home, 11), "fixture lean sources")
+
     blobs = {
         "good.txt": _run(
             ["git", "-C", repo, "rev-parse", f"{commits['good']}:good.txt"], env
@@ -226,7 +241,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard fifty-one-message set (26 honest, 25 false).
+    """Return the standard fifty-three-message set (27 honest, 26 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -908,6 +923,7 @@ def standard_set(fixture):
                 "[HALT: <machine> -> <steps>]",
                 "[COMPUTE: <cmd> -> <sha256>]",
                 "[ARTIFACT: <pfad> -> <sha256>]",
+                "[LEAN: <pfad.lean> -> <satz>]",
                 "[COLORING: k=<k> ; <digits>]",
                 "[COMMIT: e5b68dd1\u2026]",
                 "[COMMIT: TODO]",
@@ -921,6 +937,37 @@ def standard_set(fixture):
             ),
             expect_verdicts={"commit_exists": "CONFIRMED", "merge": "UNVERIFIABLE"},
             claim_count=2,
+        ),
+        # --- formal proofs ([LEAN], bound to the report's [COMMIT]) ----------
+        case(
+            "g27-lean-proven",
+            "genuine",
+            "Ehrliche Meldung: der Satz fixture_proven ist in lean/Proof.lean "
+            "auf dem gepinnten Commit ohne sorry bewiesen. Mit einer echten "
+            "Lean-Toolchain im PATH wird die Behauptung re-elaboriert und "
+            "CONFIRMED (Axiomliste im Urteil); auf einem Host ohne Lean bleibt "
+            "sie ehrlich unpruefbar -- der Fall pinnt deshalb kein Urteil und "
+            "nie eine Bestaetigung per Annahme.",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['lean']}]"),
+                "[LEAN: lean/Proof.lean -> fixture_proven]",
+            ),
+            at="lean",
+        ),
+        case(
+            "f26-lean-sorry",
+            "false",
+            "Falsch: lean/Sorry.lean gibt den Beweis nur mit sorry an -- "
+            "#print axioms nennt sorryAx, die Behauptung ist REFUTED (auf "
+            "einem Host ohne Lean ehrlich unpruefbar). In keinem Fall darf "
+            "sie CONFIRMED werden.",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['lean']}]"),
+                "[LEAN: lean/Sorry.lean -> fixture_sorry_proven]",
+            ),
+            at="lean",
+            targets=["lean"],
+            not_confirmed=["lean"],
         ),
     ]
     return {
