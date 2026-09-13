@@ -114,7 +114,50 @@ class CliTest(unittest.TestCase):
             code = deep.main(["--depth", "10", "--backend", "python", "--verify-brute", "10"])
         self.assertEqual(code, 0)
         self.assertIn("check.brute.depth=10", buffer.getvalue())
+        self.assertIn("summary_lines_compared=2", buffer.getvalue())
         self.assertIn("mismatches=none", buffer.getvalue())
+
+    def test_main_verifies_a_shallower_brute_force(self):
+        # verify < depth compares checkpoints only: the reference's own
+        # total_steps/min_counter describe the shorter run and must not be
+        # reported as a mismatch (regression for the false mismatch that
+        # would otherwise land in the deep artifact).
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = deep.main(["--depth", "8", "--backend", "python", "--verify-brute", "4"])
+        self.assertEqual(code, 0)
+        text = buffer.getvalue()
+        self.assertIn("check.brute.depth=4 checkpoints_compared=5", text)
+        self.assertIn("mismatches=none", text)
+        self.assertNotIn("total_steps=16", text.split("check.brute")[1])
+
+    def test_main_rejects_negative_and_oversized_depth(self):
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(io.StringIO()):
+                deep.main(["--depth", "-1"])
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(io.StringIO()):
+                deep.main(["--depth", str(deep.MAX_DEPTH + 1)])
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(io.StringIO()):
+                deep.main(["--base", "-2"])
+
+    def test_main_reports_a_malformed_prefix_file_cleanly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "broken.txt"
+            path.write_text("0 0\n1 nope\n", encoding="utf-8")
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = deep.main(["--check-prefix", str(path)])
+            self.assertEqual(code, 1)
+            self.assertIn("unreadable row", buffer.getvalue())
+
+    def test_main_returns_two_for_an_unreadable_prefix_file(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = deep.main(["--check-prefix", "/nonexistent/b385902.txt"])
+        self.assertEqual(code, 2)
+        self.assertIn("check-prefix failed", stderr.getvalue())
 
 
 if __name__ == "__main__":

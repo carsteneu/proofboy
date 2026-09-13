@@ -102,16 +102,6 @@ class TapeStepper:
             return HALT, head, cells, True
         return target, head + move, cells, False
 
-    def run(self, state, head, cells, max_steps):
-        """At most ``max_steps`` transitions; returns (state, head, cells,
-        steps, halted). ``cells`` is copied, never mutated in place."""
-        cells = dict(cells)
-        for taken in range(max_steps):
-            state, head, cells, halted = self.step(state, head, cells)
-            if halted:
-                return state, head, cells, taken + 1, True
-        return state, head, cells, max_steps, False
-
     def run_until(self, state, head, cells, predicate, max_steps):
         """Run until ``predicate(state, head, cells)`` holds, the machine
         halts, or ``max_steps`` transitions are spent.
@@ -646,8 +636,11 @@ def bmo1_backward_tree(levels):
     "A Backward Reasoning Approach"). The TM halts iff some generated point
     satisfies 2 = m + b (the line y = m x + b then contains the start
     (1, 2)). Reported exactly: occurrences of that condition, violations of
-    the invariant m > b, and the closest point per level per side, compared
-    with the wiki's list where that side is named.
+    the invariant m > b, and, per level, the closest point of the whole
+    subtree generated *up to that level* (a running record, not a per-level
+    minimum -- the wiki's table is such a record: its level-5 entry 13/7
+    already appears at level 3), compared with the wiki's list where that
+    side is named.
     """
     from fractions import Fraction
 
@@ -750,18 +743,25 @@ def bmo1_run(iterations):
 
 
 def report_bmo1_run(iterations):
-    """One deterministic line per BMO#1 map run (artifact input)."""
+    """One deterministic line per BMO#1 map run (artifact input).
+
+    The line is byte-reproducible: the wall time goes to stderr, and the
+    digest is ``sha256`` over ``hex(a) + ':' + hex(b)`` (hexadecimal
+    formatting has no digit limit; the decimal int->str conversion refuses
+    beyond 4300 digits, which the values pass around 6.6e4 iterations).
+    """
     import hashlib
     import time
 
     started = time.monotonic()
     index, a, b = bmo1_run(iterations)
     elapsed = time.monotonic() - started
-    digest = hashlib.sha256(f"{a}:{b}".encode("ascii")).hexdigest()
+    digest = hashlib.sha256(f"{a:x}:{b:x}".encode("ascii")).hexdigest()
+    print(f"# seconds={elapsed:.1f}", file=sys.stderr)
     return (
         f"bmo1.map.iterations={iterations} equality_index={index if index else 'none'} "
         f"final_a_bits={a.bit_length()} final_b_bits={b.bit_length()} "
-        f"sha256(final_a:final_b)={digest} seconds={elapsed:.1f}"
+        f"sha256(hex(a):hex(b))={digest}"
     )
 
 

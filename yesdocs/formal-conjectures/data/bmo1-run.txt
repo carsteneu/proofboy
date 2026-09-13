@@ -1,0 +1,1 @@
+bmo1.map.iterations=10000000 equality_index=none final_a_bits=2178111 final_b_bits=2178113 sha256(hex(a):hex(b))=1aa72b0b9025fa29dad1b44ee9de87bd29e89cdf7b5a84eb54e96229df9ad305

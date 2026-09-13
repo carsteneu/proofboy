@@ -432,6 +432,13 @@ Artefakte ein:
 [ARTIFACT: yesdocs/formal-conjectures/data/reductions.txt -> b5433ec3020c5d7ca9b5554f822fbfec6b0eff60eccceea5f803d39b60a7a455]
 [ARTIFACT: yesdocs/formal-conjectures/data/structure.txt -> 59c3aa9baedcd3309575266380bc645ce0dafa43842110ec2094b7467eac079e]
 [ARTIFACT: yesdocs/formal-conjectures/data/bmo-phase2.msheet -> ab27ea7f6e1f0bd063cf0a07cb79a6df45991369c0ac1f06fd4c115b47d83c10]
+[ARTIFACT: yesdocs/formal-conjectures/data/antihydra-deep-2p32.txt -> b777395166f2fceee2d92b5bcc6bc2033640a042d007614b447e16be7110fbe7]
+[ARTIFACT: yesdocs/formal-conjectures/data/raw-antihydra-2p32.txt -> b7a74394f7210f3fc408573055f570ef312c017923f32157d194e7b3cab8a2bc]
+[ARTIFACT: yesdocs/formal-conjectures/data/bmo1-run.txt -> c1338d5974bcf48068d12a549c9dae2243f03e2fb3025114105491d06c1e7498]
+
+Die ausführbaren Prüfungen des Nachtrags (Roh-TM-Läufe, Deep-Tool im Sandkasten,
+alle Artefakt-Digests) bündelt `data/attack-01-check.txt`; Verifikation mit
+`python3 -m bemyself check --report yesdocs/formal-conjectures/data/attack-01-check.txt --repo . --strict`.
 
 ```bash
 python3 -m bemyself check --report yesdocs/formal-conjectures/README.md --repo . --strict

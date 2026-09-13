@@ -180,12 +180,18 @@ class Bmo1RunTest(unittest.TestCase):
         index, a, b = R.bmo1_run(1)
         self.assertEqual((a, b), (3, 1))
 
-    def test_the_run_line_is_deterministic(self):
-        first = R.report_bmo1_run(100)
-        second = R.report_bmo1_run(100)
-        # everything but the seconds field is deterministic
-        self.assertEqual(first.split(" seconds=")[0], second.split(" seconds=")[0])
-        self.assertIn("equality_index=none", first)
+    def test_the_run_line_is_byte_reproducible(self):
+        # The wall time goes to stderr, so two runs print the same line.
+        self.assertEqual(R.report_bmo1_run(100), R.report_bmo1_run(100))
+        self.assertIn("equality_index=none", R.report_bmo1_run(100))
+
+    def test_the_digest_survives_values_beyond_the_digit_limit(self):
+        # The decimal int->str conversion refuses beyond 4300 digits, which
+        # the values pass around 6.6e4 iterations; the hexadecimal digest
+        # must not trip over it.
+        line = R.report_bmo1_run(70000)
+        self.assertIn("sha256(hex(a):hex(b))=", line)
+        self.assertIn("final_a_bits=", line)
 
 
 class StructureTest(unittest.TestCase):

@@ -49,6 +49,8 @@ import sys
 import time
 
 BASE_DEP = 8  # steps per leaf block: 2**8 = 256
+MAX_DEPTH = 40  # CLI cap: 2**40 steps is already a multi-day run
+MAX_BFILE_BYTES = 64 << 20  # cap for --check-prefix input
 
 
 class PythonBackend:
@@ -66,9 +68,11 @@ class PythonBackend:
 class GmpBackend:
     """Big-integer multiplication via libgmp (ctypes, no headers needed).
 
-    ``mpz_import``/``mpz_export`` are called with ``order=0`` and big-endian
-    byte strings (``size=1``): the documented big-endian form, so the same
-    code is correct on any GMP build.
+    ``mpz_import``/``mpz_export`` are called with ``order=1`` (one of the two
+    documented values) and big-endian byte strings (``size=1``); with
+    byte-sized words the order argument does not change the byte reading, and
+    the roundtrip is verified against CPython on random values up to 10**6
+    bits at startup.
     """
 
     name = "gmp"
@@ -115,21 +119,25 @@ class GmpBackend:
             init(ctypes.byref(z))
 
     def _set(self, z, value):
+        if value < 0:
+            raise ValueError("negative values are not part of this walk")
         self._clear(ctypes.byref(z))
         self._init(ctypes.byref(z))
         if value:
             size = (value.bit_length() + 7) // 8
             buf = ctypes.create_string_buffer(value.to_bytes(size, "big"))
             self._import_gmp(
-                ctypes.byref(z), size, 0, 1, 0, 0, ctypes.cast(buf, ctypes.c_void_p)
+                ctypes.byref(z), size, 1, 1, 0, 0, ctypes.cast(buf, ctypes.c_void_p)
             )
 
     def _get(self, z):
+        if z._mp_size < 0:
+            raise ValueError("negative GMP values are not part of this walk")
         if z._mp_size == 0:
             return 0
         size = ctypes.c_size_t(0)
         out = ctypes.create_string_buffer(abs(z._mp_size) * 8 + 16)
-        self._export_gmp(out, ctypes.byref(size), 0, 1, 0, 0, ctypes.byref(z))
+        self._export_gmp(out, ctypes.byref(size), 1, 1, 0, 0, ctypes.byref(z))
         return int.from_bytes(out.raw[: size.value], "big")
 
     def mul(self, a, b):
@@ -170,7 +178,7 @@ def make_backend(name):
         if name == "gmp":
             raise SystemExit(f"libgmp self-check failed: {note}")
         return PythonBackend(), f"python (libgmp self-check failed: {note})"
-    return backend, "gmp (libgmp.so.10 via ctypes, order=0 big-endian)"
+    return backend, "gmp (libgmp.so.10 via ctypes, order=1 big-endian)"
 
 
 class DeepRun:
@@ -393,18 +401,30 @@ def brute_min_counter(steps):
 
 
 def check_prefix(path):
-    """Compare the plain walk against an OEIS b-file ('n value' lines)."""
+    """Compare the plain walk against an OEIS b-file ('n value' lines).
+
+    Returns the mismatches (or unreadable rows) as strings; an empty list
+    means the walk reproduces the file. The file is read with a size cap so a
+    hostile path (``/dev/zero``) cannot exhaust memory.
+    """
     mismatches = []
     with open(path, encoding="utf-8") as handle:
-        rows = [
-            line.split()
-            for line in handle
-            if line.strip() and not line.startswith("#")
-        ]
+        data = handle.read(MAX_BFILE_BYTES + 1)
+    if len(data) > MAX_BFILE_BYTES:
+        return [f"file larger than {MAX_BFILE_BYTES} bytes"]
+    rows = [
+        line.split()
+        for line in data.splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
     h = 8
     odds = evens = 0
     for index, row in enumerate(rows):
-        n, value = int(row[0]), int(row[1])
+        try:
+            n, value = int(row[0]), int(row[1])
+        except (ValueError, IndexError) as exc:
+            mismatches.append(f"line {index + 1}: unreadable row {row!r} ({exc})")
+            break
         if n != index:
             mismatches.append(f"line {index + 1}: index {n} != {index}")
             break
@@ -420,15 +440,33 @@ def check_prefix(path):
     return mismatches
 
 
+def _non_negative(text, maximum=None):
+    """argparse type: a non-negative integer, optionally capped."""
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"not an integer: {text!r}") from exc
+    if value < 0:
+        raise argparse.ArgumentTypeError(f"must be non-negative: {text!r}")
+    if maximum is not None and value > maximum:
+        raise argparse.ArgumentTypeError(f"must be at most {maximum}: {text!r}")
+    return value
+
+
+def _depth_type(text):
+    return _non_negative(text, maximum=MAX_DEPTH)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--depth", type=int, default=22, help="run to 2**DEPTH steps")
+    parser.add_argument("--depth", type=_depth_type, default=22,
+                        help=f"run to 2**DEPTH steps (at most {MAX_DEPTH})")
     parser.add_argument("--backend", choices=("auto", "gmp", "python"), default="auto")
-    parser.add_argument("--base", type=int, default=BASE_DEP,
+    parser.add_argument("--base", type=_non_negative, default=BASE_DEP,
                         help="steps per leaf block, 2**BASE (default %(default)s)")
-    parser.add_argument("--also", type=int, action="append", default=[],
+    parser.add_argument("--also", type=_non_negative, action="append", default=[],
                         help="extra checkpoint step (repeatable)")
-    parser.add_argument("--verify-brute", type=int, metavar="DEPTH", default=None,
+    parser.add_argument("--verify-brute", type=_non_negative, metavar="DEPTH", default=None,
                         help="compare the checkpoints with the plain recurrence to 2**DEPTH")
     parser.add_argument("--check-prefix", metavar="FILE", default=None,
                         help="compare the plain walk against an OEIS b-file")
@@ -444,7 +482,11 @@ def main(argv=None):
     ]
 
     if args.check_prefix:
-        mismatches = check_prefix(args.check_prefix)
+        try:
+            mismatches = check_prefix(args.check_prefix)
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"# check-prefix failed: {exc}", file=sys.stderr)
+            return 2
         header.append(f"check.prefix.mismatches={mismatches or 'none'}")
         print("\n".join(header))
         return 0 if not mismatches else 1
@@ -456,10 +498,19 @@ def main(argv=None):
             args.verify_brute,
             extra_targets=[t for t in args.also if t <= (1 << args.verify_brute)],
         )
-        missing = [line for line in reference if line not in lines]
+        # Compare only the checkpoint lines: the reference's min_counter and
+        # total_steps describe the *shorter* run and never match a deeper one.
+        reference_checkpoints = [line for line in reference if line.startswith("steps=")]
+        deep_checkpoints = [line for line in lines if line.startswith("steps=")]
+        missing = [line for line in reference_checkpoints if line not in deep_checkpoints]
+        auxiliary = ""
+        if args.verify_brute == args.depth:
+            reference_summary = [line for line in reference if not line.startswith("steps=")]
+            missing.extend(line for line in reference_summary if line not in lines)
+            auxiliary = f" summary_lines_compared={len(reference_summary)}"
         lines.append(
             f"check.brute.depth={args.verify_brute} "
-            f"reference_lines={len(reference)} "
+            f"checkpoints_compared={len(reference_checkpoints)}{auxiliary} "
             f"mismatches={missing or 'none'}"
         )
     print("\n".join(header + lines))
