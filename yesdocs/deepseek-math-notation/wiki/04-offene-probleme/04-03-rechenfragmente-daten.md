@@ -143,8 +143,8 @@ Tabellenprüfung `witnesses_all_ok` hängt von **keinem** Axiom ab. `lake build`
 
 Was das **nicht** ist: ein Fortschritt an der Vermutung. Die Brücke deckt ein endliches Fenster
 und sechs Progressionen; der offene Kern bleibt `p ≡ 1 (mod 4)`;
-rechnerischer Weltstand 10^17 (Salez 2014) bzw. 10^18 (Preprint 2025) — in Python, nicht im
-Kernel. Gemessene Kernel-Grenze der Elaboration: N = 1000 baut in ~16 s, N = 2000
+rechnerischer Weltstand 10^17 (Salez 2014) bzw. 10^18 (Preprint 2025) — rechnerisch, nicht
+kernel-geprüft. Gemessene Kernel-Grenze der Elaboration: N = 1000 baut in ~16 s, N = 2000
 überschreitet die Default-Heartbeats — größere Fenster brauchen eine andere Kodierung
 (`native_decide` mit Compiler-Vertrauen oder String-Tabelle mit geprüftem Parser) oder eine
 feinere Aufteilung.

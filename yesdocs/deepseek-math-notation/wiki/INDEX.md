@@ -27,7 +27,7 @@ Zahlen-Regime, tiefe Läufe, Zyklus-Suche) sind erfolgt; die nächsten Runden
 sind in 05-10 §7 skizziert.
 
 **Umfang:** 34 Dateien in 5 Clustern · 77459 Wörter ·
-720 Quellenangaben (Datei-Summen) · 1086 Inline-Zitate · Visuals in `assets/` je Cluster.
+724 Quellenangaben (Datei-Summen) · 1086 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 
