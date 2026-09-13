@@ -590,7 +590,7 @@ abgeleitet, weil der Lauf isoliert mit `HOME=<checkout>` laeuft):
 
 ```
 $ python3 -m bemyself check --report lean-report.md --repo <repo>
-lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcf: re-elaborated with Lean 4.33.1 (the kernel checked every declaration during elaboration); #print axioms: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
+lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: re-elaborated with Lean 4.33.1 (the kernel checked every declaration during elaboration); #print axioms: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
 ```
 
 Urteile: `bestaetigt` nur mit einer `#print axioms`-Zeile fuer genau diesen

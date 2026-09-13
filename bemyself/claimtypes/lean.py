@@ -701,7 +701,7 @@ def check(claim, ctx):
                 run, shown, "the Lean elaboration exceeded the output limit; its outcome cannot be verified"
             )
         if run.returncode != 0:
-            return failed(run, shown, "the file")
+            return failed(run, shown, "the elaboration")
 
         line = _axioms_line(run.tail, theorem) or _axioms_line(run.head, theorem)
         if line is None:
