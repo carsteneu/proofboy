@@ -319,7 +319,7 @@ def render_round_markdown(summary, manifest):
         f"- Tier-A-Set: {manifest.get('tier_a_set', {}).get('version', '?')} sha256 {manifest.get('tier_a_set', {}).get('sha256', '?')[:16]}…",
         f"- Tier-B-Set: {manifest.get('tier_b_set', {}).get('version', '?')} sha256 {manifest.get('tier_b_set', {}).get('sha256', '?')[:16]}…",
         "",
-        "| Arm-Tier | n | R0 gelöst | R0-Rate | Formfehler-Läufe R0 | Final gelöst | Final-Rate (95%-CI) | repariert | Trigger-Läufe | Reparaturgewinn | Runden bis ok (0..max/offen) | #xx-Auflösung | Tokens gesamt | Tokens/Treffer | Zeit gesamt |",
+        "| Arm(-Level)-Tier | n | R0 gelöst | R0-Rate | Formfehler-Läufe R0 | Final gelöst | Final-Rate (95%-CI) | repariert | Trigger-Läufe | Reparaturgewinn | Runden bis ok (0..max/offen) | #xx-Auflösung | Tokens gesamt | Tokens/Treffer | Zeit gesamt |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for entry in summary.values():
@@ -336,7 +336,8 @@ def render_round_markdown(summary, manifest):
         )
         lines.append(
             "| {arm}-{tier} | {n} | {r0} | {r0r} | {ferr} | {fin} | {finr} ({lo:.2f}–{hi:.2f}) | {rep} | {trig} | +{gain} pp | {hist} | {res}/{tot} | {tok} | {tps} | {wall}s |".format(
-                arm=entry["arm"],
+                arm=entry["arm"]
+                + ("" if entry["feedback"] in (None, "G0") else f"-{entry['feedback']}"),
                 tier=entry["tier"],
                 n=entry["n"],
                 r0=entry["r0_solved"],

@@ -549,7 +549,10 @@ class EvaluateV14Test(unittest.TestCase):
         self.assertIsNotNone(g2["hard_case_repair_rate"])
         markdown = evaluate.render_round_markdown(summary, manifest)
         self.assertIn("Bindungsschutz", markdown)
-        self.assertIn("D-G2-B", markdown)
+        # Die Tabellenzeile selbst muss das Level tragen (nicht nur die
+        # Klassen-Sektion), und die G0-Zeile bleibt am alten Label.
+        self.assertIn("| D-G2-B | 3 |", markdown)
+        self.assertIn("| D-B | 1 |", markdown)
 
     def test_g0_label_stays_legacy_shaped(self):
         root = self._root()
@@ -601,6 +604,30 @@ class ScanFeedbackTest(unittest.TestCase):
         path.write_text(json.dumps(record), encoding="utf-8")
         report = scan.scan_run(str(root), {_HARD["id"]: _HARD})
         self.assertTrue(report["violations"], "die injizierte Gold-Nennung fehlt")
+
+    def test_injected_word_separated_gold_value_is_found(self):
+        # Die fruehere Erkennung haette "Zertifikat 34" als id-Kontext
+        # durchgewinkt (rstrip + Buchstabe davor); das darf nicht passieren.
+        scan = self._load_scan()
+        root = self._root()
+        self._binding_run(root)
+        path = root / _HARD["id"] / "D-G2-rep1" / "round0" / "parsed.json"
+        record = json.loads(path.read_text(encoding="utf-8"))
+        record["next_feedback"] += "\nder Wert lautet 34 und nicht 35"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        report = scan.scan_run(str(root), {_HARD["id"]: _HARD})
+        self.assertTrue(
+            any(hit["kind"] == "certificate" and hit["value"] == "34" for hit in report["violations"]),
+            "Zahl nach Wortgrenze muss als Verletzung gelten",
+        )
+
+    def test_benign_contexts_stay_explained(self):
+        scan = self._load_scan()
+        self.assertTrue(scan._explained("v1: nichts", 1))
+        self.assertTrue(scan._explained("siehe Schritt 1 dort", 14))
+        self.assertTrue(scan._explained("sim(0..2)", 4))
+        self.assertTrue(scan._explained("line 0: no CLAIM zone", 5))
+        self.assertFalse(scan._explained("der Wert lautet 34", 16))
 
     def test_model_owned_ids_are_not_violations(self):
         scan = self._load_scan()

@@ -60,10 +60,26 @@ def _token_matches(text, value):
     return [match.start() for match in pattern.finditer(text)]
 
 
+# Nur diese Kontexte gelten als modell-eigen: ids wie ``v1``/``h1`` (Ziffer
+# direkt an einem Buchstaben), Zaehl-/Schritt-Kontexte mit Wort davor und
+# die Schritt-Angaben in Klammern (``sim(0..2)``). Alles andere -- etwa eine
+# Zahl nach einem normalen Wort -- zaehlt als Verletzung (konservativ: lieber
+# ein Fehlalarm zur Sichtpruefung als ein uebersehenes Leck).
+_BENIGN_WORDS = frozenset({"schritt", "step", "line", "zeile"})
+_WORD_BEFORE_RE = re.compile(r"([A-Za-z]+)\s*$")
+
+
 def _explained(text, start):
-    """True when the token sits in an id/step context (letter right before)."""
-    before = text[:start].rstrip()
-    return bool(before) and before[-1].isalpha()
+    before = text[:start]
+    if before and before[-1].isalpha():
+        return True  # v1, h1, S0, cp5, ref h1 -- Ziffer klebt am Buchstaben
+    stripped = before.rstrip()
+    if stripped.endswith("("):
+        return True  # sim(0..2), cyc(3,4,1) -- Beleg-Parameter des Modells
+    word = _WORD_BEFORE_RE.search(stripped)
+    if word and word.group(1).lower() in _BENIGN_WORDS:
+        return True
+    return False
 
 
 def _snippet(text, start, length=40):
