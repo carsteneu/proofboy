@@ -85,8 +85,18 @@ class SmallestKPrimeTest(unittest.TestCase):
         stats = cp.smallest_k_prime_sweep(200)
         self.assertGreaterEqual(stats["checked"], 199)
         self.assertLess(stats["max_k"], stats["max_k_n"])  # k < n held at the maximum
+        self.assertEqual(stats["not_found"], [])
         self.assertIsNone(stats["violation_k_lt_n"])
         self.assertIsNone(stats["violation_three_quarter"])
+
+    def test_capped_search_miss_is_not_a_violation(self):
+        # A cap that is far too small must surface as not_found, never as a
+        # claimed counterexample of the conjecture.
+        stats = cp.smallest_k_prime_sweep(10, cap=1)
+        self.assertIn(3, stats["not_found"])  # 3*1+1=4 is composite -> miss
+        self.assertIsNone(stats["violation_k_lt_n"])
+        self.assertIsNone(stats["violation_three_quarter"])
+        self.assertEqual(cp.smallest_k_prime(3, cap=1), None)
 
 
 class MachineProbeTest(unittest.TestCase):

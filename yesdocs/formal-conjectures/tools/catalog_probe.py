@@ -217,16 +217,21 @@ def smallest_k_prime(n, cap=100_000):
     return None
 
 
-def smallest_k_prime_sweep(nmax):
-    """Sweep n = 2..nmax for the A34693 conjectures (exact integer checks)."""
+def smallest_k_prime_sweep(nmax, cap=100_000):
+    """Sweep n = 2..nmax for the A34693 conjectures (exact integer checks).
+
+    A search that finds no k below ``cap`` is recorded as ``not_found`` -- a
+    bounded search miss, NOT a violation of either conjecture.
+    """
     checked = 0
     max_k, max_k_n = 0, 0
+    not_found = []
     violation_k_lt_n = None
     violation_three_quarter = None
     for n in range(2, nmax + 1):
-        k = smallest_k_prime(n)
+        k = smallest_k_prime(n, cap=cap)
         if k is None:
-            violation_k_lt_n = violation_k_lt_n or n
+            not_found.append(n)
             continue
         checked += 1
         if k > max_k:
@@ -240,6 +245,7 @@ def smallest_k_prime_sweep(nmax):
         "checked": checked,
         "max_k": max_k,
         "max_k_n": max_k_n,
+        "not_found": not_found[:8],
         "violation_k_lt_n": violation_k_lt_n,
         "violation_three_quarter": violation_three_quarter,
     }
@@ -306,6 +312,7 @@ def report(small_iterations=10_000, big_iterations=1_000_000, sweep=10_000,
     stats = smallest_k_prime_sweep(sweep)
     lines.append(f"a34693.sweep=2..{sweep} checked={stats['checked']} "
                  f"max_k={stats['max_k']} at n={stats['max_k_n']}")
+    lines.append(f"a34693.not_found={_fmt(stats['not_found'] or None)}")
     lines.append(f"a34693.violation_k_lt_n={_fmt(stats['violation_k_lt_n'])}")
     lines.append(f"a34693.violation_three_quarter={_fmt(stats['violation_three_quarter'])}")
     return "\n".join(lines) + "\n"

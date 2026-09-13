@@ -249,6 +249,7 @@ bmo8.iterations=10000
 bmo8.machine.halts=False steps=2000000 score=505
 # bmo3/bmo4 machines are 5-symbol; bemyself.turing supports the 2-symbol notation only
 a34693.sweep=2..10000 checked=9999 max_k=84 at n=5207
+a34693.not_found=none
 a34693.violation_k_lt_n=none
 a34693.violation_three_quarter=none
 ```
@@ -352,7 +353,7 @@ python3 -m bemyself.msheet run yesdocs/formal-conjectures/data/bmo-attack.msheet
 unter der Repo-Wurzel und vergleicht die SHA-256:
 
 [ARTIFACT: yesdocs/formal-conjectures/data/scan.json -> babe2ffac1336014bdd48f21db960ad607e9e74f9584fe7853b2253dc642e249]
-[ARTIFACT: yesdocs/formal-conjectures/data/probe.txt -> 93a93990c051f0ab6edfe20265d68e49152978b7d11dc9d1b771f3c38c1844fc]
+[ARTIFACT: yesdocs/formal-conjectures/data/probe.txt -> 539b217c34586a04b390fff9af70430cc9d25637d13bf46753bfcfe2f009b3d9]
 [ARTIFACT: yesdocs/formal-conjectures/data/bmo-attack.msheet -> 7d0b37d8da2ce589fef5a32498164fa8f75d6ab8aed1d4077a5ccd133f327bef]
 
 ```bash

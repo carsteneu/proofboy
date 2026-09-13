@@ -20,5 +20,6 @@ bmo8.iterations=10000
 bmo8.machine.halts=False steps=2000000 score=505
 # bmo3/bmo4 machines are 5-symbol; bemyself.turing supports the 2-symbol notation only
 a34693.sweep=2..10000 checked=9999 max_k=84 at n=5207
+a34693.not_found=none
 a34693.violation_k_lt_n=none
 a34693.violation_three_quarter=none
