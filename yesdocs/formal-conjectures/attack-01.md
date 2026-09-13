@@ -192,8 +192,11 @@ keine neue Schranke für die Haltefrage her (er ist exakt äquivalent).
 - **Anker-Kette:** `data/attack-01-check.txt` bindet alle zentralen Aussagen an
   ausführbare Prüfungen: `[SEARCHED]` (Roh-TM 10^8 bzw. 2^32 Schritte),
   `[COMPUTE]` (Deep-Tool, bwrap-Sandkasten, Digest-Vergleich) und `[ARTIFACT]`
-  (Blätter, Reduktions-/Struktur-/Lauf-Artefakte). Jede Erfolgsaussage hängt an einer
-  Prüfung, nicht an Formulierungsdisziplin.
+  (Blätter, Reduktions-/Struktur-/Lauf-Artefakte). Der Lauf mit `--strict
+  --search-limit 4294967296` endet mit **CONFIRMED: 12, REFUTED: 0, UNVERIFIABLE: 0**
+  (Protokoll: `data/attack-01-check.verdicts.txt`; Dauer ≈7,5 min, dominiert vom
+  Roh-TM-2^32-Lauf). Jede Erfolgsaussage hängt an einer Prüfung, nicht an
+  Formulierungsdisziplin.
 - **Fehlerfang durch die Prüfschicht:** die Format-/Semantikfalle „`Int`/`//`" aus E2
   §3.1 blieb hier ohne Treffer, aber die beidseitige Fensterprüfung fand zwei
   echte Doku-Korrekturen (b=1, b=a+2) — genau die Fehlerklasse, die eine einseitige
@@ -249,7 +252,8 @@ nicht schlechter, aber weniger überprüfbar.
 | `data/antihydra-deep-2p32.txt` | Antihydra-Zähler bei 2^32 Schritten (D&C, GMP) | `python3 -m bemyself.experiments.antihydra_deep --depth 32 --also 11800000 --verify-brute 20` |
 | `data/raw-antihydra-2p32.txt` | Roh-TM-Kreuzlauf 2^32 Schritte (unabhängiges Orakel) | `python3 -m bemyself.turing 1RB1RA_…---0RA 4294967296` |
 | `data/bmo1-run.txt` | BMO#1-Map 10^7 Iterationen + Digest des Endpaars | `… tools/reductions.py --bmo1-run 10000000` |
-| `data/attack-01-check.txt` | Anker-Bericht (`bemyself check --strict`) | `python3 -m bemyself check --report data/attack-01-check.txt --strict` |
+| `data/attack-01-check.txt` | Anker-Bericht (`bemyself check --strict`, 12 Anker) | `python3 -m bemyself check --report data/attack-01-check.txt --repo . --strict --search-limit 4294967296` |
+| `data/attack-01-check.verdicts.txt` | Verdikt-Protokoll des Checks (CONFIRMED: 12, REFUTED: 0, UNVERIFIABLE: 0) | (Ausgabe des Kommandos oben) |
 
 Verifikationskette (alle Kommandos reproduzierbar): Repo-Suite (`make test`),
 `tools/test_reductions.py`, `tests/test_antihydra_deep.py`, 16 Runner-Verdikte im

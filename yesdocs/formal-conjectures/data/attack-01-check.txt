@@ -1,0 +1,29 @@
+# Angriff 01 — Anker-Bericht (V17, 2026-09-13)
+#
+# Verifikation: python3 -m bemyself check --report yesdocs/formal-conjectures/data/attack-01-check.txt --repo . --strict --search-limit 4294967296
+#
+# Der [COMMIT]-Pin (f9b0cb4) ist der Artefakt-Commit; [COMPUTE] laeuft in einem
+# Checkout genau dieses Commits im bwrap-Sandkasten. Alle [SEARCHED]-Laeufe sind
+# bounded (sie belegen "kein Halt innerhalb N Schritte", keinen Halte-Beweis);
+# die [ARTIFACT]-Digests pinnen die eingefrorenen Dateien in diesem Repo.
+# --search-limit 4294967296 ist noetig, weil das Standard-Limit 10^7 Schritte
+# betraegt; der Roh-TM-2^32-Lauf dauert dabei ca. 7 Minuten.
+
+[COMMIT: f9b0cb4ff7e43f113aa5101f6a52afd3acd76d7c]
+
+# Roh-TM-Orakel: BMO#1 10^8 Schritte, Antihydra 2^32 Schritte
+[SEARCHED: 1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE -> 100000000]
+[SEARCHED: 1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA -> 4294967296]
+
+# Deep-Tool reproduzierbar (Backend python, Depth 22, Digest des stdout)
+[COMPUTE: python3 -m bemyself.experiments.antihydra_deep --depth 22 --backend python -> b3a02e093f9e6e3d55ac0a9bd3888c7bc78ea525a1e9ab16a0df51a0b3f018aa]
+
+# Eingefrorene Artefakte
+[ARTIFACT: yesdocs/formal-conjectures/data/reductions.txt -> b5433ec3020c5d7ca9b5554f822fbfec6b0eff60eccceea5f803d39b60a7a455]
+[ARTIFACT: yesdocs/formal-conjectures/data/structure.txt -> 59c3aa9baedcd3309575266380bc645ce0dafa43842110ec2094b7467eac079e]
+[ARTIFACT: yesdocs/formal-conjectures/data/bmo-phase2.msheet -> ab27ea7f6e1f0bd063cf0a07cb79a6df45991369c0ac1f06fd4c115b47d83c10]
+[ARTIFACT: yesdocs/formal-conjectures/data/antihydra-deep-2p32.txt -> b777395166f2fceee2d92b5bcc6bc2033640a042d007614b447e16be7110fbe7]
+[ARTIFACT: yesdocs/formal-conjectures/data/raw-antihydra-2p32.txt -> b7a74394f7210f3fc408573055f570ef312c017923f32157d194e7b3cab8a2bc]
+[ARTIFACT: yesdocs/formal-conjectures/data/bmo1-run.txt -> c1338d5974bcf48068d12a549c9dae2243f03e2fb3025114105491d06c1e7498]
+[ARTIFACT: yesdocs/formal-conjectures/attack-01.md -> 06cf2163c78204f3da5ef711b30430c865f7d6350257b11827bcb4c53d1e5f57]
+[ARTIFACT: yesdocs/formal-conjectures/README.md -> 69cd704985714c776ccea9708f155cbbb52773b850cbfcf2f9360fbd63279c42]
