@@ -23,6 +23,9 @@ a report smuggle a claim of an unknown shape past the verifier. The claimed
 tokens are the core markers plus the registry's
 (:func:`bemyself.claimtypes.marker_tokens`); a template body keeps the
 placeholder rule, an unknown token with a placeholder body claims nothing.
+One convention rides along: the yesmem citation form ``[ID: 97352]`` (the
+platform mandates it in reports) is a citation, not a claim, and is
+recognized without one -- a body outside that shape stays a defect.
 
 Parsing is deliberately permissive: unknown lines are ignored, and a claim is
 only emitted when its source is present. Absurdly long lines are skipped, and
@@ -55,10 +58,16 @@ CORE_MARKERS = ("COMMIT", "BRANCH", "MERGE", "DEPLOY")
 _MARKER_RE = re.compile(r"\[(" + "|".join(CORE_MARKERS) + r"):([^\]\[]*?)\]")
 
 # The form of a marker for a token no claim type claims: an upper-case token
-# (letters and digits, no separator), a colon and a bracket-free body. The
-# body class keeps the scan linear -- it never crosses a bracket, so every
-# attempt is bounded by the distance to the next one.
+# (a letter first, then letters and digits, no separator), a colon and a
+# bracket-free body. The body class keeps the scan linear -- it never crosses
+# a bracket, so every attempt is bounded by the distance to the next one.
 _UNKNOWN_MARKER_RE = re.compile(r"\[([A-Z][A-Z0-9]*):([^\[\]]*)\]")
+
+# A citation is not a claim: the platform's output discipline mandates the
+# yesmem form [ID: 97352] (several ids comma-separated) in reports, so the
+# token is recognized without one. The exemption is exactly the citation
+# shape, not the token -- [ID: foo] stays a defect.
+_CITATION_RE = re.compile(r"\A\[ID:\s*\d+(?:\s*,\s*\d+)*\]\Z")
 _TESTS_RE = re.compile(
     r"^[ \t]*(?:\*\*)?Tests? run:[ \t]*(?P<cmd>\S(?:.*\S)?)[ \t]+"
     r"(?:->|\u2192)[ \t]+exit[ \t]+(?P<code>-?\d+)[ \t]*$"
@@ -174,6 +183,8 @@ def parse_report(text: str) -> list[Claim]:
         for match in _UNKNOWN_MARKER_RE.finditer(raw):
             token = match.group(1)
             if token in claimed:
+                continue
+            if _CITATION_RE.match(match.group(0)):
                 continue
             if looks_like_placeholder(match.group(2)):
                 # The template rule holds for an unknown token too: a marker

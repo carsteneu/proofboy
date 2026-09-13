@@ -140,6 +140,12 @@ class NegativeSpaceTest(unittest.TestCase):
         self.assertEqual(space["missing"], [])
         self.assertEqual(space["found"], ["commit_exists"])
 
+    def test_an_unknown_profile_name_raises_here_too(self):
+        # Same caller error as profile_claims: a name nothing registered must
+        # not read as "nothing was sought".
+        with self.assertRaises(KeyError):
+            profiles.negative_space([], "no-such-profile")
+
     def test_meta_findings_are_no_found_class(self):
         unknown = Claim("unknown_marker", 1, "[FROB: 1]", {"token": "FROB"})
         violation = Claim(

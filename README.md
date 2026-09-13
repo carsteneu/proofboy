@@ -142,6 +142,12 @@ zusaetzliche Behauptung `profile` mit Klasse `defect`: Exit 5, mit und ohne
 diese Luecke schliesst das Profil: eine Meldung, die sich hinter Vorlagen
 versteckt, stellt keine Behauptung auf, erfuellt ihr Profil aber auch nicht.
 
+Zuletzt: der Testlauf wird nur in der festen Zeilenform erkannt --
+`Tests run: <kommando> -> exit <code>`, die Zeile endet mit dem Exit-Code
+(ein nachgestellter Vermerk macht sie zu keiner Testbehauptung; er gehoert in
+die naechste Zeile). Ein DONE-Bericht unter `yesloop-done` muss diese Form
+treffen, sonst meldet das Profil die Testklasse als fehlend.
+
 Ein unbekannter Profilname ist ein usage-Fehler (Exit 2, die Auswahl nennt die
 registrierten Namen). Die Registry steht als `PROFILES` in
 `bemyself/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe
@@ -168,9 +174,10 @@ gefunden: keine; gefehlt: keine`, dieselbe Meldung mit
 und alle drei als gefehlt (und scheitert am Profil). Im JSON steht derselbe
 Befund als `negative_space` (`profile`, `sought`, `found`, `missing`;
 gesucht und gefehlt als Listen der akzeptierten Klassen je Vorgabe, damit
-Alternativen maschinenlesbar bleiben). In Fehler-Nutzlasten (unlesbarer
-Report, fehlendes `--repo`) fehlt `negative_space`: dort wurde nichts
-beurteilt.
+Alternativen maschinenlesbar bleiben). In Fehler-Nutzlasten fehlt
+`negative_space`: die einzige Fehler-Nutzlast ist der unlesbare Report, und in
+jenem Lauf wurde nichts beurteilt. Ein fehlendes `--repo` ist dagegen ein
+usage-Fehler (Exit 2) ohne JSON-Ausgabe.
 
 ## Grenzen
 
@@ -252,23 +259,33 @@ Basis-Revisionen werden streng geprueft, bevor ein Git-Kommando sie sieht.
 Ein Marker, dessen Kuerzel kein registrierter Behauptungstyp beansprucht, ist
 ein Defekt (Exit 5): er wurde frueher still ignoriert, und damit konnte eine
 Meldung eine Behauptung unbekannter Form an der Pruefung vorbeischmuggeln.
-Ein Marker ist ein Grossbuchstaben-Token (A-Z, 0-9, ohne Trenner), ein
-Doppelpunkt und ein klammerfreier Rumpf -- etwa `[FROB: 1]`. Die
-beanspruchten Tokens stehen an den Typen (`ClaimType.markers`, Default der
-grossgeschriebene kind; `[HALT]` beansprucht zusaetzlich `[SCORE]`) und in
-den Kernmarkern `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY`; `--list-types` nennt
-sie. Kein Marker sind Klammertexte ohne Doppelpunkt (`[DONE]`, `[1]`), mit
+Ein Marker ist ein Token aus einem Grossbuchstaben am Anfang und weiteren
+Grossbuchstaben oder Ziffern (kein Trenner, kein Leerzeichen), unmittelbar
+gefolgt von einem Doppelpunkt und einem klammerfreien Rumpf -- etwa
+`[FROB: 1]`. Die beanspruchten Tokens stehen an den Typen (`ClaimType.markers`,
+Default der grossgeschriebene kind; `[HALT]` beansprucht zusaetzlich
+`[SCORE]`), dazu die Kernmarker `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY`;
+`--list-types` nennt die Tokens der optionalen Typen, die Kernmarker stehen
+hier. Kein Marker sind Klammertexte ohne Doppelpunkt (`[DONE]`, `[1]`), mit
 kleingeschriebenem oder gemischtem Kuerzel (`[sic]`, `[foo: bar]`,
 `[Foo: bar]`) und Tokens mit Trenner (etwa die Regex-Zeichenklasse
 `[A-Z: x]`); ein leerer Rumpf (`[FROB:]`) ist dagegen ein Marker. Die
 P15-Regel bleibt in Kraft: traegt der Rumpf eines unbekannten Kuerzels einen
 Platzhalter (`[FROB: <wert>]`, `[FROB: ...]`, `[FROB: TODO]`), ist die Zeile
 eine Vorlage und kein Defekt -- dieselbe Form wie die Briefing-Zeilen einer
-yesloop-Section. Wie ueberall entscheidet die Form allein: zitiert eine
-gepruefte Meldung Prosa dieses Aussehens -- etwa eine Literaturangabe
-`[FEVER: ...]` mit echtem Rumpf --, ist das ein Defekt, obwohl die Zeile
-harmlos gemeint war. Wer Tokens benutzt, die kein Typ beansprucht, muss
-zuerst einen Typ registrieren (siehe "Neuen Behauptungstyp hinzufuegen").
+yesloop-Section. Eine Ausnahme steht fest: die yesmem-Zitierform `[ID: 97352]`
+(mehrere IDs komma-getrennt) ist ein Beleg, keine Behauptung, und wird ohne
+Defekt mitgelesen; ein Rumpf ausserhalb dieser Form (`[ID: foo]`) bleibt ein
+Defekt. Wie ueberall entscheidet sonst die Form allein: zitiert eine gepruefte
+Meldung Prosa dieses Aussehens -- etwa eine Literaturangabe `[FEVER: ...]` mit
+echtem Rumpf --, ist das ein Defekt, obwohl die Zeile harmlos gemeint war.
+Restrisiko der Form: ein Kuerzel, das die Form verfehlt (`[1FROB: x]`,
+`[FROB_1: x]`, `[FROB : 1]`, `[frob: 1]`), wird gar nicht gelesen -- es
+erzeugt weder Behauptung noch Defekt und kann damit auch nichts bestaetigen;
+wer Tokens benutzt, die kein Typ beansprucht, muss zuerst einen Typ
+registrieren (siehe "Neuen Behauptungstyp hinzufuegen"). Mehrere Marker auf
+einer Zeile ergeben je einen Befund; ein Marker mit Klammer im Rumpf ist
+keiner.
 
 ## Sandkasten
 
@@ -1119,8 +1136,12 @@ Ein neuer Typ ist erst fertig, wenn diese vier Punkte belegt sind:
    `REFUTED`, und das Urteil nennt den Zeugen (die neu hergeleitete Zahl, den
    abweichenden Hash, den ersten Verstoss), nicht nur "falsch".
 3. **`markers` deklariert:** das Tupel der Marker-Tokens, die der Typ
-   beansprucht; ohne die Angabe gilt der grossgeschriebene `kind`. Ein Token,
-   das kein Typ beansprucht, ist ein Defekt (Exit 5).
+   beansprucht; ohne die Angabe gilt der grossgeschriebene `kind`. Das
+   deklarierte Token muss der Typ auch lesen -- im `pattern` oder, wie `SCORE`
+   bei `[HALT]`, im `parse`; ein Token, das kein Typ beansprucht, ist ein
+   Defekt (Exit 5). Sample-Zeile in
+   `tests/test_report.py::UnknownMarkerTest.CLAIMED_TOKENS` nachtragen: der
+   Tabellentest haelt sie mit der Registry synchron.
 4. **Eval-Eintrag:** eine ehrliche Meldung (wird bestaetigt) und eine auf
    bekannte Weise falsche (wird nie bestaetigt) im Pruefset, mit gepinnten
    Urteilen -- sonst bleibt die Messlatte blind fuer den neuen Typ.

@@ -94,7 +94,7 @@ def negative_space(results, profile=None):
         if claim.kind in META_KINDS or claim.kind in found:
             continue
         found.append(claim.kind)
-    requirements = PROFILES.get(profile, ()) if profile is not None else ()
+    requirements = PROFILES[profile] if profile is not None else ()
     missing = tuple(
         requirement
         for requirement in requirements
