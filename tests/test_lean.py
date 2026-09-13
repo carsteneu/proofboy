@@ -1008,13 +1008,21 @@ class LeanCheckTest(unittest.TestCase):
     def test_a_toolchain_resolution_failure_at_the_compile_stage_is_unverifiable(self):
         # P17 (b): a broken environment is no error of the claim -- the exact
         # elan line from the repro must not be reported as a compile error.
-        # For a standalone file the fake tool's build mode IS the compile run.
-        repo, commit = self.toolchain_repo("tc-compile", "./evil")
+        # The request is well-formed and installed, so only the run-time
+        # failure is under test here. For a standalone file the fake tool's
+        # build mode IS the compile run.
+        repo, commit = self.toolchain_repo("tc-compile", "leanprover/lean4:v4.33.1")
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
         elan_line = (
             "error: no Lean toolchain found at '././evil': "
             "expected '././evil/bin/lean' to exist\n"
         )
-        bin_dir = self.fake(**{"build.out": elan_line, "build.rc": "1\n"})
+        with open(os.path.join(bin_dir, "build.out"), "w", encoding="utf-8") as handle:
+            handle.write(elan_line)
+        with open(os.path.join(bin_dir, "build.rc"), "w", encoding="utf-8") as handle:
+            handle.write("1\n")
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
@@ -1022,6 +1030,19 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
         self.assertIn("no Lean toolchain found", result.reason)
         self.assertNotIn("does not compile", result.reason)
+
+    def test_a_path_like_request_is_refused_without_an_elan_root_too(self):
+        # The refusal does not depend on elan being in play: a path-like
+        # request is never honored, on any host.
+        repo, commit = self.toolchain_repo("tc-path-plain", "./evil", decoy=True)
+        bin_dir = self.answering(self.fake())
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("./evil", result.reason)
+        self.assertIn("is not a toolchain name", result.reason)
 
     def test_a_toolchain_resolution_failure_at_the_build_stage_is_unverifiable(self):
         # P17 (b) at stage 1: the lake build fails because the toolchain

@@ -362,38 +362,13 @@ def _toolchain_dir(value):
     return value.replace("/", "--").replace(":", "---")
 
 
-def _requested_toolchain(elan_home, start_dir):
-    """The repository's toolchain request, validated against this host.
-
-    The ``lean-toolchain`` file reaches elan as ``ELAN_TOOLCHAIN``, and elan
-    runs a path-like value directly: that would hand the toolchain to the
-    inspected repository. So the file is a request, not an authority. Returns
-    ``(value, None)`` for an installed request in elan's native form,
-    ``(None, reason)`` when the request must be refused, and ``(None, None)``
-    when there is no request (no file, an empty value, an unreadable file).
-    """
-    toolchain_file = _project_toolchain_file(start_dir)
-    if toolchain_file is None:
-        return None, None
+def _toolchain_value(toolchain_file):
+    """The first-line value of a ``lean-toolchain`` file, else ""."""
     try:
         with open(toolchain_file, encoding="utf-8") as handle:
-            value = handle.readline().strip()
+            return handle.readline().strip()
     except OSError:
-        return None, None
-    if not value:
-        return None, None
-    if not _TOOLCHAIN_RE.match(value):
-        return None, (
-            f"the project's lean-toolchain requests the toolchain {value!r}, which is not "
-            f"a toolchain name (authority/name:version); a repository asks for a toolchain, "
-            f"it does not choose one"
-        )
-    if not os.path.isdir(os.path.join(elan_home, "toolchains", _toolchain_dir(value))):
-        return None, (
-            f"the project requests the toolchain {value!r}, which is not installed under "
-            f"{elan_home}; the proof was not checked"
-        )
-    return value, None
+        return ""
 
 
 def _find_tool(name):
@@ -901,35 +876,52 @@ def check(claim, ctx):
             )
         env["PATH"] = tool_bin + os.pathsep + env["PATH"]
         elan_home = _elan_home(lean)
+        # A `lean-toolchain` file is a request, not an authority. A path-like
+        # value is refused whenever it is seen -- elan would execute the path
+        # directly, and that holds with or without an elan root. A well-formed
+        # request is only followed when an elan root can resolve it to an
+        # installed toolchain; a manifest pin for lean wins outright, and the
+        # request is then not even read.
+        toolchain_file = _project_toolchain_file(project or os.path.dirname(real_file))
+        request = None
+        if toolchain_file is not None and lean_pin is None:
+            value = _toolchain_value(toolchain_file)
+            if value and not _TOOLCHAIN_RE.match(value):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the project's lean-toolchain requests the toolchain {value!r}, which is "
+                    f"not a toolchain name (authority/name:version); a repository asks for a "
+                    f"toolchain, it does not choose one" + note_suffix,
+                    sandboxed=sandboxed,
+                )
+            request = value or None
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
-            # The operator's explicit choice wins. Otherwise the project's
-            # `lean-toolchain` file is a request, not an authority: only its
-            # elan-native form, and only an installed toolchain, is followed
-            # (a path-like value would make elan execute repository code).
-            # Without any request the sole installed toolchain is pinned, so
-            # the shim does not query its release server (no network in the
-            # sandbox) on every invocation.
+            # The operator's explicit choice wins. Otherwise the request is
+            # honored when it is installed, and without any request the sole
+            # installed toolchain is pinned, so the shim does not query its
+            # release server (no network in the sandbox) on every invocation.
             toolchain_pin = os.environ.get("ELAN_TOOLCHAIN") or None
-            if toolchain_pin is None and lean_pin is None:
-                # A pinned lean settles the toolchain: the manifest entry wins
-                # over the repository's request, which is then not consulted.
-                toolchain_pin, refusal = _requested_toolchain(
-                    elan_home, project or os.path.dirname(real_file)
-                )
-                if refusal is not None:
+            if toolchain_pin is None and request is not None:
+                if not os.path.isdir(
+                    os.path.join(elan_home, "toolchains", _toolchain_dir(request))
+                ):
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         "",
-                        refusal + note_suffix,
+                        f"the project requests the toolchain {request!r}, which is not "
+                        f"installed under {elan_home}; the proof was not checked" + note_suffix,
                         sandboxed=sandboxed,
                     )
+                toolchain_pin = request
             if toolchain_pin is None:
                 toolchain_pin = _sole_toolchain(elan_home)
             if toolchain_pin:
                 env["ELAN_TOOLCHAIN"] = toolchain_pin
-            elif _project_toolchain_file(project or os.path.dirname(real_file)) is not None:
+            elif toolchain_file is not None:
                 # Nothing host-side settles the toolchain while the project
                 # ships a lean-toolchain file: an unpinned elan would resolve
                 # it from the inspected tree (and run a path-like value), so
