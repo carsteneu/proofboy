@@ -14,7 +14,7 @@ from unittest import mock
 
 from bemyself import claimtypes, cli
 from bemyself.model import ClaimType, Result, Verdict
-from tests.fixtures import make_repo
+from tests.fixtures import commit_probe, make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _BWRAP = shutil.which("bwrap")
@@ -380,6 +380,60 @@ class CliTest(unittest.TestCase):
         proc = self.invoke("--report", self.sandbox_report(), "--sandbox=banana")
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--sandbox", proc.stderr)
+
+    # --- --tools: the host-side tool manifest ------------------------------
+    def write_manifest(self, text, name="tools.toml"):
+        path = os.path.join(self._tmp.name, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        return path
+
+    def lean_report(self):
+        repo = make_repo(os.path.join(self._tmp.name, "tools-fixture"))
+        commit = commit_probe(repo, "lean/Proof.lean", "theorem t : True := trivial\n")
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {commit}]`\n"
+            "[LEAN: lean/Proof.lean -> t]\n"
+        )
+        return repo, report
+
+    def test_a_missing_tools_manifest_is_an_error(self):
+        proc = self.invoke(
+            "--report",
+            self.sandbox_report(),
+            "--tools",
+            os.path.join(self._tmp.name, "no-such.toml"),
+            "--json",
+        )
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("cannot read the tool manifest", proc.stderr)
+
+    def test_a_malformed_tools_manifest_is_an_error(self):
+        manifest = self.write_manifest("this is no manifest\n", name="broken.toml")
+        proc = self.invoke(
+            "--report", self.sandbox_report(), "--tools", manifest, "--json"
+        )
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("is no valid TOML", proc.stderr)
+
+    def test_a_pinned_tool_that_is_missing_leaves_the_lean_claim_unverifiable(self):
+        # P17 (c): a manifest pin wins over PATH -- and a pin that points
+        # nowhere is an environment defect, never a refutation.
+        repo, report = self.lean_report()
+        manifest = self.write_manifest(
+            "[tool.lean]\n"
+            f'path = "{os.path.join(self._tmp.name, "nowhere", "lean")}"\n'
+            "[tool.leanchecker]\n"
+            f'path = "{os.path.join(self._tmp.name, "nowhere", "leanchecker")}"\n',
+            name="pins.toml",
+        )
+        proc = self.invoke(
+            "--report", report, "--tools", manifest, "--json", "--strict", repo=repo.path
+        )
+        self.assertEqual(proc.returncode, 4, proc.stdout + proc.stderr)
+        claims = {c["kind"]: c for c in json.loads(proc.stdout)["claims"]}
+        self.assertEqual(claims["lean"]["verdict"], "UNVERIFIABLE")
+        self.assertIn("does not exist", claims["lean"]["reason"])
 
     # --- --halt-limit ------------------------------------------------------
     def halt_report(self, steps=3):

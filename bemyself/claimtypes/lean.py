@@ -257,6 +257,16 @@ def _tool_version(text):
     return ""
 
 
+def _same_version(left, right):
+    """Version equality, tolerant of a leading ``v`` and surrounding space."""
+
+    def normalize(value):
+        value = value.strip()
+        return value[1:] if value[:1] in ("v", "V") else value
+
+    return normalize(left) == normalize(right)
+
+
 def _toolchain_name(text):
     """A short toolchain name from a ``lean --version`` answer, else ""."""
     version = _tool_version(text)
@@ -400,6 +410,29 @@ def _tool_pin(ctx, name):
     return pins.get(name) if pins else None
 
 
+def _resolve_tool(ctx, name):
+    """(path, pin, reason): resolve a tool; a manifest pin wins over PATH.
+
+    With a manifest the allowed tools come from the manifest: a tool it does
+    not name is not run at all (there is no silent PATH fallback), and a pin
+    whose path does not exist is refused. Without one the tool is looked up
+    in PATH as before.
+    """
+    pin = _tool_pin(ctx, name)
+    if pin is not None:
+        if not os.path.isfile(pin.path):
+            return None, pin, (
+                f"the tool manifest pins {name} to {pin.path!r}, which does not exist"
+            )
+        return pin.path, pin, None
+    if getattr(ctx, "tools", None):
+        return None, None, (
+            f"the tool manifest does not allow {name}; a run with --tools uses only "
+            f"the pinned tools"
+        )
+    return _find_tool(name), None, None
+
+
 class _Tool(namedtuple("_ToolBase", "name path digest version pinned")):
     """One identified tool: the file that ran, and what it provably is."""
 
@@ -433,7 +466,7 @@ def _identify_tool(name, path, pin=None):
             f"{toolmanifest.DIGEST_PREFIX}{toolmanifest.short_digest(digest)}; the tool "
             f"that would judge is not the pinned one"
         )
-    return _Tool(name, path, digest, None, pin is not None), None
+    return _Tool(name, path, digest, pin.version if pin is not None else None, pin is not None), None
 
 
 def _tools_note(tools, toolchain):
@@ -442,6 +475,21 @@ def _tools_note(tools, toolchain):
     if toolchain:
         text += f" (toolchain {toolchain})"
     return f"tools: {text}"
+
+
+def _tool_bin_dir(tmp_dir, tools):
+    """A checker-owned bin directory for the child processes of a run.
+
+    The toolchain's own launchers (``leanchecker``, ``lake``) resolve
+    ``lean`` by name from PATH. Left to the host PATH, that lookup can land
+    on an elan shim, and a shim whose toolchain is not pinned resolves it from
+    the inspected tree -- which would run a repository-authored binary. Here
+    every name points at exactly the tool the verdict names.
+    """
+    directory = tempfile.mkdtemp(prefix="lean-tool-bin-", dir=tmp_dir)
+    for tool in tools:
+        os.symlink(tool.path, os.path.join(directory, tool.name))
+    return directory
 
 
 def _lake_project(checkout, start_dir):
@@ -629,17 +677,19 @@ def check(claim, ctx):
             f"{path!r} is not a file in commit {commit[:12]} (object type {object_type!r})",
         )
 
-    lean = _find_tool("lean")
+    lean, lean_pin, reason = _resolve_tool(ctx, "lean")
     if lean is None:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason="lean is not available in PATH; the Lean proof cannot be checked",
+            reason=reason
+            or "lean is not available in PATH; the Lean proof cannot be checked",
         )
-    leanchecker = _find_tool("leanchecker")
+    leanchecker, checker_pin, reason = _resolve_tool(ctx, "leanchecker")
     if leanchecker is None:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason="leanchecker is not available in PATH; the compiled proof cannot be "
+            reason=reason
+            or "leanchecker is not available in PATH; the compiled proof cannot be "
             "re-checked with Lean's kernel",
         )
     if not os.path.isfile(_QUERY_PROGRAM):
@@ -670,16 +720,15 @@ def check(claim, ctx):
     # content digest, its version once known, and whether a manifest pinned
     # it. The hash is cheap (the binaries are small) and it is the anchor the
     # verdict text carries.
-    lean_tool, reason = _identify_tool("lean", lean, _tool_pin(ctx, "lean"))
+    lean_tool, reason = _identify_tool("lean", lean, lean_pin)
     if lean_tool is None:
         return Result(Verdict.UNVERIFIABLE, reason=reason + note_suffix)
-    checker_tool, reason = _identify_tool(
-        "leanchecker", leanchecker, _tool_pin(ctx, "leanchecker")
-    )
+    checker_tool, reason = _identify_tool("leanchecker", leanchecker, checker_pin)
     if checker_tool is None:
         return Result(Verdict.UNVERIFIABLE, reason=reason + note_suffix)
     lake_tool = None
     toolchain_pin = None
+    tool_bin = None
 
     def refresh_identity_note():
         nonlocal note_suffix
@@ -746,14 +795,15 @@ def check(claim, ctx):
         module = None
         build_dir = os.path.join(checkout, _BUILD_DIR)
         if project is not None:
-            lake = _find_tool("lake")
+            lake, lake_pin, reason = _resolve_tool(ctx, "lake")
             module = _module_name(project, real_file)
             if lake is None:
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"the file is part of a Lake project at "
+                    reason
+                    or f"the file is part of a Lake project at "
                     f"{os.path.relpath(project, checkout)!r} but lake is not available in PATH",
                 )
             if module is None:
@@ -763,7 +813,7 @@ def check(claim, ctx):
                     "",
                     f"cannot derive the Lake module name of {path!r}",
                 )
-            lake_tool, reason = _identify_tool("lake", lake, _tool_pin(ctx, "lake"))
+            lake_tool, reason = _identify_tool("lake", lake, lake_pin)
             if lake_tool is None:
                 return Result(Verdict.UNVERIFIABLE, command_desc, "", reason + note_suffix)
             refresh_identity_note()
@@ -837,6 +887,19 @@ def check(claim, ctx):
             return list(argv), display + note_suffix
 
         env = checks._test_env(checkout)
+        try:
+            tool_bin = _tool_bin_dir(
+                ctx.tmp_dir,
+                [tool for tool in (lean_tool, checker_tool, lake_tool) if tool is not None],
+            )
+        except OSError as exc:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"cannot prepare the tool directory for the run: {exc}" + note_suffix,
+            )
+        env["PATH"] = tool_bin + os.pathsep + env["PATH"]
         elan_home = _elan_home(lean)
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
@@ -848,7 +911,9 @@ def check(claim, ctx):
             # the shim does not query its release server (no network in the
             # sandbox) on every invocation.
             toolchain_pin = os.environ.get("ELAN_TOOLCHAIN") or None
-            if toolchain_pin is None:
+            if toolchain_pin is None and lean_pin is None:
+                # A pinned lean settles the toolchain: the manifest entry wins
+                # over the repository's request, which is then not consulted.
                 toolchain_pin, refusal = _requested_toolchain(
                     elan_home, project or os.path.dirname(real_file)
                 )
@@ -864,6 +929,22 @@ def check(claim, ctx):
                 toolchain_pin = _sole_toolchain(elan_home)
             if toolchain_pin:
                 env["ELAN_TOOLCHAIN"] = toolchain_pin
+            elif _project_toolchain_file(project or os.path.dirname(real_file)) is not None:
+                # Nothing host-side settles the toolchain while the project
+                # ships a lean-toolchain file: an unpinned elan would resolve
+                # it from the inspected tree (and run a path-like value), so
+                # the run is refused instead of judged.
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the project ships a lean-toolchain file and no host-side toolchain "
+                    f"is pinned against it (no ELAN_TOOLCHAIN, no --tools entry for lean, "
+                    f"and {elan_home} does not hold exactly one installed toolchain); elan "
+                    f"would resolve the toolchain from the inspected tree, so the proof "
+                    f"was not checked" + note_suffix,
+                    sandboxed=sandboxed,
+                )
             refresh_identity_note()
         cache_note = ""
         if extra_binds:
@@ -913,6 +994,15 @@ def check(claim, ctx):
             )
         toolchain = _toolchain_name(run.head) or _toolchain_name(run.tail) or "Lean"
         lean_version = _tool_version(run.head) or _tool_version(run.tail)
+        if lean_pin is not None and lean_pin.version and lean_version and not _same_version(
+            lean_version, lean_pin.version
+        ):
+            return unverifiable(
+                run,
+                shown,
+                f"the tool manifest pins lean to version {lean_pin.version}, but {lean} "
+                f"reports {lean_version}; the tool that would judge is not the pinned one",
+            )
         if lean_version:
             lean_tool = lean_tool._replace(version=lean_version)
             # leanchecker has no usable version probe (`leanchecker --version`
@@ -968,6 +1058,19 @@ def check(claim, ctx):
                     f"the Lake toolchain could not run ({lake_preflight[0]} --version): {detail}",
                 )
             lake_version = _tool_version(run.head) or _tool_version(run.tail)
+            if (
+                lake_pin is not None
+                and lake_pin.version
+                and lake_version
+                and not _same_version(lake_version, lake_pin.version)
+            ):
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the tool manifest pins lake to version {lake_pin.version}, but "
+                    f"{lake} reports {lake_version}; the tool that would judge is not "
+                    f"the pinned one",
+                )
             if lake_version:
                 lake_tool = lake_tool._replace(version=lake_version)
                 refresh_identity_note()
@@ -1304,6 +1407,8 @@ def check(claim, ctx):
         )
     finally:
         shutil.rmtree(checkout, ignore_errors=True)
+        if tool_bin is not None:
+            shutil.rmtree(tool_bin, ignore_errors=True)
 
 
 def _discard_path(path, checkout):

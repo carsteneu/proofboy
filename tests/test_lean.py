@@ -24,7 +24,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes
+from bemyself import claimtypes, toolmanifest
 from bemyself.claimtypes import lean
 from bemyself.checks import Ctx, kind_needs_repo, run_claim
 from bemyself.model import Verdict
@@ -1034,12 +1034,10 @@ class LeanCheckTest(unittest.TestCase):
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-        lean_digest = hashlib.sha256(
-            open(os.path.join(bin_dir, "lean"), "rb").read()
-        ).hexdigest()[:12]
-        checker_digest = hashlib.sha256(
-            open(os.path.join(bin_dir, "leanchecker"), "rb").read()
-        ).hexdigest()[:12]
+        with open(os.path.join(bin_dir, "lean"), "rb") as handle:
+            lean_digest = hashlib.sha256(handle.read()).hexdigest()[:12]
+        with open(os.path.join(bin_dir, "leanchecker"), "rb") as handle:
+            checker_digest = hashlib.sha256(handle.read()).hexdigest()[:12]
         self.assertIn(f"lean 4.33.1 sha256:{lean_digest}", result.reason)
         self.assertIn(f"leanchecker 4.33.1 sha256:{checker_digest}", result.reason)
         self.assertIn("(toolchain leanprover/lean4:v4.33.1)", result.reason)
@@ -1058,6 +1056,167 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
         self.assertIn("lean 4.33.1 sha256:", result.reason)
         self.assertIn("leanchecker 4.33.1 sha256:", result.reason)
+
+    # --- the --tools manifest (P17 c/d) ------------------------------------
+    def write_manifest(self, entries, name="tools.toml"):
+        """A manifest: {tool: (path, version or None, digest or None)}."""
+        lines = []
+        for tool, (path, version, digest) in sorted(entries.items()):
+            lines.append(f"[tool.{tool}]")
+            lines.append(f'path = "{path}"')
+            if version is not None:
+                lines.append(f'version = "{version}"')
+            if digest is not None:
+                lines.append(f'digest = "{digest}"')
+            lines.append("")
+        manifest = os.path.join(self._tmp.name, "manifests", self._testMethodName, name)
+        os.makedirs(os.path.dirname(manifest), exist_ok=True)
+        with open(manifest, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines))
+        return toolmanifest.load(manifest)
+
+    def sha(self, path):
+        with open(path, "rb") as handle:
+            return "sha256:" + hashlib.sha256(handle.read()).hexdigest()
+
+    def test_a_manifest_pin_beats_the_repositorys_toolchain_request(self):
+        # P17 (c): the manifest is host authority. The repository asks for
+        # ./evil; the pinned tools run, the request is not even consulted.
+        repo, commit = self.toolchain_repo("manifest-wins", "./evil", decoy=True)
+        bin_dir = self.answering(self.fake())
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(bin_dir, "lean"), None, None),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("[pinned]", result.reason)
+        self.assertNotIn("not a toolchain name", result.reason)
+
+    def test_a_manifest_pin_names_the_pinned_digest_in_the_verdict(self):
+        repo, commit = self.probe_repo("manifest-identity", _PROOF)
+        bin_dir = self.answering(self.fake())
+        digest = self.sha(os.path.join(bin_dir, "lean"))
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(bin_dir, "lean"), "4.33.1", digest),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn(
+            f"lean 4.33.1 sha256:{digest.split(':', 1)[1][:12]} [pinned]", result.reason
+        )
+
+    def test_a_manifest_pin_to_a_missing_tool_is_unverifiable(self):
+        # P17 (c): a pinned path that does not exist is an environment
+        # defect; the claim is not refuted, and no other lean is run.
+        repo, commit = self.probe_repo("manifest-missing", _PROOF)
+        bin_dir = self.answering(self.fake())
+        missing = os.path.join(self._tmp.name, "nowhere", "lean")
+        tools = self.write_manifest(
+            {
+                "lean": (missing, None, None),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn(missing, result.reason)
+        self.assertIn("does not exist", result.reason)
+
+    def test_a_manifest_digest_mismatch_is_unverifiable(self):
+        # The pinned content is the promise; a different binary is refused.
+        repo, commit = self.probe_repo("manifest-digest", _PROOF)
+        bin_dir = self.answering(self.fake())
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(bin_dir, "lean"), None, "sha256:" + "0" * 64),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("sha256:000000000000", result.reason)
+
+    def test_a_manifest_version_mismatch_is_unverifiable(self):
+        repo, commit = self.probe_repo("manifest-version", _PROOF)
+        bin_dir = self.answering(self.fake())
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(bin_dir, "lean"), "9.9.9", None),
+                "leanchecker": (os.path.join(bin_dir, "leanchecker"), None, None),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("9.9.9", result.reason)
+        self.assertIn("4.33.1", result.reason)
+
+    def test_a_tool_the_manifest_does_not_allow_is_unverifiable(self):
+        # P17 (d): with a manifest the allowed tools come from the manifest;
+        # there is no silent PATH fallback.
+        repo, commit = self.probe_repo("manifest-narrow", _PROOF)
+        bin_dir = self.answering(self.fake())
+        tools = self.write_manifest(
+            {"lean": (os.path.join(bin_dir, "lean"), None, None)}
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("leanchecker", result.reason)
+        self.assertIn("does not allow", result.reason)
+
+    def test_a_project_toolchain_file_without_a_host_pin_is_refused(self):
+        # An elan whose toolchain is not pinned resolves it from the inspected
+        # tree; that path is refused instead of judged.
+        repo, commit = self.toolchain_repo("tc-unpinned", "")
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(
+                ("leanprover--lean4---v4.33.1", "leanprover--lean4---v4.34.0")
+            )
+        )
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("no host-side toolchain", result.reason)
+        self.assertIn("lean-toolchain", result.reason)
+
+    def test_the_tool_names_are_pinned_in_a_checker_owned_directory(self):
+        # The launchers resolve `lean` by name from PATH; the run's PATH leads
+        # with a directory that points every name at the identified tool.
+        directory = lean._tool_bin_dir(
+            self._tmp.name,
+            [
+                lean._Tool("lean", "/bin/echo", "sha256:" + "a" * 64, None, False),
+                lean._Tool("leanchecker", "/bin/true", "sha256:" + "b" * 64, None, False),
+            ],
+        )
+        self.assertEqual(os.readlink(os.path.join(directory, "lean")), "/bin/echo")
+        self.assertEqual(os.readlink(os.path.join(directory, "leanchecker")), "/bin/true")
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox boundary tests")
     def test_the_working_tree_cache_is_bound_read_only_when_present(self):
