@@ -24,10 +24,13 @@ interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.
 Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-08), die
 Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D) und die Härte-Runde (05-10: Sets v0.3,
 Zahlen-Regime, tiefe Läufe, Zyklus-Suche) sind erfolgt; die nächsten Runden
-sind in 05-10 §7 skizziert.
+sind in 05-10 §7 skizziert. Seit 2026-09-13 ist zusätzlich der **Trainings-Pfad
+vorbereitet**: Korpus v0 aus den abgeschlossenen Läufen plus QLoRA-SFT/DPO/RLVR-Skripte
+und Leck-Guard in [`training/`](../../../training/README.md), eingeordnet in
+[05-07 §13](05-entwurf-testplan/05-07-denksprache-v1.1.md).
 
-**Umfang:** 34 Dateien in 5 Clustern · 77459 Wörter ·
-720 Quellenangaben (Datei-Summen) · 1086 Inline-Zitate · Visuals in `assets/` je Cluster.
+**Umfang:** 34 Dateien in 5 Clustern · 77661 Wörter ·
+721 Quellenangaben (Datei-Summen) · 1089 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 

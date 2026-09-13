@@ -4,10 +4,10 @@ cluster: 05-entwurf-testplan
 title: Denk-Sprache V1.1 (Entwurf) — Tags, epistemische Status, Kürzel, Trace-Formen
 language: de
 status: Entwurf (V1.1)
-last_updated: 2026-09-12
+last_updated: 2026-09-13
 created_at: 2026-09-12
-sources_count: 15
-citations_count: 43
+sources_count: 16
+citations_count: 46
 images_count: 0
 diagrams_count: 1
 related:
@@ -154,7 +154,7 @@ WITNESS c1: ref h1
 
 ## 8. Der reasoning_content-Kanal
 
-**Regel (Setzung, weiche Härte):** Der System-Prompt fordert die Denk-Grammatik **verbindlich für die sichtbare Denkzone** und **empfiehlt** sie für `reasoning_content` („denke in V1.1-Form, wo mathematisch"). Treue wird gemessen (Metrik h), nicht erzwungen. Begründung: `reasoning_content` ist ein eigener, template-geprägter Kanal (`<think>`/`</think>` als Special-Tokens, [01-03](../01-modellprofil/01-03-tokenizer-zahlen.md)); ein dort erzwungenes neues Grammatik-Regime wäre Off-Distribution, solange kein Trainingssignal existiert — DeepSeek-R1 zeigt, dass Format-Rewards gerade auf abgegrenzte Reasoning-Bereiche wirken [DeepSeek-R1](https://arxiv.org/abs/2501.12948, accessed 2026-09-12), hier steht aber nur Prompting zur Verfügung. Ein RC-Enforcement-Arm bleibt als spätere Frage (S10, nicht Teil der Leiter).
+**Regel (Setzung, weiche Härte):** Der System-Prompt fordert die Denk-Grammatik **verbindlich für die sichtbare Denkzone** und **empfiehlt** sie für `reasoning_content` („denke in V1.1-Form, wo mathematisch"). Treue wird gemessen (Metrik h), nicht erzwungen. Begründung: `reasoning_content` ist ein eigener, template-geprägter Kanal (`<think>`/`</think>` als Special-Tokens, [01-03](../01-modellprofil/01-03-tokenizer-zahlen.md)); ein dort erzwungenes neues Grammatik-Regime wäre Off-Distribution, solange kein Trainingssignal existiert — DeepSeek-R1 zeigt, dass Format-Rewards gerade auf abgegrenzte Reasoning-Bereiche wirken [DeepSeek-R1](https://arxiv.org/abs/2501.12948, accessed 2026-09-12), hier steht aber nur Prompting zur Verfügung. Ein RC-Enforcement-Arm bleibt als spätere Frage (S10, nicht Teil der Leiter). Seit 2026-09-13 liegt dafür das Trainingssignal vorbereitet vor: Korpus v0 aus den abgeschlossenen Läufen (v11–v13) plus QLoRA-SFT/DPO/RLVR-Skizze in [`training/`](../../../../training/README.md) (Details §13) — gemessen ist davon nichts, die Maschine ist CPU-only.
 
 ## 9. Beispiele
 
@@ -211,8 +211,28 @@ Priorisierung im Verhältnis zu S1–S5 ([05-05](05-05-ablation-protokoll.md)): 
 - `ref`-Validierung + UNVERIFIABLE-Grund `ref_unconfirmed` (Implementierung/[04-05](../04-offene-probleme/04-05-bruecke-pruefer.md)). **→ erledigt (05-08 §4).**
 - `^^`/`^^^`, `ex`, `#(...)`: ungemessen — Sonde vor Aufnahme in die Lexik. **→ gemessen ([01-03b](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md)).**
 - Ordnung/Wiederholung im Trace („Frontloading": Zustand zuletzt vs. zuerst) — eigenes Experiment, nicht Teil von V1.1.
-- RC-Enforcement (S10) — Zukunft, setzt internes Format-Signal voraus.
+- RC-Enforcement (S10) — Zukunft, setzt internes Format-Signal voraus. **→ Signal vorbereitet (Korpus v0 + Trainings-Skripte, [`training/`](../../../../training/README.md), §13); Messung offen (braucht GPU-Läufe).**
 - Parser-Anpassungen: Tag-IDs statt `S<n>` in V1.1-Armen; Legenden-Injektion ist Harness-Aufgabe ([05-04](05-04-test-harness.md)). **→ umgesetzt (bemyself/msheet, tooling/prompts.py).**
+
+## 13. Nachtrag (2026-09-13): Trainings-Pfad — Korpus v0 und die Skripte
+
+Der in §8 als fehlend benannte Trainingssignal-Kanal ist jetzt **vorbereitet**
+(nicht gemessen): `training/build_corpus.py` baut aus den abgeschlossenen
+Läufen v11–v13 einen Korpus mit **maschinellen** Labels — SFT (160 Sätze:
+Legende + Aufgabe → verifiziertes Blatt verbatim; nur Blätter ohne
+REFUTED/UNVERIFIABLE-Behauptungen), DPO (18 Paare verifiziert/nicht
+bestätigt), RLVR (176 Zellen mit Runner-Kommando und `all_claims_confirmed`)
+und Denkzonen-Material (176). Die Läufe selbst bleiben die Quelle
+(Häfte-Runde v13: [05-10](05-10-haerte-runde-v13.md)); Splits liegen auf
+Task-Familien (Seed dokumentiert), Korpus v0 ist committet und per Skript
+sha256-stabil reproduzierbar.
+`training/{train_sft,train_dpo,rlvr,distill_thinking}.py` sind GPU-ready
+(QLoRA/TRL, Reward = Runner-Verdikt, Leck-Guard für die Nicht-Vorgabe-Zellen);
+die Leiter (Basis vs. LoRA vs. DPO/RLVR) steht in `training/EVALPLAN.md`.
+Ehrlichkeitsgrenze: auf der CPU-Maschine sind nur dry-runs, Reward-Läufe,
+Leck-Guard und Rebuild geprüft — jeder Trainingslauf braucht gemietete
+CUDA-Hardware, und der Harness-Endpunkt ist dafür per
+`BEMYSELF_PROXY_URL` auf die eigene Instanz umstellbar.
 
 ## Quellen
 
@@ -231,3 +251,4 @@ Priorisierung im Verhältnis zu S1–S5 ([05-05](05-05-ablation-protokoll.md)): 
 13. Lokale Quelle (2026-09-12): `bemyself/model.py` und claimtypes `[HALT]`/`[COMPUTE]`/`[CYCLE]` (P7/P9/P10) — Verdikt-Modell und Zeugen-Anschlüsse.
 14. Lokale Quelle (2026-09-12): [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Messanordnung, in deren Leiter V1.1 geprüft wird (Nachtrag V1.1).
 15. Lokale Quelle (2026-09-12): [05-04-test-harness.md](05-04-test-harness.md) — Harness-Anbindung (Legenden-Injektion, `opencode run --format json`, Logging).
+16. Lokale Quelle (2026-09-13): `training/` (Korpus v0 aus v11–v13, `build_corpus.py`, QLoRA-SFT/DPO/RLVR-Skizze, Leck-Guard, `EVALPLAN.md`) — der vorbereitete Trainings-Pfad zu §8/§13.
