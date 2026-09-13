@@ -28,14 +28,14 @@ G0/G1/G2, Bindungsschutz, Sets v0.4), die RC-Umstellung (05-12: RC-Fidelity-Metr
 Instruction-only-Arme C0/C1/C2, Prefill-Grenze), die Lean-Runde (05-14: leancheck-Elaborator,
 Latent-Lean-Smoke 16/16 valid, Taktik-Denkspur-Arme L0/L1/L2, Token-Kosten der Lean-Zeile)
 und die Lean-Mandat-Runde (05-15: Prompt-Varianten-Matrix V-A..V-E, RC-Prompt-Resistenz
-reproduziert, Lean-Antwort 94/105 valid mit 0 sorry, Completion-Prefill fence-frei)
+reproduziert, Lean-Antwort 94/105 valid mit 0 sorry, V-D-Konfiguration fence-frei)
 sind erfolgt; die nächsten Runden
 sind in 05-12 §7 skizziert. Seit 2026-09-13 ist zusätzlich der **Trainings-Pfad
 vorbereitet**: Korpus v0 aus den abgeschlossenen Läufen plus QLoRA-SFT/DPO/RLVR-Skripte
 und Leck-Guard in [`training/`](../../../training/README.md), eingeordnet in
 [05-07 §13](05-entwurf-testplan/05-07-denksprache-v1.1.md).
 
-**Umfang:** 38 Dateien in 5 Clustern · 87819 Wörter ·
+**Umfang:** 38 Dateien in 5 Clustern · 87938 Wörter ·
 764 Quellenangaben (Datei-Summen) · 1152 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
@@ -244,7 +244,7 @@ Querverweise: [lean/erdos-straus/README.md](../../../lean/erdos-straus/README.md
 | [05-12-rc-umstellung-v15.md](05-entwurf-testplan/05-12-rc-umstellung-v15.md) | RC-Umstellung V15: Die Denkspur in V1.1 — Fidelity-Metrik, Instruction-only-Arme C0/C1/C2 und die Prefill-Grenze | Verifiziert | 12 | 12 | 0 Img / 0 Diagr |
 | [05-13-sauberkeit-v16.md](05-entwurf-testplan/05-13-sauberkeit-v16.md) | Sauberkeits-Runde V16: Direkt-Transport, Proxy-Kontamination und der Zwangsprompt-Arm H | Verifiziert | 6 | 6 | 0 Img / 0 Diagr |
 | [05-14-v1-1-lean-v18.md](05-entwurf-testplan/05-14-v1-1-lean-v18.md) | Lean-Runde V18 (v1.1.lean): leancheck-Elaborator, Latent-Lean-Smoke (16/16 valid, 13/16 axiomfrei), Taktik-Denkspur-Arme L0/L1/L2 und Token-Kosten der Lean-Zeile | Verifiziert | 9 | 25 | 0 Img / 0 Diagr |
-| [05-15-lean-mandat-v19.md](05-entwurf-testplan/05-15-lean-mandat-v19.md) | Lean-Mandat-Runde V19: Prompt-Varianten-Matrix (V-A..V-E), RC-Prompt-Resistenz und die Lean-Antwort-Konfiguration (94/105 valid, 0 sorry, Completion-Prefill fence-frei) | Verifiziert | 11 | 15 | 0 Img / 0 Diagr |
+| [05-15-lean-mandat-v19.md](05-entwurf-testplan/05-15-lean-mandat-v19.md) | Lean-Mandat-Runde V19: Prompt-Varianten-Matrix (V-A..V-E), RC-Prompt-Resistenz und die Lean-Antwort-Konfiguration (94/105 valid, 0 sorry, V-D-Konfiguration fence-frei) | Verifiziert | 11 | 15 | 0 Img / 0 Diagr |
 
 Querverweise: [01-modellprofil/01-03-tokenizer-zahlen.md](01-modellprofil/01-03-tokenizer-zahlen.md), [01-modellprofil/01-06-betrieb-umgebung.md](01-modellprofil/01-06-betrieb-umgebung.md), [02-wirksame-formate/02-01-tokenisierung-arithmetik.md](02-wirksame-formate/02-01-tokenisierung-arithmetik.md), [02-wirksame-formate/02-02-embedding-position.md](02-wirksame-formate/02-02-embedding-position.md), [02-wirksame-formate/02-03-format-sensitivitaet.md](02-wirksame-formate/02-03-format-sensitivitaet.md), [02-wirksame-formate/02-04-lokalitaet-struktur.md](02-wirksame-formate/02-04-lokalitaet-struktur.md), [02-wirksame-formate/02-05-latentes-denken.md](02-wirksame-formate/02-05-latentes-denken.md), [03-formale-bruecke/03-01-formale-systeme.md](03-formale-bruecke/03-01-formale-systeme.md), [03-formale-bruecke/03-04-zeugen-zertifikate.md](03-formale-bruecke/03-04-zeugen-zertifikate.md), [03-formale-bruecke/03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md), [04-offene-probleme/04-01-wahlkriterien.md](04-offene-probleme/04-01-wahlkriterien.md), [04-offene-probleme/04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md), [04-offene-probleme/04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md), [04-offene-probleme/04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md), [01-modellprofil/01-03b-tokenizer-v11-lexeme.md](01-modellprofil/01-03b-tokenizer-v11-lexeme.md)
 
