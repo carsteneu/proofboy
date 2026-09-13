@@ -3,52 +3,68 @@ certificate.
 
 A LEAN claim asserts that in the report's pinned commit the named Lean source
 file exists and the named declaration is proved there without ``sorry`` or
-``admit``. The verifier re-derives the claim with the real toolchain: it
-resolves the report's single hash-shaped ``[COMMIT]`` marker (the same
-binding rule as :mod:`bemyself.claimtypes.compute`), checks the file against
-that commit's tree (``git cat-file``), copies the pinned source out of a
-throwaway checkout, appends ``#print axioms <theorem>`` and elaborates the
-copy inside the bwrap sandbox. The verdict cites the kernel evidence: the
-``#print axioms`` line names every axiom the declaration rests on, and a
-proof that used ``sorry``/``admit`` shows ``sorryAx`` -- REFUTED with that
-line quoted verbatim. All remaining axioms are listed in full; a non-logical
-axiom in that list is exactly as visible as ``sorryAx``, and what the list
-means for the claim is documented in README/SPEC.
+``admit``. The verifier re-derives the claim with the real toolchain in three
+stages, all inside the bwrap sandbox:
 
-Proof depth (what CONFIRMED means): the pinned source was *re-elaborated*
-with the toolchain named in the verdict; Lean's kernel checks every
-declaration during elaboration, so the proof term was kernel-checked -- this
-is not an "independent kernel recheck" of a compiled artifact. ``leanchecker``
-(re-checks ``.olean`` files) was evaluated and is not used: it silently
-accepts a module whose proof depends on ``sorryAx`` (verified 2026-09-13 with
-Lean 4.33.1), so it cannot replace the ``#print axioms`` evidence. The
-verdict wording says "re-elaborated" for exactly this reason.
+1. **Build.** The pinned commit is checked out into a throwaway directory,
+   the project's own build artifacts are discarded, and the file's module is
+   built from the pinned source (``lake build <module>`` for a Lake project,
+   ``lean -o`` for a standalone file). The build executes repository code
+   (tactics, ``#eval``, initializers); nothing it prints is evidence.
+2. **Kernel re-check.** ``leanchecker <module>`` re-checks the compiled
+   artifact's declarations with Lean's kernel -- no repository code runs.
+3. **Axiom query.** The checker's own program (``bemyself/tools/lean_axioms.lean``)
+   loads the artifact as *data* at runtime (``importModules``, the module is
+   never imported at elaboration time) and prints the declaration's axiom
+   list. No repository code executes in that process -- not a tactic, not a
+   macro, not an ``initialize`` block -- so the answer cannot be forged or
+   suppressed by the inspected project: the only writer is the query program,
+   and the axiom data comes from the artifact the kernel just re-checked.
 
-Isolation: elaboration executes code (tactics, metaprograms, ``#eval``), and
-``lake`` fetches missing dependencies over the network, so a working bwrap
-sandbox is required: ``auto`` and ``require`` behave alike and leave the
-claim UNVERIFIABLE when bwrap cannot start; only an explicit
-``--sandbox=off`` runs unsandboxed (and says so in the verdict). The sandbox
-binds the filesystem root read-only (which keeps the toolchain under
-``~/.elan`` reachable), gives the run its own network/PID/UTS namespaces and
-writable space only in the throwaway checkout. ``ELAN_HOME`` points at the
-toolchain root so the elan shim works with ``HOME=<checkout>``; when no
-``lean-toolchain`` file is in reach, the sole installed toolchain is pinned
-as ``ELAN_TOOLCHAIN`` so the shim does not query its release server (no
-network in the sandbox). When the checked repository has a working-tree
-``.lake`` cache next to the project and the fresh checkout has none, its
-``packages`` directory is bound read-only into the same path -- named in the
-verdict. Dependencies are not part of the commit and the sandbox has no
-network: an unresolvable dependency (or a cache without compiled artifacts)
-leaves the claim UNVERIFIABLE (never REFUTED, never CONFIRMED), and a
-dependency error only counts when the missing module is one the file itself
-imports.
+Verdicts. CONFIRMED only when the query answers for exactly that declaration
+and the list names no ``sorryAx``; the canonical evidence line (``'name'
+depends on axioms: [...]`` or ``'name' does not depend on any axioms``) is
+quoted in the verdict, with every axiom named -- logical foundations such as
+``propext``, ``Quot.sound`` or ``Classical.choice`` included: CONFIRMED does
+not mean axiom-free. REFUTED on ``sorryAx`` (``depends on axioms: [sorryAx]``),
+on ``lcProof`` (the kernel did not check the body, e.g. an ``unsafe``
+declaration), on a declaration missing from the artifact, and on a build
+error that names the checked file. UNVERIFIABLE otherwise: no toolchain, no
+sandbox, no commit, invalid path or name, timeout, a failed kernel re-check,
+an unreadable answer, and any dependency problem -- a missing dependency is
+never evidence against the theorem, and a failed build that does not name
+the checked file is never a refutation.
 
-Limits: ``LEAN_TIMEOUT`` bounds one build/elaboration run. Path and theorem
-come from an untrusted report and are validated before any argv is built:
-the path must be a plain repository-relative ``.lean`` path (no ``..``, no
-absolute path, ASCII-safe), the theorem must be a Lean identifier (unicode
-letters/digits/underscore, dots and ``!?``). No shell is involved anywhere.
+Trust boundary. The build runs repository code, so the *artifact* is the
+evidence, not the build's output: build output can only downgrade a verdict
+to UNVERIFIABLE, never upgrade it to CONFIRMED. The artifact's kernel
+re-check covers the declarations of the checked module; its dependencies are
+not part of the commit and are trusted as artifacts (from the bound working
+tree cache, named in the verdict, or vendored in the repository). The claim
+is exactly as strong as the toolchain's kernel and those artifacts -- the
+verdict says so, and never claims an independent re-derivation beyond them.
+
+Isolation. Elaboration and building execute code, and ``lake`` would fetch
+missing dependencies over the network, so a working bwrap sandbox is
+required: ``auto`` and ``require`` behave alike and leave the claim
+UNVERIFIABLE when bwrap cannot start; only an explicit ``--sandbox=off`` runs
+unsandboxed (and says so in the verdict). The sandbox binds the filesystem
+root read-only (which keeps the toolchain under ``~/.elan`` reachable), gives
+the run its own network/PID/UTS namespaces and writable space only in the
+throwaway checkout. ``ELAN_HOME`` points at the toolchain root so the elan
+shim works with ``HOME=<checkout>``; when no ``lean-toolchain`` file is in
+reach, the sole installed toolchain is pinned as ``ELAN_TOOLCHAIN`` so the
+shim does not query its release server (no network in the sandbox). When the
+checked repository has a working-tree ``.lake`` cache next to the project and
+the fresh checkout has none, its ``packages`` directory is bound read-only
+into the same path -- named in the verdict.
+
+Limits: ``LEAN_TIMEOUT`` bounds each build/query/re-check run. Path and
+theorem come from an untrusted report and are validated before any argv is
+built: the path must be a plain repository-relative ``.lean`` path (no
+``..``, no absolute path, ASCII-safe), the declaration must be its full Lean
+name (namespace dots, unicode letters/digits/underscore, trailing ``!?``).
+No shell is involved anywhere.
 """
 
 from __future__ import annotations
@@ -63,13 +79,13 @@ from collections import namedtuple
 from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
 from bemyself.model import ClaimType, Result, Verdict
 
-# One build or elaboration run must finish within this many seconds. Like
+# One build, query or re-check run must finish within this many seconds. Like
 # COMPUTE_TIMEOUT this is a fixed bound, not a CLI option.
 LEAN_TIMEOUT = 600
 # The toolchain preflight is a version print, not a run.
 PREFLIGHT_TIMEOUT = 60
-# The window of the run log searched for the FIRST error line; the verdict
-# line (#print axioms) is read from the tail by the shared helper.
+# The window of the build log searched for the FIRST error line; the query
+# answer is read from the same log by the marker protocol below.
 MAX_ERROR_BYTES = 1 << 18
 
 # One lazy "anything but a bracket" capture, fields split out of it afterwards
@@ -77,27 +93,46 @@ MAX_ERROR_BYTES = 1 << 18
 _LEAN_RE = re.compile(r"\[LEAN:(?P<body>[^\]\[]*?)\]")
 
 # A claim path must be a plain repository-relative path to a .lean file. The
-# character set is deliberately narrow: the path reaches argv and the copied
-# driver's file name, so anything unusual stays UNVERIFIABLE instead of being
-# guessed about.
+# character set is deliberately narrow: the path reaches argv and the
+# generated build command, so anything unusual stays UNVERIFIABLE instead of
+# being guessed about.
 _PATH_RE = re.compile(r"\A[A-Za-z0-9_][A-Za-z0-9_./-]*\.lean\Z")
-# A declaration name: a Lean identifier (unicode letters, digits, underscore)
+# A declaration name: its full Lean name (unicode letters, digits, underscore)
 # with namespace dots and the trailing !/? Lean allows. Nothing that could
-# end a Lean command can pass, so the generated #print line is safe.
+# end a Lean command can pass.
 _NAME_RE = re.compile(r"\A[^\W\d][\w'.!?]*\Z", re.UNICODE)
-_IMPORT_RE = re.compile(r"^[ \t]*import[ \t]+([^ \t\r\n]+)[ \t]*$", re.MULTILINE)
+# `import X`, `public import X Y`, `import X.sub`, optionally with a trailing
+# comment: the module names of every import line, braced forms excluded.
+_IMPORT_RE = re.compile(
+    r"^[ \t]*(?:public[ \t]+|private[ \t]+|protected[ \t]+|noncomputable[ \t]+)?"
+    r"import[ \t]+([^ \t\r\n]+(?:[ \t]+[^ \t\r\n]+)*)",
+    re.MULTILINE,
+)
 _ERROR_RE = re.compile(r"\berror\b")
 _UNKNOWN_MODULE_RE = re.compile(r"unknown module prefix '([^']+)'")
-_UNKNOWN_IDENTIFIER_RE = re.compile(r"unknownIdentifier|Unknown constant|unknown identifier")
-_SANDBOX_FAILURE_RE = re.compile(r"\bbwrap\b")
+_SANDBOX_FAILURE_RE = re.compile(r"(?m)^bwrap: ")
 _READONLY_CACHE_RE = re.compile(r"(?i)read-?only file system")
 _ENV_FAILURE_RE = re.compile(
     r"(?i)(could not resolve host|unable to access|failed to fetch|"
     r"network is unreachable|connection refused|no default toolchain|"
     r"failed to download|failed to install)"
 )
+# The query program's protocol: one of these lines is the whole answer.
+_ANSWER_RE = re.compile(
+    r"\ABEMYSELF-LEAN-AXIOMS (?P<name>[^\s]+) \[(?P<axioms>[^\]\n]*)\]\s*\Z"
+)
+_UNKNOWN_RE = re.compile(r"\ABEMYSELF-LEAN-UNKNOWN (?P<name>[^\s]+)\s*\Z")
+_QUERY_ERROR_RE = re.compile(r"\ABEMYSELF-LEAN-ERROR (?P<detail>.*)\Z")
+# An axiom name that means "this proof was not kernel-checked": `lcProof` is
+# what an `unsafe` declaration's dependency list carries.
+_LC_PROOF = re.compile(r"(?:\A|\.)lcProof\Z")
 _LAKEFILES = ("lakefile.toml", "lakefile.lean")
-_DRIVER_PREFIX = "BemyselfCheck_"
+# Where the standalone-file build puts its artifact, inside the checkout so
+# the sandbox keeps it writable.
+_BUILD_DIR = ".bemyself-build"
+_QUERY_PROGRAM = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "lean_axioms.lean"
+)
 
 # returncode None means the run timed out; error is set for setup failures
 # (the process could not even start) and otherwise None.
@@ -168,17 +203,23 @@ def _toolchain_name(text):
 
 
 def _imports_of(source_text):
-    return _IMPORT_RE.findall(source_text)
+    """The module names of the file's import lines, comments dropped."""
+    names = []
+    for line in _IMPORT_RE.findall(source_text):
+        line = line.split("--")[0]
+        # `import A B` imports A and B; `import A.B` is one module.
+        names.extend(part for part in line.split() if part and not part.startswith("{("))
+    return names
 
 
 def _missing_dependency(text, imports):
     """The module name of a dependency error, when the file imports it.
 
-    A hostile report controls its file, so an error line that merely names a
+    A hostile project controls its file, so an error line that merely names a
     module the file does NOT import must not downgrade a refutation: the
     missing module has to be one of the file's own import roots, or an
-    environment failure (network, toolchain) -- otherwise this is None and
-    the caller treats the output as a real failure.
+    environment failure (network, toolchain) -- otherwise this is None and the
+    caller treats the output as a real failure.
     """
     roots = {name.split(".")[0] for name in imports}
     for match in _UNKNOWN_MODULE_RE.finditer(text):
@@ -265,15 +306,25 @@ def _lake_project(checkout, start_dir):
     return None
 
 
+def _module_part(name):
+    return re.match(r"\A[A-Za-z_][A-Za-z0-9_']*\Z", name) is not None
+
+
 def _module_name(project, file_path):
     """The Lake module name of ``file_path``, or None when not derivable."""
     relative = os.path.relpath(file_path, project)
-    if relative.startswith(".."):
+    if relative.startswith("..") or not relative.endswith(".lean"):
         return None
     parts = relative[: -len(".lean")].split(os.sep)
-    if not all(re.match(r"\A[A-Za-z_][A-Za-z0-9_']*\Z", part) for part in parts):
+    if not all(_module_part(part) for part in parts):
         return None
     return ".".join(parts)
+
+
+def _standalone_module(file_path):
+    """The module name a standalone file gets when compiled with ``-o``."""
+    stem = os.path.basename(file_path)[: -len(".lean")]
+    return stem if _module_part(stem) else None
 
 
 def _run(argv, cwd, env, timeout, tmp_dir, prefix):
@@ -281,7 +332,7 @@ def _run(argv, cwd, env, timeout, tmp_dir, prefix):
 
     The output goes to a private, size-capped file and is read back through
     the same descriptor: the head for the first error line, the tail for the
-    verdict line. The child gets its own process group and file-size limit
+    query answer. The child gets its own process group and file-size limit
     (checks._child_preexec), so a timeout can take the whole tree down.
     """
     from bemyself import checks  # lazy: checks imports the type registry
@@ -327,15 +378,40 @@ def _run(argv, cwd, env, timeout, tmp_dir, prefix):
             pass
 
 
-def _axioms_line(text, theorem):
-    """The last full ``#print axioms`` answer line for ``theorem``, or None."""
-    pattern = re.compile(
-        r"^'" + re.escape(theorem) + r"' (?:does not depend on any axioms"
-        r"|depends on axioms: \[[^\]\n]*\])\s*$",
-        re.MULTILINE,
-    )
-    matches = [match.group(0).strip() for match in pattern.finditer(text)]
-    return matches[-1] if matches else None
+def _query_answer(text, theorem):
+    """Parse the query program's protocol out of one run log.
+
+    Returns ``("axioms", [names])``, ``("unknown", None)``,
+    ``("error", detail)`` or ``(None, None)`` -- the last when the log carries
+    no (or more than one) protocol line, which must never happen in a clean
+    run and is treated as an unreadable answer.
+    """
+    found = []
+    for line in text.splitlines():
+        line = line.rstrip()
+        match = _ANSWER_RE.match(line)
+        if match and match.group("name") == theorem:
+            axioms = [name.strip() for name in match.group("axioms").split(",")]
+            found.append(("axioms", [name for name in axioms if name]))
+            continue
+        match = _UNKNOWN_RE.match(line)
+        if match and match.group("name") == theorem:
+            found.append(("unknown", None))
+            continue
+        match = _QUERY_ERROR_RE.match(line)
+        if match:
+            found.append(("error", match.group("detail").strip()))
+            continue
+    if len(found) != 1:
+        return None, None
+    return found[0]
+
+
+def _evidence_line(theorem, axioms):
+    """The canonical axiom evidence, quoted in every verdict."""
+    if not axioms:
+        return f"'{theorem}' does not depend on any axioms"
+    return f"'{theorem}' depends on axioms: [{', '.join(axioms)}]"
 
 
 def check(claim, ctx):
@@ -401,10 +477,23 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             reason="lean is not available in PATH; the Lean proof cannot be checked",
         )
+    leanchecker = _find_tool("leanchecker")
+    if leanchecker is None:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="leanchecker is not available in PATH; the compiled proof cannot be "
+            "re-checked with Lean's kernel",
+        )
+    if not os.path.isfile(_QUERY_PROGRAM):
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"the axiom query program is missing: {_QUERY_PROGRAM}",
+        )
 
-    # `auto` deliberately behaves like `require` here: elaborating Lean source
-    # executes code and a run outside the sandbox could fetch dependencies
-    # over the network. Only an explicit --sandbox=off leaves the sandbox.
+    # `auto` deliberately behaves like `require` here: building and elaborating
+    # Lean source executes code and a run outside the sandbox could fetch
+    # dependencies over the network. Only an explicit --sandbox=off leaves the
+    # sandbox.
     mode = ctx.sandbox
     if mode not in checks.SANDBOX_MODES:
         return Result(Verdict.UNVERIFIABLE, reason=f"unknown sandbox mode: {mode!r}")
@@ -412,7 +501,7 @@ def check(claim, ctx):
     if mode != "off" and bwrap is None:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason="a working sandbox is required to elaborate Lean source "
+            reason="a working sandbox is required to build Lean source "
             "(it executes code and lake may fetch dependencies); bwrap is not "
             "available in PATH. Pass --sandbox=off to run unsandboxed",
         )
@@ -475,8 +564,10 @@ def check(claim, ctx):
         project = _lake_project(checkout, os.path.dirname(real_file))
         lake = None
         module = None
+        build_dir = None
         if project is not None:
             lake = _find_tool("lake")
+            module = _module_name(project, real_file)
             if lake is None:
                 return Result(
                     Verdict.UNVERIFIABLE,
@@ -485,7 +576,32 @@ def check(claim, ctx):
                     f"the file is part of a Lake project at "
                     f"{os.path.relpath(project, checkout)!r} but lake is not available in PATH",
                 )
-            module = _module_name(project, real_file)
+            if module is None:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"cannot derive the Lake module name of {path!r}",
+                )
+        else:
+            module = _standalone_module(real_file)
+            if module is None:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the file name of {path!r} is not a Lean module name",
+                )
+            build_dir = os.path.join(checkout, _BUILD_DIR)
+            try:
+                os.makedirs(build_dir, exist_ok=True)
+            except OSError as exc:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"cannot create the build directory in the checkout: {exc}",
+                )
 
         # A working-tree dependency cache is bound read-only when the fresh
         # checkout has none: dependencies are not part of the commit and the
@@ -525,6 +641,8 @@ def check(claim, ctx):
                 sole = _sole_toolchain(elan_home)
                 if sole is not None:
                     env["ELAN_TOOLCHAIN"] = sole
+        if build_dir is not None:
+            env["LEAN_PATH"] = build_dir
 
         cache_note = ""
         if extra_binds:
@@ -537,20 +655,35 @@ def check(claim, ctx):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc + shown + cache_note,
-                checks._last_lines(run.tail or run.head),
+                checks._last_lines(run.tail or run.head) if run is not None else "",
+                reason + note_suffix,
+                sandboxed=sandboxed,
+            )
+
+        def refuted(run, shown, reason, output=None):
+            return Result(
+                Verdict.REFUTED,
+                command_desc + shown + cache_note,
+                output if output is not None else checks._last_lines(run.tail or run.head),
                 reason + note_suffix,
                 sandboxed=sandboxed,
             )
 
         # Preflight: separate "the toolchain cannot run here" from "the file
-        # failed". The version print also names the toolchain in the verdict
-        # (the elaborator is Lean; lake is only the environment wrapper).
+        # failed". The version print also names the toolchain in the verdict.
         preflight = [lean, "--version"]
         run_argv, shown = wrapped(preflight, " ".join(preflight), project or checkout)
         run = _run(run_argv, checkout, env, PREFLIGHT_TIMEOUT, ctx.tmp_dir, "lean-preflight-")
         if run.error is not None:
             return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
         if run.returncode != 0:
+            combined = run.head + "\n" + run.tail
+            if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the sandbox could not run the command: {_first_error_line(combined) or 'bwrap failed'}",
+                )
             detail = _first_error_line(run.head or run.tail) or f"exit status {run.returncode}"
             return unverifiable(
                 run,
@@ -567,6 +700,14 @@ def check(claim, ctx):
             if run.error is not None:
                 return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
             if run.returncode != 0:
+                combined = run.head + "\n" + run.tail
+                if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"the sandbox could not run the command: "
+                        f"{_first_error_line(combined) or 'bwrap failed'}",
+                    )
                 detail = _first_error_line(run.head or run.tail) or f"exit status {run.returncode}"
                 return unverifiable(
                     run,
@@ -574,162 +715,200 @@ def check(claim, ctx):
                     f"the Lake toolchain could not run ({lake_preflight[0]} --version): {detail}",
                 )
 
-        def failed(run, shown, what):
-            """Classify a non-zero run: environment gap or real failure."""
+        # --- stage 1: build the pinned source ---------------------------------
+        # The build executes repository code: its output is diagnostic only,
+        # never evidence. Discarding the project's own build artifacts first
+        # keeps a committed artifact from standing in for the build.
+        if project is not None:
+            shutil.rmtree(os.path.join(project, ".lake", "build"), ignore_errors=True)
+            build = [lake, "build", module]
+            cwd = project
+        else:
+            olean = os.path.join(build_dir, f"{module}.olean")
+            build = [lean, "-o", olean, real_file]
+            cwd = os.path.dirname(real_file)
+            if os.path.exists(olean) and not sandboxed:
+                try:
+                    os.unlink(olean)
+                except OSError:
+                    pass
+        run_argv, shown = wrapped(build, " ".join(build), cwd)
+        run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-build-")
+        if run.error is not None:
+            return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+        if run.returncode is None:
+            return unverifiable(run, shown, f"the Lean build timed out after {LEAN_TIMEOUT}s")
+        if run.truncated:
+            return unverifiable(
+                run, shown, "the Lean build exceeded the output limit; its outcome cannot be verified"
+            )
+        if run.returncode != 0:
             combined = run.head + "\n" + run.tail
             first = _first_error_line(combined)
             if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
-                return unverifiable(run, shown, f"the sandbox could not run the command: {first}")
+                return unverifiable(
+                    run, shown, f"the sandbox could not run the command: {first}"
+                )
             if extra_binds and _READONLY_CACHE_RE.search(combined):
                 return unverifiable(
                     run,
                     shown,
                     f"the dependency packages bound read-only from {extra_binds[0][0]} "
-                    f"cannot serve this run (a write into the read-only cache was "
-                    f"refused); the proof was not checked: {first}",
+                    f"carry no compiled artifacts for this build; the project cannot "
+                    f"be built offline: {first}",
                 )
             if _missing_dependency(combined, imports) is not None:
                 return unverifiable(
                     run,
                     shown,
                     f"a dependency of {path!r} is not available in the checkout "
-                    f"(no network, no complete dependency cache); {what} was not "
-                    f"checked: {first}",
+                    f"(no network, no complete dependency cache); the build was "
+                    f"not checked: {first}",
                 )
-            if _UNKNOWN_IDENTIFIER_RE.search(combined):
-                return Result(
-                    Verdict.REFUTED,
-                    command_desc + shown + cache_note,
-                    checks._last_lines(combined),
-                    f"declaration not found: {first}{note_suffix}",
-                    sandboxed=sandboxed,
-                )
-            return Result(
-                Verdict.REFUTED,
-                command_desc + shown + cache_note,
-                checks._last_lines(combined),
-                f"{what} failed: {first}{note_suffix}",
-                sandboxed=sandboxed,
-            )
-
-        if module is not None:
-            build = [lake, "build", module]
-            run_argv, shown = wrapped(build, " ".join(build), project)
-            run = _run(run_argv, project, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-build-")
-            if run.error is not None:
-                return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
-            if run.returncode is None:
-                return unverifiable(
-                    run, shown, f"the Lean build timed out after {LEAN_TIMEOUT}s"
-                )
-            if run.truncated:
-                return unverifiable(
-                    run, shown, "the Lean build exceeded the output limit; its outcome cannot be verified"
-                )
-            if run.returncode != 0:
-                combined = run.head + "\n" + run.tail
-                first = _first_error_line(combined)
-                if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
-                    return unverifiable(
-                        run, shown, f"the sandbox could not run the command: {first}"
-                    )
-                if extra_binds and _READONLY_CACHE_RE.search(combined):
-                    return unverifiable(
-                        run,
-                        shown,
-                        f"the dependency packages bound read-only from {extra_binds[0][0]} "
-                        f"carry no compiled artifacts for this build; the project cannot "
-                        f"be built offline: {first}",
-                    )
-                if _missing_dependency(combined, imports) is not None:
-                    return unverifiable(
-                        run,
-                        shown,
-                        f"a dependency of {path!r} is not available in the checkout "
-                        f"(no network, no complete dependency cache); the build was "
-                        f"not checked: {first}",
-                    )
-                rel = os.path.relpath(real_file, checkout)
-                if first and (rel in first or os.path.basename(rel) in first):
-                    return Result(
-                        Verdict.REFUTED,
-                        command_desc + shown + cache_note,
-                        checks._last_lines(combined),
-                        f"the file does not compile: {first}{note_suffix}",
-                        sandboxed=sandboxed,
-                    )
-                return unverifiable(
+            if _blames_the_file(first, real_file, checkout, project):
+                return refuted(
                     run,
                     shown,
-                    f"the project did not build; the first reported problem is "
-                    f"outside {path!r}: {first}",
+                    f"the file does not compile: {first}",
+                    output=checks._last_lines(combined),
                 )
-
-        # The driver is a copy of the pinned source plus the question: Lean
-        # re-elaborates the file's own declarations, so the answer is about
-        # the committed source text, not about a stale .olean.
-        driver_name = f"{_DRIVER_PREFIX}{os.urandom(4).hex()}.lean"
-        driver_path = os.path.join(os.path.dirname(real_file), driver_name)
-        try:
-            with open(driver_path, "w", encoding="utf-8") as handle:
-                handle.write(source_text)
-                handle.write(f"\n\n#print axioms {theorem}\n")
-        except OSError as exc:
-            return Result(
-                Verdict.UNVERIFIABLE,
-                command_desc,
-                "",
-                f"cannot write the check driver next to {path!r}: {exc}",
+            return unverifiable(
+                run,
+                shown,
+                f"the project did not build; the first reported problem is "
+                f"outside {path!r}: {first}",
             )
 
-        if lake is not None:
-            elaborate = [lake, "env", "lean", driver_path]
+        # --- stage 2: kernel re-check of the artifact -------------------------
+        if project is not None:
+            recheck = [lake, "env", "leanchecker", module]
             cwd = project
         else:
-            elaborate = [lean, driver_path]
+            recheck = [leanchecker, module]
             cwd = os.path.dirname(real_file)
-        run_argv, shown = wrapped(elaborate, " ".join(elaborate), cwd)
-        run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-run-")
+        run_argv, shown = wrapped(recheck, " ".join(recheck), cwd)
+        run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-recheck-")
         if run.error is not None:
             return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
         if run.returncode is None:
             return unverifiable(
-                run, shown, f"the Lean elaboration timed out after {LEAN_TIMEOUT}s"
-            )
-        if run.truncated:
-            return unverifiable(
-                run, shown, "the Lean elaboration exceeded the output limit; its outcome cannot be verified"
+                run, shown, f"the kernel re-check timed out after {LEAN_TIMEOUT}s"
             )
         if run.returncode != 0:
-            return failed(run, shown, "the elaboration")
-
-        line = _axioms_line(run.tail, theorem) or _axioms_line(run.head, theorem)
-        if line is None:
+            combined = run.head + "\n" + run.tail
+            first = _first_error_line(combined)
+            if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+                return unverifiable(
+                    run, shown, f"the sandbox could not run the command: {first}"
+                )
             return unverifiable(
                 run,
                 shown,
-                f"the elaboration exited 0 but printed no #print axioms line for "
-                f"{theorem!r}; the proof was not checked",
+                f"the compiled artifact did not pass Lean's kernel re-check "
+                f"(leanchecker): {first}",
             )
-        if "sorryAx" in line:
-            return Result(
-                Verdict.REFUTED,
-                command_desc + shown + cache_note,
-                checks._last_lines(run.tail),
-                f"the proof depends on sorry: #print axioms reports {line}{note_suffix}",
-                sandboxed=sandboxed,
+
+        # --- stage 3: the axiom query (no repository code runs here) ----------
+        if project is not None:
+            query = [lake, "env", "lean", "--run", _QUERY_PROGRAM, module, theorem]
+            cwd = project
+        else:
+            query = [lean, "--run", _QUERY_PROGRAM, module, theorem]
+            cwd = os.path.dirname(real_file)
+        run_argv, shown = wrapped(query, " ".join(query), cwd)
+        run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-query-")
+        if run.error is not None:
+            return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+        if run.returncode is None:
+            return unverifiable(
+                run, shown, f"the axiom query timed out after {LEAN_TIMEOUT}s"
+            )
+        if run.truncated:
+            return unverifiable(
+                run, shown, "the axiom query exceeded the output limit; its outcome cannot be verified"
+            )
+        combined = run.head + "\n" + run.tail
+        # The answer is the last line of the run; the tail alone is read so a
+        # small log (head == tail) cannot count one answer twice.
+        status, payload = _query_answer(run.tail, theorem)
+        if status is None:
+            return unverifiable(
+                run,
+                shown,
+                f"the axiom query printed no readable answer for {theorem!r}; "
+                f"the proof was not checked",
+            )
+        if status == "error":
+            if _missing_dependency(combined, imports) is not None:
+                return unverifiable(
+                    run,
+                    shown,
+                    f"a dependency of {path!r} is not available (no network, no complete "
+                    f"dependency cache); the proof was not checked: {payload}",
+                )
+            return unverifiable(
+                run,
+                shown,
+                f"the axiom query could not read the compiled artifact: {payload}",
+            )
+        if status == "unknown":
+            return refuted(
+                run,
+                shown,
+                f"declaration not found: {theorem!r} is not in the compiled artifact of {path!r}",
+                output=checks._last_lines(combined),
+            )
+        axioms = payload
+        line = _evidence_line(theorem, axioms)
+        if "sorryAx" in axioms:
+            return refuted(
+                run,
+                shown,
+                f"the proof depends on sorry: the artifact's axiom list reports {line}",
+                output=checks._last_lines(combined),
+            )
+        if any(_LC_PROOF.match(axiom) for axiom in axioms):
+            return refuted(
+                run,
+                shown,
+                f"the declaration was not kernel-checked: the artifact's axiom list "
+                f"reports {line}; `lcProof` marks a body the kernel did not check "
+                f"(an `unsafe` declaration)",
+                output=checks._last_lines(combined),
             )
         return Result(
             Verdict.CONFIRMED,
             command_desc + shown + cache_note,
-            checks._last_lines(run.tail),
-            f"'{theorem}' is proved in {path} at {commit[:12]}: re-elaborated with "
-            f"{toolchain} (the kernel checked every declaration during elaboration); "
-            f"#print axioms: {line}{note_suffix}",
+            checks._last_lines(combined),
+            f"'{theorem}' is proved in {path} at {commit[:12]}: the compiled artifact "
+            f"passed Lean's kernel re-check (leanchecker, {toolchain}) and the checker's "
+            f"own query -- no repository code executed -- read its axiom list from the "
+            f"artifact: {line}{note_suffix}",
             sandboxed=sandboxed,
         )
     finally:
         shutil.rmtree(checkout, ignore_errors=True)
+
+
+def _blames_the_file(first_line, real_file, checkout, project):
+    """Does one error line point at the checked file?
+
+    Lake reports paths relative to the project, Lean reports them relative to
+    the working directory or absolute; a bare basename counts only when the
+    reported path has no directory part, so a same-named file elsewhere cannot
+    be mistaken for the checked one.
+    """
+    if not first_line:
+        return False
+    reported = first_line.split(":", 1)[0].strip()
+    if not reported:
+        return False
+    if reported in (real_file, os.path.basename(real_file)):
+        return True
+    candidates = {real_file, os.path.relpath(real_file, checkout)}
+    if project is not None:
+        candidates.add(os.path.relpath(real_file, project))
+    return any(reported == candidate for candidate in candidates)
 
 
 LEAN = ClaimType(

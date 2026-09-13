@@ -188,12 +188,12 @@ fehlgeschlagener Test fehlgedeutet wird. `--sandbox=require` kennt keinen
 stillen Rueckfall: ohne nutzbaren Sandkasten wird das Kommando nicht
 ausgefuehrt.
 
-Fuer `[LEAN]` gilt eine Verschaerfung: die Elaboration fuehrt Code aus, und
-`lake` wuerde fehlende Abhaengigkeiten ueber das Netz holen -- darum
-verhaelt sich `auto` dort wie `require`: ohne nutzbaren Sandkasten bleibt
-die Behauptung `unpruefbar` statt ungesandboxt zu laufen. Nur ein
-ausdrueckliches `--sandbox=off` elaboriert ohne bwrap und sagt das im
-Urteil. Details im Abschnitt "Formale Beweise".
+Fuer `[LEAN]` gilt eine Verschaerfung: Bauen und Elaborieren fuehren Code
+aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz holen --
+darum verhaelt sich `auto` dort wie `require`: ohne nutzbaren Sandkasten
+bleibt die Behauptung `unpruefbar` statt ungesandboxt zu laufen. Nur ein
+ausdrueckliches `--sandbox=off` laeuft ohne bwrap und sagt das im Urteil.
+Details im Abschnitt "Formale Beweise".
 
 Der Sandkasten ersetzt die Allowlist nicht: nur erlaubte Testkommandos werden
 ueberhaupt ausgefuehrt, und alle uebrigen Beschraenkungen (Wegwerf-Checkout,
@@ -568,90 +568,102 @@ Deklaration `<satz>` dort ohne `sorry`/`admit` bewiesen ist:
 Die Bindung an den Commit ist dieselbe wie bei `[COMPUTE]`: genau ein
 hash-foermiger `[COMMIT]`-Marker der Meldung pinnt den Commit (Platzhalter wie
 `<hash>` zaehlen nicht); mehrere verschiedene Commits binden nichts, und die
-Behauptung bleibt `unpruefbar`.
+Behauptung bleibt `unpruefbar`. Als `<satz>` gilt der volle Lean-Name der
+Deklaration, also inklusive Namensraum (`CycleBridge.cycle_never_halts`).
 
-Der Pruefer checkt den Commit in einen Wegwerf-Checkout aus und arbeitet dort
-mit der echten Lean-Toolchain (aus dem `PATH`: `lean` und, fuer Lake-Projekte,
-`lake`; der elan-Wurzelpfad `ELAN_HOME` wird aus dem gefundenen Binärpfad
-abgeleitet, weil der Lauf isoliert mit `HOME=<checkout>` laeuft):
+Der Pruefer arbeitet in einem Wegwerf-Checkout des Commits in drei Stufen,
+alle im Sandkasten:
 
-1. `git cat-file` prueft, dass `<pfad.lean>` im Commit als Datei existiert
-   (fehlt sie dort, ist die Behauptung `widerlegt`).
-2. Liegt die Datei in einem Lake-Projekt (lakefile in ihrem Verzeichnis oder
-   darueber), baut `lake build <modul>` das Modul aus dem ausgecheckten
-   Quelltext; ein Kompilierfehler in der Zieldatei widerlegt die Behauptung
-   (erste Fehlerzeile im Urteil), ein Problem woanders bleibt `unpruefbar`.
-3. Der Pruefer kopiert die Datei im Checkout, haengt `#print axioms <satz>`
-   an und elaboriert die Kopie mit `lean` bzw. `lake env lean`.
-4. Aus der Ausgabe liest er die `#print axioms`-Zeile: nennt sie `sorryAx`,
-   ist die Behauptung `widerlegt` (genau diese Zeile steht im Urteil); sonst
-   ist sie `bestaetigt` und die Zeile mit der vollstaendigen Axiomliste steht
-   im Urteil.
+1. **Bauen.** Die eigenen Build-Artefakte des Projekts werden verworfen, dann
+   wird das Modul aus dem gepinnten Quelltext gebaut (`lake build <modul>`
+   fuer ein Lake-Projekt, `lean -o` fuer eine einzelne Datei). Diese Stufe
+   fuehrt Repo-Code aus (Taktiken, `#eval`, Initializer) -- nichts, was sie
+   ausgibt, ist Evidenz. Ein Kompilierfehler der geprueften Datei widerlegt
+   die Behauptung (erste Fehlerzeile im Urteil).
+2. **Kernel-Recheck.** `leanchecker <modul>` prueft die Deklarationen des
+   kompilierten Artefakts mit dem Lean-Kernel nach -- ohne Repo-Code.
+3. **Axiom-Abfrage.** Das eigene Abfrageprogramm
+   (`bemyself/tools/lean_axioms.lean`) laedt das Artefakt als **Daten**
+   (`importModules`) und druckt die Axiomliste der Deklaration. In diesem
+   Prozess laeuft kein Repo-Code -- keine Taktik, kein Makro, kein
+   Initializer -- darum kann das gepruefte Projekt die Antwort weder
+   faelschen noch unterdruecken: einziger Schreiber ist das Abfrageprogramm,
+   und die Axiomdaten stammen aus dem Artefakt, das der Kernel gerade
+   nachgeprueft hat.
 
 ```
 $ python3 -m bemyself check --report lean-report.md --repo <repo>
-lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: re-elaborated with Lean 4.33.1 (the kernel checked every declaration during elaboration); #print axioms: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
+lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: the compiled artifact passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query -- no repository code executed -- read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
 ```
 
-Urteile: `bestaetigt` nur mit einer `#print axioms`-Zeile fuer genau diesen
-Satz ohne `sorryAx`. `widerlegt` bei `depends on axioms: [sorryAx]`, bei
-fehlender Deklaration (`Unknown constant`), bei fehlender Datei im Commit
-und bei einem Kompilierfehler in der Datei. `unpruefbar` bleibt die
-Behauptung ohne `lean` im `PATH`, ohne funktionierenden Sandkasten (auch bei
-`--sandbox=auto`), ohne Commit-Bindung, bei ungueltigem Pfad oder Satznamen,
-bei Timeout (600 s) und immer dann, wenn eine Abhaengigkeit des Projekts im
-Checkout fehlt -- der Urteilstext nennt dann Modul und erste Fehlerzeile;
-eine fehlende Abhaengigkeit ist nie ein Beweis gegen den Satz.
+Urteile: `bestaetigt` nur, wenn die Abfrage genau fuer diese Deklaration
+antwortet und die Liste kein `sorryAx` nennt; die Axiomzeile steht
+vollstaendig im Urteil (logische Grundaxiome wie `propext`, `Quot.sound`
+oder `Classical.choice` inklusive -- `bestaetigt` heisst nicht
+"axiomfrei"). `widerlegt` bei `sorryAx`, bei `lcProof` (der Kernel hat den
+Rumpf nicht geprueft, etwa bei `unsafe`), bei fehlender Deklaration im
+Artefakt, bei fehlender Datei im Commit und bei einem Kompilierfehler der
+Datei. `unpruefbar` bleibt die Behauptung ohne `lean`/`lake`/`leanchecker`
+im `PATH`, ohne funktionierenden Sandkasten (auch bei `--sandbox=auto`),
+ohne Commit-Bindung, bei ungueltigem Pfad oder Satznamen, bei Timeout
+(600 s je Stufe), bei einem Artefakt, das den Kernel-Recheck nicht besteht,
+bei unlesbarer Abfrageantwort und immer dann, wenn eine Abhaengigkeit des
+Projekts im Checkout fehlt -- der Urteilstext nennt dann Modul und erste
+Fehlerzeile; eine fehlende Abhaengigkeit ist nie ein Beweis gegen den Satz.
 
-Prueftiefe -- was ein `bestaetigt` zusichert: Die Elaboration ist eine
-**Re-Elaboration** des gepinnten Quelltexts; der Kernel von Lean prueft jede
-Deklaration waehrend der Elaboration, und `#print axioms` macht die Axiome
-sichtbar, auf denen der Beweis beruht (logische Grundaxiome wie `propext`,
-`Quot.sound` oder `Classical.choice` stehen dann im Urteil -- `bestaetigt`
-heisst nicht "axiomfrei"). Der separate Kernel-Pruefer `leanchecker` wurde
-untersucht und wird nicht genutzt: er akzeptiert Module, deren Beweis auf
-`sorryAx` beruht (empirisch geprueft mit Lean 4.33.1), kann die
-`#print axioms`-Evidenz also nicht ersetzen; das Urteil sagt darum
-"re-elaboriert", nie "unabhaengig kernelgeprueft". Die Axiomliste ist die
-Grenze der Aussage: ein Satz, der auf einem selbst deklarierten Axiom beruht
-oder ueber `native_decide` auf `Lean.ofReduceBool` baut, wird `bestaetigt`
-mit genau diesem Axiom im Urteil -- der Pruefer belegt, dass die Deklaration
-so, wie sie dasteht, vom Kernel akzeptiert ist, nicht dass ihre Axiome
-wahr oder wunschenswert sind, und nicht, dass der Satz das behauptet, was
-der Report meint.
+Prueftiefe -- was ein `bestaetigt` zusichert: Die Deklarationen des
+geprueften Moduls wurden von Lean selbst kompiliert, das Artefakt wurde mit
+`leanchecker` kernel-nachgeprueft, und die Axiomliste ist aus diesem
+Artefakt gelesen (nicht aus der Ausgabe des Builds). `leanchecker`
+akzeptiert `sorryAx`-Beweise -- die sorry-Erkennung kommt darum nicht von
+ihm, sondern aus der Axiomliste der eigenen Abfrage; beide zusammen tragen
+das Urteil. Grenze der Aussage: die Abhaengigkeiten des Moduls stammen
+nicht aus dem Commit -- ihre Artefakte kommen aus dem read-only
+eingebundenen Arbeitsbaum-Cache (im Urteil benannt) oder liegen im Repo;
+der Kernel-Recheck deckt die Deklarationen des geprueften Moduls, nicht die
+seiner Abhaengigkeiten. Das Urteil belegt damit, dass die Deklaration vom
+Lean-Kernel akzeptiert ist und an genau den genannten Axiomen haengt --
+nicht die Wahrheit der Axiome, nicht die Bedeutung des Satzes und nicht die
+Herkunft der Abhaengigkeits-Artefakte.
 
-Toolchain und Abhaengigkeiten: `lean` (und `lake`) muessen im `PATH` liegen
-(eine elan-Installation erfuellt das); das Werkzeug selbst braucht sie nicht.
-Fehlt eine `lean-toolchain`-Datei in Reichweite, pinnt der Pruefer die
-einzige installierte Toolchain als `ELAN_TOOLCHAIN` -- der elan-Shim fragt
-dann nicht im netzlosen Sandkasten nach der Standardversion. Ein frischer
-Checkout bringt nur die getrackten Dateien mit --
-Abhaengigkeiten wie Mathlib sind nicht Teil des Commits. Hat das gepruefte
-Repository neben dem Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der
-Checkout keinen, wird dessen `packages`-Verzeichnis read-only in denselben
-Pfad gebunden (der Checkout baut in sein eigenes, beschreibbares `.lake`);
-das Urteil nennt den Pfad im Kommando. Fehlt
-der Cache, traegt er keine kompilierten Artefakte, oder laesst sich die
-Abhaengigkeit nicht aufloesen, bleibt die Behauptung `unpruefbar` (nie
-`widerlegt`): das Netz ist im Sandkasten aus, und `lake` wuerde fehlende
-Abhaengigkeiten sonst per `git clone` nachladen.
+Was eine feindselige Datei nicht kann: weil Evidenz nur aus dem Artefakt
+und der eigenen Abfrage kommt, kann Build-Ausgabe ein Urteil nur
+herabstufen (auf `unpruefbar`), niemals auf `bestaetigt` heben. Eine Datei,
+die in `#eval` oder Initializern gefaelschte Axiomzeilen druckt oder den
+Elaborationsprozess vorzeitig beendet, wird nicht bestaetigt; die
+Live-Tests in `tests/test_lean.py` pinnen genau diese Faelle.
 
-Isolation: Die Elaboration fuehrt Code aus (Taktiken, Metaprogramme,
-`#eval`); darum verlangt der Typ den Sandkasten auch im Modus `auto` --
-anders als bei Testkommandos gibt es keinen stillen ungesandboxten
+Toolchain und Abhaengigkeiten: `lean`, `lake` (fuer Lake-Projekte) und
+`leanchecker` muessen im `PATH` liegen (eine elan-Installation erfuellt
+das); das Werkzeug selbst braucht sie nicht. Fehlt eine
+`lean-toolchain`-Datei in Reichweite, pinnt der Pruefer die einzige
+installierte Toolchain als `ELAN_TOOLCHAIN` -- der elan-Shim fragt dann
+nicht im netzlosen Sandkasten nach der Standardversion. Ein frischer
+Checkout bringt nur die getrackten Dateien mit -- Abhaengigkeiten wie
+Mathlib sind nicht Teil des Commits. Hat das gepruefte Repository neben dem
+Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der Checkout keinen,
+wird dessen `packages`-Verzeichnis read-only in denselben Pfad gebunden
+(der Checkout baut in sein eigenes, beschreibbares `.lake`); das Urteil
+nennt den Pfad im Kommando. Fehlt der Cache, traegt er keine kompilierten
+Artefakte, oder laesst sich die Abhaengigkeit nicht aufloesen, bleibt die
+Behauptung `unpruefbar` (nie `widerlegt`): das Netz ist im Sandkasten aus,
+und `lake` wuerde fehlende Abhaengigkeiten sonst per `git clone` nachladen.
+
+Isolation: Bauen und Elaborieren fuehren Code aus (Taktiken, Metaprogramme,
+`#eval`, Initializer); darum verlangt der Typ den Sandkasten auch im Modus
+`auto` -- anders als bei Testkommandos gibt es keinen stillen ungesandboxten
 Rueckfall. Der Sandkasten bindet die Wurzel read-only (so bleibt die
 Toolchain unter `~/.elan` erreichbar), gibt dem Lauf eigenen Netz-, PID- und
 UTS-Namensraum und nur den Wegwerf-Checkout beschreibbar.
 
 **Grenzen:** `bestaetigt` heisst: die Datei steht so im gepinnten Commit,
-die Kopie dieses Quelltexts wurde von der Toolchain ohne `sorry` akzeptiert,
-und die Deklaration haengt an genau den Axiomen im Urteil. Es heisst nicht:
-die Aussage des Satzes ist wahr, die Abhaengigkeiten des Checkouts sind die
-des Commits (der gebundene Cache stammt aus dem Arbeitsbaum), oder der
-Beweis waere von einem unabhaengigen Pruefer nachgeprueft. Der Checkout
-bringt seinen eigenen Quelltext mit -- wer den Commit kontrolliert,
-kontrolliert die Datei; der Kernel prueft die Ableitung, nicht die Herkunft
-der Datei.
+ihr Modul baute, das Artefakt bestand den Kernel-Recheck, und die
+Deklaration haengt an genau den Axiomen im Urteil. Es heisst nicht: die
+Aussage des Satzes ist wahr, die Abhaengigkeits-Artefakte sind
+vertrauenswuerdig, oder die Behauptung waere unabhaengig von Lean
+nachgeprueft. Als `<satz>` zulaessig sind volle Lean-Namen mit
+Unicode-Buchstaben, Ziffern, Unterstrich, Punkten und abschliessendem
+`!`/`?`; alles andere bleibt `unpruefbar`.
 
 ## Merges (`[MERGE]`)
 
@@ -967,7 +979,7 @@ Maschine, die im Fenster haelt, eine parameterisierte Identitaet mit
 verfaelschtem Koeffizienten, ein ARTIFACT-Zertifikat mit falschem Digest, ein
 ARTIFACT-Pfad, der mit `..` aus der Wurzel herauszeigt, eine
 MERGE-Behauptung, die den Zielbranch statt des gemergten Branches nennt, und
-eine LEAN-Behauptung, deren Beweis auf `sorry` beruht -- `#print axioms`
+eine LEAN-Behauptung, deren Beweis auf `sorry` beruht -- die Axiomliste
 nennt `sorryAx`, die Meldung wird `widerlegt`; auf einem Host ohne
 Lean-Toolchain bleibt sie ehrlich `unpruefbar`, nie bestaetigt). Dazu kommen
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
@@ -985,8 +997,9 @@ ehrliches ARTIFACT-Zertifikat (SHA-256 von `good.txt` unter der Wurzel des
 Fixture-Repos) und eine ehrliche MERGE-Meldung auf dem Merge-Commit des
 Fixtures (ein Parent ist der Tip von `topic`, der andere liegt auf `main`).
 Dazu eine ehrliche LEAN-Meldung (`g27-lean-proven`): der Satz `fixture_proven`
-in `lean/Proof.lean` wird mit einer echten Lean-Toolchain im `PATH`
-re-elaboriert und `bestaetigt` (Axiomliste im Urteil); auf einem Host ohne
+in `lean/Proof.lean` wird mit einer echten Lean-Toolchain im `PATH` gebaut,
+kernel-nachgeprueft und per eigener Abfrage `bestaetigt` (Axiomliste im
+Urteil); auf einem Host ohne
 Lean bleibt sie ehrlich `unpruefbar` -- der Fall pinnt darum kein Urteil,
 sondern nur den ehrlichen Umgang mit beiden Hosts.
 Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings

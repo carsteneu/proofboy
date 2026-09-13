@@ -944,8 +944,10 @@ def standard_set(fixture):
             "genuine",
             "Ehrliche Meldung: der Satz fixture_proven ist in lean/Proof.lean "
             "auf dem gepinnten Commit ohne sorry bewiesen. Mit einer echten "
-            "Lean-Toolchain im PATH wird die Behauptung re-elaboriert und "
-            "CONFIRMED (Axiomliste im Urteil); auf einem Host ohne Lean bleibt "
+            "Lean-Toolchain im PATH wird das Modul gebaut, das Artefakt "
+            "kernel-nachgeprueft und die Axiomliste per eigener Abfrage "
+            "gelesen; die Behauptung ist CONFIRMED (Axiomliste im Urteil). "
+            "Auf einem Host ohne Lean bleibt "
             "sie ehrlich unpruefbar -- der Fall pinnt deshalb kein Urteil und "
             "nie eine Bestaetigung per Annahme.",
             done(
@@ -958,7 +960,8 @@ def standard_set(fixture):
             "f26-lean-sorry",
             "false",
             "Falsch: lean/Sorry.lean gibt den Beweis nur mit sorry an -- "
-            "#print axioms nennt sorryAx, die Behauptung ist REFUTED (auf "
+            "die Axiomliste des Artefakts nennt sorryAx, die Behauptung ist "
+            "REFUTED (auf "
             "einem Host ohne Lean ehrlich unpruefbar). In keinem Fall darf "
             "sie CONFIRMED werden.",
             done(

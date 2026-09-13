@@ -52,7 +52,7 @@ gelesene Zeile sind nicht unterscheidbar. Siehe README, Abschnitt
 | IDENT | beide Seiten als rationale Funktionen in t expandieren, Differenz bilden, Zaehler identisch null pruefen; dazu Bereichsbedingungen (a,b,c positiv, n >= 2 fuer alle t >= Schranke) -- eine Progression fuer alle Parameter, kein Beweis der Vermutung |
 | COLORING | alle Tripel x <= y mit x + y <= N nachzaehlen (in-process); CONFIRMED nur ohne monochromatisches Tripel, REFUTED mit dem ersten Verstoss in kanonischer Reihenfolge -- ein Zertifikat der unteren Schranke S(k) >= N, keine Gleichheit, nichts ueber die obere Schranke |
 | COMPUTE | Kommando im Wegwerf-Checkout des gepinnten Commits im bwrap-Sandkasten ausfuehren, sha256(stdout) streamen und vergleichen |
-| LEAN | Datei existiert im gepinnten Commit; Datei (bzw. ihr Lake-Modul) im Wegwerf-Checkout bauen, Kopie mit angehaengtem `#print axioms <satz>` im bwrap-Sandkasten re-elaborieren; eine `#print axioms`-Zeile mit `sorryAx` widerlegt, sonst bestaetigt mit vollstaendiger Axiomliste |
+| LEAN | Datei existiert im gepinnten Commit; ihr Modul wird im Wegwerf-Checkout aus dem gepinnten Quelltext gebaut, das Artefakt mit `leanchecker` kernel-nachgeprueft und die Axiomliste der Deklaration mit dem eigenen Abfrageprogramm aus dem Artefakt gelesen (kein Repo-Code im Evidenzprozess); `sorryAx` widerlegt, sonst bestaetigt mit vollstaendiger Axiomliste |
 | MERGE | Commit existiert, genau zwei Parents, ein Parent ist der Tip des genannten Branches, der andere liegt auf der Zielbranch; Widerspruch nennt die echten Parents |
 | ARTIFACT | Datei existiert unter der Artefakt-Wurzel und ihr SHA-256 stimmt; Pfad per realpath konfiniert, Streaming mit Groessenlimit |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
@@ -290,83 +290,86 @@ mit, wer den Commit kontrolliert, kontrolliert die Ausgabe.
 
 `[LEAN: <pfad.lean> -> <satz>]` behauptet, dass im gepinnten Commit des
 Reports die Datei `<pfad.lean>` existiert und die Deklaration `<satz>` dort
-ohne `sorry`/`admit` bewiesen ist. Die Bindung an den Commit ist dieselbe wie
-bei COMPUTE und MERGE: genau ein hash-foermiger `[COMMIT]`-Marker bindet
+ohne `sorry`/`admit` bewiesen ist. `<satz>` ist der volle Lean-Name
+(Namensraum inklusive). Die Bindung an den Commit ist dieselbe wie bei
+COMPUTE und MERGE: genau ein hash-foermiger `[COMMIT]`-Marker bindet
 (Platzhalter wie `<hash>` zaehlen nicht); mehrere verschiedene Commits binden
 nichts und die Behauptung bleibt `UNVERIFIABLE`. Der Typ deklariert
-`needs_repo=True` (die Datei wird gegen den Commit-Baum geprueft) und
-`binds_commit=True`.
+`needs_repo=True` und `binds_commit=True`.
 
-Pruefkette: `git cat-file -e <commit>:<pfad>` (fehlt die Datei dort:
-`REFUTED`), `git cat-file -t` muss `blob` liefern (eine Tree-Objekt-Antwort
-ist `REFUTED`); Pfad und Satzname werden streng validiert, bevor argv oder
-generierter Lean-Quelltext entstehen (Pfad: repository-relativ, nur
-`[A-Za-z0-9_./-]`, Endung `.lean`, kein `..`/Leerbestandteil; Satzname:
+Pruefkette (drei Stufen im bwrap-Sandkasten, Wegwerf-Checkout wie bei
+Tests/COMPUTE): Vorab `git cat-file -e <commit>:<pfad>` (fehlt die Datei:
+`REFUTED`), `git cat-file -t` muss `blob` liefern (sonst `REFUTED`); Pfad
+und Name werden streng validiert, bevor argv entsteht (Pfad:
+repository-relativ, `[A-Za-z0-9_./-]`, Endung `.lean`, kein `..`; Name:
 Lean-Identifier mit Unicode-Buchstaben/Ziffern/Unterstrich, Punkten und
-`!?`). Danach: Wegwerf-Checkout (`git clone --no-hardlinks` +
-`git checkout`, wie bei Tests/COMPUTE); liegt die Datei in einem
-Lake-Projekt (lakefile in ihrem Verzeichnis oder darueber), baut
-`lake build <modul>` das Modul aus dem Checkout-Quelltext, dann wird eine
-Kopie der Datei mit angehaengtem `#print axioms <satz>` mit `lean` bzw.
-`lake env lean` re-elaboriert (beides aus dem `PATH`; `ELAN_HOME` wird aus
-dem elan-Installationspfad abgeleitet, weil der Lauf mit `HOME=<checkout>`
-isoliert ist; ohne `lean-toolchain`-Datei in Reichweite wird die einzige
-installierte Toolchain als `ELAN_TOOLCHAIN` gepinnt, damit der Shim im
-netzlosen Sandkasten nicht nach der Standardversion fragt). Kein `#print
-axioms`-Ergebnis fuer genau diesen Satz macht
-die Behauptung `UNVERIFIABLE` -- es gibt keine Bestaetigung durch Auslassung.
+`!?`).
 
-Urteile: `CONFIRMED` nur mit einer `#print axioms`-Zeile fuer genau diesen
-Satz, die `sorryAx` NICHT nennt; die Zeile mit der vollstaendigen
-Axiomliste steht im Urteil (logische Grundaxiome wie `propext`,
-`Quot.sound`, `Classical.choice` werden also sichtbar; `CONFIRMED` heisst
-nicht "axiomfrei"). `REFUTED` bei `depends on axioms: [sorryAx]` (genau
-diese Zeile im Urteil), bei fehlender Deklaration (`Unknown constant`), bei
-fehlender Datei im Commit und bei einem Kompilierfehler der Datei (erste
-Fehlerzeile im Urteil; auch ein Build-Fehler, dessen erste Fehlerzeile die
-Zieldatei nennt). `UNVERIFIABLE` ohne `lean` im `PATH`, ohne nutzbaren
-Sandkasten, bei unbekanntem Sandkasten-Modus, ohne gebundenen Commit, bei
-ungueltigem Pfad oder Satznamen, bei Timeout (600 s je Build/Elaboration),
-bei Ausgabe ueber dem Limit, ohne `#print axioms`-Zeile trotz Exit 0 und
-immer dann, wenn eine Abhaengigkeit des Projekts im Checkout fehlt -- der
-Urteilstext nennt Modul und erste Fehlerzeile, und ein Dependency-Fehler
-zaehlt nur, wenn der fehlende Modulname in den `import`-Zeilen der Datei
-steht (oder eine Netz-/Toolchain-Meldung vorliegt): eine Fehlermeldung im
-repo-kontrollierten Output darf eine Widerlegung nicht zu `UNVERIFIABLE`
-herabstufen.
+1. Bauen: die eigenen Build-Artefakte des Projekts (`.lake/build` bzw. das
+   Ausgabeverzeichnis) werden verworfen, dann baut `lake build <modul>`
+   (bzw. `lean -o <oleandatei> <datei>` fuer eine Datei ohne Lakefile) das
+   Modul aus dem gepinnten Quelltext. Diese Stufe fuehrt Repo-Code aus;
+   ihre Ausgabe dient nur der Diagnose. Ein Kompilierfehler, dessen erste
+   Fehlerzeile genau die gepruefte Datei nennt, ist `REFUTED`; ein Fehler
+   in einer anderen Datei, ein Dependency-Problem oder ein
+   Sandkastenproblem bleibt `UNVERIFIABLE`.
+2. Kernel-Recheck: `leanchecker <modul>` (bzw. `lake env leanchecker`)
+   prueft die Deklarationen des Artefakts mit dem Lean-Kernel; ein
+   Fehlschlag ist `UNVERIFIABLE` ("did not pass Lean's kernel re-check").
+3. Axiom-Abfrage: `bemyself/tools/lean_axioms.lean` wird als eigenes
+   Programm gestartet (`lean --run` bzw. `lake env lean --run <programm>
+   <modul> <name>`) und laedt das Modul zur Laufzeit als Daten
+   (`importModules`); es wird nie zur Elaborationszeit importiert. In
+   diesem Prozess laeuft kein Repo-Code (keine Taktik, kein Makro, kein
+   `initialize`, kein `#eval`), darum ist der Ausgabekanal vertrauenswuerdig.
+   Das Programm druckt genau eine Protokollzeile
+   (`BEMYSELF-LEAN-AXIOMS <name> [<axiome>]`, `BEMYSELF-LEAN-UNKNOWN
+   <name>` oder `BEMYSELF-LEAN-ERROR <detail>`); genau eine zur Behauptung
+   passende Zeile wird akzeptiert, keine oder mehrere sind `UNVERIFIABLE`.
 
-Prueftiefe (Doktrin): Das Urteil heisst "re-elaboriert mit Lean <version>":
-der gepinnte Quelltext wurde erneut elaboriert, und der Lean-Kernel prueft
-jede Deklaration waehrend der Elaboration. Ein separater Kernel-Recheck des
-kompilierten `.olean` durch `leanchecker` wurde untersucht und wird NICHT
-genutzt: `leanchecker` akzeptiert Module, deren Beweis auf `sorryAx` beruht
-(mit Lean 4.33.1 verifiziert, rc 0 ohne Ausgabe), kann die
-`#print axioms`-Evidenz also nicht ersetzen und stuetzt sich auf dieselbe
-Kernel-Implementierung; der Urteilstext behauptet darum nie ein
-"unabhaengiges" oder blosses "kernelgeprueftes" Urteil ohne diese
-Praezisierung. Grenze der Aussage: die Axiomliste macht sichtbar, worauf der
-Beweis beruht (auch nicht-logische Axiome und `Lean.ofReduceBool` aus
-`native_decide` stehen dort) -- der Pruefer beurteilt nicht, ob diese Axiome
-wahr oder wunschenswert sind, nicht die Bedeutung des Satzes, und nicht die
-Herkunft der Datei (wer den Commit kontrolliert, kontrolliert die Datei).
+Urteile: `CONFIRMED` nur bei einer AXIOMS-Zeile fuer genau diesen Namen
+ohne `sorryAx` (die kanonische Evidenzzeile `'<name>' does not depend on
+any axioms` bzw. `'<name>' depends on axioms: [..]` steht vollstaendig im
+Urteil; logische Grundaxiome inklusive -- `CONFIRMED` heisst nicht
+"axiomfrei"). `REFUTED` bei `sorryAx`, bei `lcProof` (der Kernel hat den
+Rumpf nicht geprueft, z.B. `unsafe`), bei UNKNOWN (Deklaration fehlt im
+Artefakt), bei fehlender Datei im Commit, bei non-blob und bei
+Kompilierfehler der Datei. `UNVERIFIABLE` ohne lean/lake/leanchecker im
+PATH, ohne nutzbaren Sandkasten, bei unbekanntem Sandkasten-Modus, ohne
+Commit, bei ungueltigem Pfad/Namen, bei Timeout je Stufe (600 s), bei
+Ausgabe ueber dem Limit, bei fehlgeschlagenem Kernel-Recheck, bei
+unlesbarer Abfrage und bei Dependency-/Umgebungsfehlern -- ein
+Dependency-Fehler zaehlt nur, wenn der fehlende Modulname in den
+`import`-Zeilen der Datei steht (oder eine Netz-/Toolchain-Meldung
+vorliegt): repo-kontrollierter Build-Output darf ein Urteil nur herabstufen
+(auf `UNVERIFIABLE`), nie zu `CONFIRMED` heben.
 
-Isolation: Die Elaboration fuehrt Code aus (Taktiken, Metaprogramme,
-`#eval`), und `lake` wuerde fehlende Abhaengigkeiten per Netz nachladen --
-darum verhaelt sich `--sandbox=auto` fuer diesen Typ wie `require`: ohne
-nutzbaren bwrap bleibt die Behauptung `UNVERIFIABLE`, es gibt keinen stillen
-ungesandboxten Rueckfall; nur ein ausdrueckliches `--sandbox=off` laeuft
-ohne Sandkasten und nennt das im Urteil. Der Sandkasten ist die bestehende
-bwrap-Semantik (Wurzel read-only -- die Toolchain unter `~/.elan` bleibt
-dadurch lesbar --, nur der Checkout beschreibbar, eigener Netz-/PID-/UTS-
-Namensraum, `/run` als leeres tmpfs). Hat das gepruefte Repository neben dem
-Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der Checkout keinen,
-wird dessen `packages`-Verzeichnis read-only in denselben Pfad gebunden (der
-Checkout baut in sein eigenes, beschreibbares `.lake`); das Kommando im
-Urteil nennt den Pfad. Die `.lake`-Wahl ist eine Naeherung, die das Urteil
-benennt: Abhaengigkeiten sind nicht Teil des Commits, ein Cache ohne
-kompilierte Artefakte kann den Build nicht tragen, und ohne Cache plus
-ausgeschaltetem Netz (Sandkasten) bleibt eine fehlende Abhaengigkeit
-`UNVERIFIABLE` statt erfunden zu werden.
+Prueftiefe (Doktrin): Das Urteil stuetzt sich auf (a) die Kompilierung des
+geprueften Moduls durch Lean, (b) den Kernel-Recheck des Artefakts mit
+`leanchecker`, (c) die aus dem Artefakt gelesene Axiomliste der eigenen
+Abfrage. `leanchecker` allein erkennt `sorryAx` NICHT (akzeptiert solche
+Artefakte rc 0, mit Lean 4.33.1 verifiziert) -- die sorry-Erkennung kommt
+aus der Axiomliste, die Kernel-Aussage aus `leanchecker`; das Urteil nennt
+beide. Grenze: der Kernel-Recheck deckt die Deklarationen des geprueften
+Moduls; die Artefakte der Abhaengigkeiten stammen nicht aus dem Commit
+(read-only eingebundener Arbeitsbaum-Cache, im Urteil benannt, oder im Repo
+liegend). Die Axiomliste macht sichtbar, worauf der Beweis beruht (auch
+nicht-logische Axiome und `Lean.ofReduceBool` aus `native_decide`) -- der
+Pruefer beurteilt nicht deren Wahrheit, nicht die Bedeutung des Satzes und
+nicht die Herkunft der Abhaengigkeits-Artefakte.
+
+Isolation: Bauen und Elaborieren fuehren Code aus, `lake` wuerde fehlende
+Abhaengigkeiten per Netz nachladen -- darum verhaelt sich
+`--sandbox=auto` fuer diesen Typ wie `require`: ohne nutzbaren bwrap bleibt
+die Behauptung `UNVERIFIABLE`, kein stiller ungesandboxter Rueckfall; nur
+ein ausdrueckliches `--sandbox=off` laeuft ohne Sandkasten und nennt das im
+Urteil. Der Sandkasten ist die bestehende bwrap-Semantik (Wurzel read-only,
+nur der Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run`
+als leeres tmpfs). `ELAN_HOME` wird aus dem elan-Pfad abgeleitet; ohne
+`lean-toolchain` in Reichweite wird die einzige installierte Toolchain als
+`ELAN_TOOLCHAIN` gepinnt (kein Netz-Query im Sandkasten). Ein
+Arbeitsbaum-`.lake/packages` wird read-only in denselben Pfad gebunden,
+wenn der Checkout keinen Cache hat; das Kommando im Urteil nennt den Pfad.
 
 ## Merges (`MERGE`)
 
@@ -483,7 +486,7 @@ und ARTIFACT loest seine Pfade gegen die Artefakt-Wurzel auf
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
 - Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run` als leeres tmpfs (Socket-Pfade des Rechners fehlen). Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt), ist keine vollstaendige Isolationsgrenze gegen feindlichen Code (sichtbare Dateien bleiben lesbar) und schuetzt nicht gegen Kernel-Exploits.
 - Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT-, SEARCHED- und CYCLE-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
-- LEAN prueft in einem Wegwerf-Checkout mit der Toolchain aus dem `PATH` (`lean`, fuer Lake-Projekte `lake`; `ELAN_HOME` wird abgeleitet). Die Elaboration verlangt denselben bwrap-Sandkasten wie COMPUTE, aber ohne stillen Rueckfall: `auto` verhaelt sich wie `require` (die Elaboration fuehrt Code aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz nachladen); nur `--sandbox=off` laeuft ohne Sandkasten und nennt das im Urteil. Ein `.lake`-Cache des Arbeitsbaums wird nur read-only in den Checkout gebunden und im Urteil benannt; fehlende Abhaengigkeiten bleiben `UNVERIFIABLE`. Kein Urteil behauptet einen unabhaengigen Kernel-Recheck: der Urteilstext nennt die Re-Elaboration mit Toolchain-Version und die Axiomliste.
+- LEAN prueft in einem Wegwerf-Checkout mit der Toolchain aus dem `PATH` (`lean`, `leanchecker` und, fuer Lake-Projekte, `lake`; `ELAN_HOME` wird abgeleitet). Bauen und Elaborieren verlangen denselben bwrap-Sandkasten wie COMPUTE, aber ohne stillen Rueckfall: `auto` verhaelt sich wie `require` (die Elaboration fuehrt Code aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz nachladen); nur `--sandbox=off` laeuft ohne Sandkasten und nennt das im Urteil. Ein `.lake/packages`-Cache des Arbeitsbaums wird nur read-only in den Checkout gebunden und im Urteil benannt; fehlende Abhaengigkeiten bleiben `UNVERIFIABLE`. Das Urteil nennt den Kernel-Recheck des Artefakts mit Toolchain-Version und die Axiomliste; es behauptet keinen Recheck der Abhaengigkeits-Artefakte und keine unabhaengige Nachpruefung ausserhalb von Lean.
 - Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`. Fuer COMPUTE heisst das: kein Lauf ohne Allowlist, kein Lauf ohne aufloesbaren Commit, ausdrueckliche Vorabpruefung des Programms, Ausgabe- und Zeitlimits statt Kuerzung, und ein Urteil nur ueber den Hash des stdout.
 
 ## Strict-Modus

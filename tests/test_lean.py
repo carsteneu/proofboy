@@ -2,10 +2,17 @@
 
 A LEAN claim is a formal proof certificate: in the report's pinned commit the
 named Lean source file exists and the named declaration is proved there
-without sorry/admit. The checker re-elaborates a copy of the pinned source
-with Lean and reads the #print axioms line. The hermetic matrix below drives
-every verdict through fake lean/lake binaries (no real toolchain needed); the
-live tests exercise the real toolchain when it is present on the host.
+without sorry/admit. The checker builds the pinned module in a throwaway
+checkout, re-checks the compiled artifact with Lean's kernel (leanchecker) and
+reads the declaration's axiom list with its own query program -- which loads
+the module as data, so no repository code runs in the evidence process.
+
+The hermetic matrix below drives every verdict through fake
+lean/lake/leanchecker binaries (no real toolchain needed) and pins the
+regression cases of the 5.2/5.4 reviews: forged evidence lines in build
+output, `public import`, same-named files elsewhere, `lcProof`/unsafe, and the
+`bwrap`-word downgrade. The live tests exercise the real toolchain, including
+hostile modules that try to forge their own evidence.
 """
 
 import os
@@ -47,54 +54,60 @@ _LAKE_PROOF = "theorem lake_proven (n : Nat) : n + 0 = n := rfl\n"
 
 _COMMIT_40 = "a" * 40
 
+_FAKE_TOOL = """#!/bin/sh
+dir='{bin_dir}'
+mode=
+case "$1" in
+  --version) mode=version ;;
+  build) mode=build ;;
+  -o) mode=build ;;
+  env)
+    case "$2" in
+      lean)
+        case "$3" in
+          --run) mode=query ;;
+          *) mode=unknown ;;
+        esac ;;
+      leanchecker) mode=recheck ;;
+      *) mode=unknown ;;
+    esac ;;
+  --run) mode=query ;;
+  *) mode=recheck ;;
+esac
+if [ "$mode" = version ]; then
+  printf '%s\\n' 'Lean (version 4.33.1, fake, Release)'
+  exit 0
+fi
+printf '%s|%s\\n' "$mode" "$*" >> "$dir/calls.log"
+case "$mode" in
+  build) f=build ;;
+  query) f=query ;;
+  recheck) f=recheck ;;
+  *) f=unknown ;;
+esac
+if [ "$mode" = build ] && [ -d .lake/build ]; then
+  printf 'builddir-present\\n' >> "$dir/calls.log"
+fi
+if [ "$mode" = query ] && [ -f "$dir/dump.env" ]; then
+  printf '%s|%s|%s|%s\\n' "$ELAN_HOME" "$ELAN_TOOLCHAIN" "$LEAN_PATH" "$HOME" >> "$dir/env.copy"
+fi
+[ -f "$dir/$f.sleep" ] && sleep 30
+[ -f "$dir/$f.out" ] && cat "$dir/$f.out"
+if [ -f "$dir/$f.rc" ]; then exit "$(cat "$dir/$f.rc")"; fi
+exit 0
+"""
 
-def _fake_tool(bin_dir, name):
-    """Write a fake ``lean``/``lake`` executable answering from files.
 
-    The checker runs children with a minimal environment, so the canned
-    answer cannot travel as an environment variable: it lives in files under
-    ``bin_dir`` (``run.out``, ``run.rc``, ``build.out``, ``build.rc``,
-    ``run.sleep``). The fake also logs its argv and the elaborated driver so
-    a test can assert what the checker really ran.
-    """
-    path = os.path.join(bin_dir, name)
-    script = "\n".join(
-        [
-            "#!/bin/sh",
-            f"dir='{bin_dir}'",
-            'case "$1" in',
-            "  --version)",
-            "    printf '%s\\n' 'Lean (version 4.33.1, fake, Release)'",
-            "    exit 0",
-            "    ;;",
-            "  build)",
-            '    printf \'%s\\n\' "build" "$2" >> "$dir/lake.args"',
-            '    [ -f "$dir/build.out" ] && cat "$dir/build.out"',
-            '    if [ -f "$dir/build.rc" ]; then exit "$(cat "$dir/build.rc")"; fi',
-            "    exit 0",
-            "    ;;",
-            "  env)",
-            '    printf \'%s\\n\' "env" "$2" "$3" >> "$dir/lake.args"',
-            '    drv="$3"',
-            "    ;;",
-            "  *)",
-            '    printf \'%s\\n\' "$1" >> "$dir/lean.args"',
-            '    drv="$1"',
-            "    ;;",
-            "esac",
-            '[ -f "$dir/run.sleep" ] && sleep 30',
-            'if [ -f "$dir/dump.env" ]; then printf \'%s|%s|%s\\n\' "$ELAN_HOME" "$ELAN_TOOLCHAIN" "$HOME" >> "$dir/env.copy"; fi',
-            'if [ -n "$drv" ] && [ -f "$drv" ]; then cat "$drv" >> "$dir/driver.copy"; fi',
-            '[ -f "$dir/run.out" ] && cat "$dir/run.out"',
-            'if [ -f "$dir/run.rc" ]; then exit "$(cat "$dir/run.rc")"; fi',
-            "exit 0",
-            "",
-        ]
-    )
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write(script)
-    os.chmod(path, 0o755)
-    return path
+def _write_fake_tools(bin_dir):
+    for name in ("lean", "lake", "leanchecker"):
+        path = os.path.join(bin_dir, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(_FAKE_TOOL.format(bin_dir=bin_dir))
+        os.chmod(path, 0o755)
+
+
+def _answer(name, axioms):
+    return f"BEMYSELF-LEAN-AXIOMS {name} [{axioms}]\n"
 
 
 class LeanParseTest(unittest.TestCase):
@@ -148,6 +161,23 @@ class LeanRegistryTest(unittest.TestCase):
         self.assertIs(claimtypes.checker_for("lean"), lean.check)
 
 
+class LeanImportParsingTest(unittest.TestCase):
+    """Import lines: every spelling counts, comments do not (review 5.2 #1)."""
+
+    def test_public_import_is_seen(self):
+        self.assertEqual(lean._imports_of("public import Mathlib\n"), ["Mathlib"])
+
+    def test_several_modules_on_one_line_are_seen(self):
+        self.assertEqual(lean._imports_of("import A B\n"), ["A", "B"])
+
+    def test_a_trailing_comment_does_not_become_a_module(self):
+        self.assertEqual(lean._imports_of("import Mathlib -- why\n"), ["Mathlib"])
+
+    def test_imports_inside_the_file_are_found(self):
+        source = "import Lean\nimport Mathlib.Algebra\n\ntheorem x : True := trivial\n"
+        self.assertEqual(lean._imports_of(source), ["Lean", "Mathlib.Algebra"])
+
+
 class LeanToolchainTest(unittest.TestCase):
     """The elan fallback pinning (offline toolchain resolution)."""
 
@@ -186,8 +216,37 @@ class LeanToolchainTest(unittest.TestCase):
         )
 
 
+class LeanAnswerParsingTest(unittest.TestCase):
+    """The query program's protocol is read strictly (review 5.4 #3)."""
+
+    def test_one_answer_is_read(self):
+        text = _answer("fixture_proven", "propext")
+        self.assertEqual(lean._query_answer(text, "fixture_proven"), ("axioms", ["propext"]))
+
+    def test_an_empty_list_is_read(self):
+        text = _answer("fixture_proven", "")
+        self.assertEqual(lean._query_answer(text, "fixture_proven"), ("axioms", []))
+
+    def test_two_answers_are_unreadable(self):
+        text = _answer("fixture_proven", "") + _answer("fixture_proven", "sorryAx")
+        self.assertEqual(lean._query_answer(text, "fixture_proven"), (None, None))
+
+    def test_an_answer_for_another_name_is_ignored(self):
+        self.assertEqual(lean._query_answer(_answer("other", ""), "fixture_proven"), (None, None))
+
+    def test_the_unknown_marker_is_read(self):
+        text = "BEMYSELF-LEAN-UNKNOWN fixture_proven\n"
+        self.assertEqual(lean._query_answer(text, "fixture_proven"), ("unknown", None))
+
+    def test_the_error_marker_is_read(self):
+        text = "BEMYSELF-LEAN-ERROR unknown module prefix 'Ghost'\n"
+        status, payload = lean._query_answer(text, "fixture_proven")
+        self.assertEqual(status, "error")
+        self.assertIn("Ghost", payload)
+
+
 class LeanCheckTest(unittest.TestCase):
-    """Hermetic matrix: fake lean/lake, unsandboxed, real git fixtures."""
+    """Hermetic matrix: fake toolchain, unsandboxed, real git fixtures."""
 
     @classmethod
     def setUpClass(cls):
@@ -209,10 +268,10 @@ class LeanCheckTest(unittest.TestCase):
         commit = commit_probe(repo, filename, source)
         return repo, commit
 
-    def lake_repo(self, name):
+    def lake_repo(self, name, target="proofs/Proofs.lean"):
         repo = make_repo(os.path.join(self._tmp.name, name))
         commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
-        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        commit = commit_probe(repo, target, _LAKE_PROOF)
         return repo, commit
 
     def fake(self, **files):
@@ -221,8 +280,7 @@ class LeanCheckTest(unittest.TestCase):
         for name, content in files.items():
             with open(os.path.join(bin_dir, name), "w", encoding="utf-8") as handle:
                 handle.write(content)
-        _fake_tool(bin_dir, "lean")
-        _fake_tool(bin_dir, "lake")
+        _write_fake_tools(bin_dir)
         return bin_dir
 
     def patched_path(self, bin_dir):
@@ -230,7 +288,7 @@ class LeanCheckTest(unittest.TestCase):
         path = bin_dir + os.pathsep + os.environ.get("PATH", "")
         return mock.patch.dict(os.environ, {"PATH": path})
 
-    def check_report(self, path, theorem, commit, ctx):
+    def check_report(self, path, theorem, commit, ctx, repo=None):
         text = f"[LEAN: {path} -> {theorem}]\n"
         if commit is not None:
             text = f"**send_to payload:** `[COMMIT: {commit}]`\n" + text
@@ -238,36 +296,35 @@ class LeanCheckTest(unittest.TestCase):
         self.assertEqual(len(claims), 1)
         return run_claim(claims[0], ctx)
 
-    # --- the positive and the refuted paths --------------------------------
-    def test_axioms_line_confirms(self):
+    # --- the verdicts ------------------------------------------------------
+    def test_an_empty_axiom_list_confirms(self):
         repo, commit = self.probe_repo("confirm", _PROOF)
-        bin_dir = self.fake(
-            **{"run.out": "'fixture_proven' depends on axioms: [propext, Quot.sound]\n"}
-        )
-        with self.patched_path(bin_dir):
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-        self.assertIn("depends on axioms: [propext, Quot.sound]", result.reason)
-        self.assertIn("re-elaborated", result.reason)
-        self.assertIn("git checkout", result.command)
-        self.assertIn("not sandboxed: --sandbox=off", result.reason)
-        self.assertIs(result.sandboxed, False)
-
-    def test_no_axioms_confirms(self):
-        repo, commit = self.probe_repo("noaxioms", _PROOF)
-        bin_dir = self.fake(**{"run.out": "'fixture_proven' does not depend on any axioms\n"})
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", "")})
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         self.assertIn("does not depend on any axioms", result.reason)
+        self.assertIn("passed Lean's kernel re-check", result.reason)
+        self.assertIn("no repository code executed", result.reason)
+        self.assertIn("not sandboxed: --sandbox=off", result.reason)
+        self.assertIn("git checkout", result.command)
+        self.assertIs(result.sandboxed, False)
+
+    def test_foundation_axioms_are_named_in_full(self):
+        repo, commit = self.probe_repo("axioms", _PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", "propext, Quot.sound")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("depends on axioms: [propext, Quot.sound]", result.reason)
 
     def test_sorry_axiom_refutes_with_the_exact_wording(self):
         repo, commit = self.probe_repo("sorry", _SORRY)
-        bin_dir = self.fake(**{"run.out": "'fixture_sorry' depends on axioms: [sorryAx]\n"})
+        bin_dir = self.fake(**{"query.out": _answer("fixture_sorry", "sorryAx")})
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_sorry", commit, self.ctx(repo.path)
@@ -277,9 +334,7 @@ class LeanCheckTest(unittest.TestCase):
 
     def test_sorry_with_more_axioms_refutes_and_names_all(self):
         repo, commit = self.probe_repo("sorry-mix", _SORRY)
-        bin_dir = self.fake(
-            **{"run.out": "'fixture_sorry' depends on axioms: [sorryAx, propext]\n"}
-        )
+        bin_dir = self.fake(**{"query.out": _answer("fixture_sorry", "sorryAx, propext")})
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_sorry", commit, self.ctx(repo.path)
@@ -287,13 +342,34 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
         self.assertIn("[sorryAx, propext]", result.reason)
 
-    def test_a_compile_error_refutes_with_the_first_error_line(self):
+    def test_lc_proof_refutes_because_the_kernel_did_not_check(self):
+        repo, commit = self.probe_repo("unsafe", "unsafe def fixture_cheat : False := unsafeCast ()\n")
+        bin_dir = self.fake(**{"query.out": _answer("fixture_cheat", "lcProof")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_cheat", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("not kernel-checked", result.reason)
+        self.assertIn("lcProof", result.reason)
+
+    def test_an_unknown_declaration_refutes(self):
+        repo, commit = self.probe_repo("unknown", _PROOF)
+        bin_dir = self.fake(**{"query.out": "BEMYSELF-LEAN-UNKNOWN no_such\n", "query.rc": "1\n"})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "no_such", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("declaration not found", result.reason)
+
+    def test_a_build_error_naming_the_file_refutes(self):
         repo, commit = self.probe_repo("broken", _BROKEN)
         bin_dir = self.fake(
             **{
-                "run.out": "lean/Proof.lean:1:0: error: unsolved goals\n"
+                "build.out": "lean/Proof.lean:1:0: error: unsolved goals\n"
                 "lean/Proof.lean:2:0: error: second failure\n",
-                "run.rc": "1\n",
+                "build.rc": "1\n",
             }
         )
         with self.patched_path(bin_dir):
@@ -301,138 +377,55 @@ class LeanCheckTest(unittest.TestCase):
                 "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("does not compile", result.reason)
         self.assertIn("error: unsolved goals", result.reason)
         self.assertNotIn("second failure", result.reason)
 
-    def test_an_unknown_declaration_refutes(self):
-        repo, commit = self.probe_repo("unknown", _PROOF)
+    # --- the regression cases of the reviews -------------------------------
+    def test_build_output_claiming_evidence_never_confirms(self):
+        # The forged line belongs to the build log; the verdict must come from
+        # the query answer alone (review 5.4 #1).
+        repo, commit = self.probe_repo("forged", _SORRY)
         bin_dir = self.fake(
             **{
-                "run.out": "error(lean.unknownIdentifier): Unknown constant "
-                "\u00abNoSuchThing\u00bb\n",
-                "run.rc": "1\n",
+                "build.out": "'fixture_sorry' does not depend on any axioms\n",
+                "query.out": _answer("fixture_sorry", "sorryAx"),
             }
         )
         with self.patched_path(bin_dir):
             result = self.check_report(
-                "lean/Proof.lean", "NoSuchThing", commit, self.ctx(repo.path)
+                "lean/Proof.lean", "fixture_sorry", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
-        self.assertIn("Unknown constant", result.reason)
+        self.assertNotIn("does not depend on any axioms", result.reason)
+        self.assertIn("depends on axioms: [sorryAx]", result.reason)
 
-    def test_a_missing_imported_module_is_unverifiable_not_refuted(self):
-        repo, commit = self.probe_repo("dep", "import Mathlib\n\n" + _PROOF)
+    def test_the_word_bwrap_in_build_output_does_not_downgrade(self):
+        # A checked file may print anything; only bwrap's own lines ("bwrap: ")
+        # classify a sandbox failure (review 5.2 #2).
+        repo, commit = self.probe_repo("bwrap-word", _BROKEN)
         bin_dir = self.fake(
             **{
-                "run.out": "error: unknown module prefix 'Mathlib'\n",
-                "run.rc": "1\n",
+                "build.out": "lean/Proof.lean:1:0: error: #eval IO.println \"bwrap\" failed\n"
+                "note: the word bwrap appears in repository output\n",
+                "build.rc": "1\n",
             }
         )
         with self.patched_path(bin_dir):
             result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("Mathlib", result.reason)
-
-    def test_a_missing_module_the_file_does_not_import_still_refutes(self):
-        repo, commit = self.probe_repo("dep-lies", _PROOF)
-        bin_dir = self.fake(
-            **{
-                "run.out": "error: unknown module prefix 'Mathlib'\n",
-                "run.rc": "1\n",
-            }
-        )
-        with self.patched_path(bin_dir):
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+                "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("does not compile", result.reason)
 
-    def test_a_run_without_the_axioms_line_is_unverifiable(self):
-        repo, commit = self.probe_repo("noline", _PROOF)
-        bin_dir = self.fake(**{"run.out": "some unrelated output\n"})
-        with self.patched_path(bin_dir):
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("no #print axioms line", result.reason)
-
-    def test_a_timeout_is_unverifiable(self):
-        repo, commit = self.probe_repo("timeout", _PROOF)
-        bin_dir = self.fake(**{"run.out": "'x' does not depend on any axioms\n", "run.sleep": "1\n"})
-        with self.patched_path(bin_dir), mock.patch.object(lean, "LEAN_TIMEOUT", 1):
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("timed out", result.reason)
-
-    def test_a_sole_installed_toolchain_is_pinned_for_offline_runs(self):
-        repo, commit = self.probe_repo("elan-pin", _PROOF)
-        elan = os.path.join(self._tmp.name, "fake-elan", self._testMethodName)
-        bin_dir = os.path.join(elan, "bin")
-        os.makedirs(bin_dir, exist_ok=True)
-        os.makedirs(
-            os.path.join(elan, "toolchains", "leanprover--lean4---v4.33.1"), exist_ok=True
+    def test_a_real_bwrap_failure_is_unverifiable(self):
+        repo, commit = self.probe_repo("bwrap-fail", _BROKEN)
+        bin_dir = self.fake(
+            **{
+                "build.out": "bwrap: Creating new namespace failed: Operation not permitted\n",
+                "build.rc": "1\n",
+            }
         )
-        _fake_tool(bin_dir, "lean")
-        with open(os.path.join(bin_dir, "run.out"), "w", encoding="utf-8") as handle:
-            handle.write("'fixture_proven' does not depend on any axioms\n")
-        with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
-            handle.write("dump\n")
-        with self.patched_path(bin_dir):
-            os.environ.pop("ELAN_TOOLCHAIN", None)
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
-            lines = handle.read().splitlines()
-        self.assertTrue(lines)
-        elan_home, toolchain, home = lines[-1].split("|")
-        self.assertEqual(elan_home, elan)
-        self.assertEqual(toolchain, "leanprover/lean4:v4.33.1")
-        self.assertNotEqual(home, os.path.expanduser("~"))
-
-    # --- the guards --------------------------------------------------------
-    def test_a_broken_file_outside_any_lake_project_needs_no_lake(self):
-        repo, commit = self.probe_repo("nolake", _PROOF, filename="Proof.lean")
-        bin_dir = self.fake(**{"run.out": "'fixture_proven' does not depend on any axioms\n"})
-        os.remove(os.path.join(bin_dir, "lake"))
-        with self.patched_path(bin_dir):
-            result = self.check_report("Proof.lean", "fixture_proven", commit, self.ctx(repo.path))
-        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-
-    def test_without_lean_the_claim_is_unverifiable(self):
-        repo, commit = self.probe_repo("nolean", _PROOF)
-        bin_dir = self.fake()
-        os.remove(os.path.join(bin_dir, "lean"))
-        path = bin_dir + os.pathsep + os.pathsep.join(["/usr/bin", "/bin"])
-        with mock.patch.dict(os.environ, {"PATH": path}):
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("lean is not available in PATH", result.reason)
-
-    def test_auto_without_bwrap_is_unverifiable_and_runs_nothing(self):
-        repo, commit = self.probe_repo("nosandbox", _PROOF)
-        bin_dir = self.fake(**{"run.out": "'x' does not depend on any axioms\n"})
-        with self.patched_path(bin_dir), mock.patch(
-            "bemyself.checks.find_bwrap", return_value=None
-        ):
-            result = self.check_report(
-                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="auto")
-            )
-        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("bwrap", result.reason)
-        self.assertFalse(os.path.exists(os.path.join(bin_dir, "lean.args")))
-
-    def test_a_broken_sandbox_never_refutes(self):
-        repo, commit = self.probe_repo("broken-bwrap", _PROOF)
-        bin_dir = self.fake(**{"run.out": "'fixture_proven' does not depend on any axioms\n"})
         broken = os.path.join(bin_dir, "broken-bwrap")
         with open(broken, "w", encoding="utf-8") as handle:
             handle.write(
@@ -445,10 +438,159 @@ class LeanCheckTest(unittest.TestCase):
             "bemyself.checks.find_bwrap", return_value=broken
         ):
             result = self.check_report(
+                "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path, sandbox="auto")
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("sandbox could not run", result.reason)
+
+    def test_a_same_named_file_elsewhere_does_not_refute(self):
+        # `other/Proofs.lean` is not `proofs/Proofs.lean` (review 5.2 #3).
+        repo, commit = self.lake_repo("same-name")
+        bin_dir = self.fake(
+            **{
+                "build.out": "other/Proofs.lean:1:0: error: dependency is broken\n",
+                "build.rc": "1\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("outside", result.reason)
+
+    def test_a_public_import_of_a_missing_module_is_unverifiable(self):
+        # `public import Mathlib` is an import (review 5.2 #1).
+        repo, commit = self.probe_repo("public-import", "public import Mathlib\n\n" + _PROOF)
+        bin_dir = self.fake(
+            **{
+                "build.out": "error: unknown module prefix 'Mathlib'\n",
+                "build.rc": "1\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("Mathlib", result.reason)
+
+    def test_a_missing_module_the_file_does_not_import_still_refutes(self):
+        repo, commit = self.probe_repo("dep-lies", _BROKEN)
+        bin_dir = self.fake(
+            **{
+                "build.out": "lean/Proof.lean:1:0: error: unknown module prefix 'Mathlib'\n",
+                "build.rc": "1\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("does not compile", result.reason)
+
+    # --- the stages --------------------------------------------------------
+    def test_the_kernel_recheck_runs_before_the_query_and_guards_it(self):
+        repo, commit = self.probe_repo("recheck", _PROOF)
+        bin_dir = self.fake(
+            **{
+                "recheck.out": "error: (kernel) declaration has met a fatal error\n",
+                "recheck.rc": "1\n",
+                "query.out": _answer("fixture_proven", ""),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("did not pass Lean's kernel re-check", result.reason)
+        with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
+            calls = handle.read()
+        self.assertIn("recheck|", calls)
+        self.assertNotIn("query|", calls)
+
+    def test_a_lake_project_builds_rechecks_and_queries(self):
+        repo, commit = self.lake_repo("lake")
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
+            calls = handle.read()
+        self.assertIn("build|build Proofs", calls)
+        self.assertIn("recheck|env leanchecker Proofs", calls)
+        self.assertIn("query|env lean --run", calls)
+        self.assertIn("Proofs lake_proven", calls)
+
+    def test_a_committed_build_artifact_is_discarded_before_the_build(self):
+        repo = make_repo(os.path.join(self._tmp.name, "lake-stale"))
+        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
+        commit_probe(repo, "proofs/.lake/build/lib/lean/Proofs.olean", "stale artifact\n")
+        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
+            calls = handle.read()
+        self.assertNotIn("builddir-present", calls)
+
+    def test_a_standalone_file_builds_with_o_and_queries_with_run(self):
+        repo, commit = self.probe_repo("standalone", _PROOF, filename="Proof.lean")
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
+            calls = handle.read()
+        self.assertIn("build|-o ", calls)
+        self.assertIn("query|--run ", calls)
+
+    # --- the guards --------------------------------------------------------
+    def test_without_lean_the_claim_is_unverifiable(self):
+        repo, commit = self.probe_repo("nolean", _PROOF)
+        bin_dir = self.fake()
+        os.remove(os.path.join(bin_dir, "lean"))
+        path = bin_dir + os.pathsep + os.pathsep.join(["/usr/bin", "/bin"])
+        with mock.patch.dict(os.environ, {"PATH": path}):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("lean is not available in PATH", result.reason)
+
+    def test_without_leanchecker_the_claim_is_unverifiable(self):
+        repo, commit = self.probe_repo("nochecker", _PROOF)
+        bin_dir = self.fake()
+        os.remove(os.path.join(bin_dir, "leanchecker"))
+        path = bin_dir + os.pathsep + os.pathsep.join(["/usr/bin", "/bin"])
+        with mock.patch.dict(os.environ, {"PATH": path}):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("leanchecker is not available in PATH", result.reason)
+
+    def test_auto_without_bwrap_is_unverifiable_and_runs_nothing(self):
+        repo, commit = self.probe_repo("nosandbox", _PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", "")})
+        with self.patched_path(bin_dir), mock.patch(
+            "bemyself.checks.find_bwrap", return_value=None
+        ):
+            result = self.check_report(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="auto")
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
         self.assertIn("bwrap", result.reason)
+        self.assertFalse(os.path.exists(os.path.join(bin_dir, "calls.log")))
 
     def test_a_missing_file_in_the_pinned_commit_refutes(self):
         repo, commit = self.probe_repo("missing", _PROOF)
@@ -490,64 +632,67 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
         self.assertIn("not a valid declaration name", result.reason)
 
-    # --- the lake path -----------------------------------------------------
-    def test_a_lake_project_builds_the_module_before_elaborating(self):
-        repo, commit = self.lake_repo("lake")
-        bin_dir = self.fake(**{"run.out": "'lake_proven' does not depend on any axioms\n"})
-        with self.patched_path(bin_dir):
+    def test_a_timeout_is_unverifiable(self):
+        repo, commit = self.probe_repo("timeout", _PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", ""), "query.sleep": "1\n"})
+        with self.patched_path(bin_dir), mock.patch.object(lean, "LEAN_TIMEOUT", 1):
             result = self.check_report(
-                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-        with open(os.path.join(bin_dir, "lake.args"), encoding="utf-8") as handle:
-            args = handle.read().splitlines()
-        self.assertEqual(args[:2], ["build", "Proofs"])
-        self.assertEqual(args[2:4], ["env", "lean"])
-        self.assertIn("lake env lean", result.command)
-
-    def test_a_build_failure_in_the_target_file_refutes(self):
-        repo, commit = self.lake_repo("lake-broken")
-        bin_dir = self.fake(
-            **{
-                "build.out": "proofs/Proofs.lean:1:0: error: unsolved goals\n",
-                "build.rc": "1\n",
-                "run.out": "should not run\n",
-            }
-        )
-        with self.patched_path(bin_dir):
-            result = self.check_report(
-                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
-            )
-        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
-        self.assertIn("error: unsolved goals", result.reason)
-
-    def test_a_build_failure_elsewhere_is_unverifiable(self):
-        repo, commit = self.lake_repo("lake-dep")
-        bin_dir = self.fake(
-            **{
-                "build.out": "proofs/Other.lean:1:0: error: dependency is broken\n",
-                "build.rc": "1\n",
-            }
-        )
-        with self.patched_path(bin_dir):
-            result = self.check_report(
-                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
-        self.assertIn("dependency is broken", result.reason)
+        self.assertIn("timed out", result.reason)
 
-    def test_the_driver_copies_the_pinned_source_and_appends_the_question(self):
-        repo, commit = self.probe_repo("driver", _PROOF)
-        bin_dir = self.fake(**{"run.out": "'fixture_proven' does not depend on any axioms\n"})
+    def test_an_unreadable_answer_is_unverifiable(self):
+        repo, commit = self.probe_repo("noline", _PROOF)
+        bin_dir = self.fake(**{"query.out": "some unrelated output\n"})
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("no readable answer", result.reason)
+
+    def test_an_error_answer_is_unverifiable(self):
+        repo, commit = self.probe_repo("qerror", _PROOF)
+        bin_dir = self.fake(
+            **{
+                "query.out": "BEMYSELF-LEAN-ERROR cannot load olean for Proof\n",
+                "query.rc": "2\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("could not read the compiled artifact", result.reason)
+
+    def test_a_sole_installed_toolchain_is_pinned_for_offline_runs(self):
+        repo, commit = self.probe_repo("elan-pin", _PROOF)
+        elan = os.path.join(self._tmp.name, "fake-elan", self._testMethodName)
+        bin_dir = os.path.join(elan, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        os.makedirs(
+            os.path.join(elan, "toolchains", "leanprover--lean4---v4.33.1"), exist_ok=True
+        )
+        _write_fake_tools(bin_dir)
+        with open(os.path.join(bin_dir, "query.out"), "w", encoding="utf-8") as handle:
+            handle.write(_answer("fixture_proven", ""))
+        with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
+            handle.write("dump\n")
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-        with open(os.path.join(bin_dir, "driver.copy"), encoding="utf-8") as handle:
-            driver = handle.read()
-        self.assertTrue(driver.startswith(_PROOF), driver)
-        self.assertIn("#print axioms fixture_proven", driver)
+        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+        self.assertTrue(lines)
+        elan_home, toolchain, _, home = lines[-1].split("|")
+        self.assertEqual(elan_home, elan)
+        self.assertEqual(toolchain, "leanprover/lean4:v4.33.1")
+        self.assertNotEqual(home, os.path.expanduser("~"))
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox boundary tests")
     def test_the_working_tree_cache_is_bound_read_only_when_present(self):
@@ -556,7 +701,7 @@ class LeanCheckTest(unittest.TestCase):
         os.makedirs(packages, exist_ok=True)
         with open(os.path.join(packages, "marker"), "w", encoding="utf-8") as handle:
             handle.write("cache\n")
-        bin_dir = self.fake(**{"run.out": "'lake_proven' does not depend on any axioms\n"})
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path, sandbox="auto")
@@ -576,7 +721,7 @@ class LeanCheckTest(unittest.TestCase):
             **{
                 "build.out": "error: read-only file system (error code: 30)\n",
                 "build.rc": "1\n",
-                "run.out": "should not run\n",
+                "query.out": _answer("lake_proven", ""),
             }
         )
         with self.patched_path(bin_dir):
@@ -590,7 +735,7 @@ class LeanCheckTest(unittest.TestCase):
 
 @unittest.skipUnless(_LEAN and _BWRAP, "lean and bwrap are required for the live tests")
 class LeanLiveTest(unittest.TestCase):
-    """Live runs against the real Lean toolchain, sandboxed."""
+    """Live runs against the real toolchain, sandboxed."""
 
     @classmethod
     def setUpClass(cls):
@@ -633,6 +778,14 @@ class LeanLiveTest(unittest.TestCase):
         self.assertEqual(len(claims), 1)
         return run_claim(claims[0], ctx)
 
+    def lake_repo(self, name, source=_LAKE_PROOF):
+        repo = make_repo(os.path.join(self._tmp.name, name))
+        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
+        commit_probe(repo, "proofs/lean-toolchain", f"leanprover/lean4:v{self.toolchain}\n")
+        commit = commit_probe(repo, "proofs/Proofs.lean", source)
+        return repo, commit
+
+    # --- the acceptance matrix --------------------------------------------
     def test_a_real_theorem_confirms(self):
         repo, commit = self.probe_repo("live-confirm", _PROOF)
         result = self.check_report(
@@ -640,7 +793,7 @@ class LeanLiveTest(unittest.TestCase):
         )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         self.assertIn("does not depend on any axioms", result.reason)
-        self.assertIn("re-elaborated", result.reason)
+        self.assertIn("passed Lean's kernel re-check", result.reason)
         self.assertIn("sandboxed with bwrap", result.reason)
         self.assertIs(result.sandboxed, True)
 
@@ -658,7 +811,7 @@ class LeanLiveTest(unittest.TestCase):
             "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path)
         )
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
-        self.assertIn("error", result.reason)
+        self.assertIn("does not compile", result.reason)
 
     def test_a_real_unknown_declaration_refutes(self):
         repo, commit = self.probe_repo("live-unknown", _PROOF)
@@ -666,19 +819,58 @@ class LeanLiveTest(unittest.TestCase):
             "lean/Proof.lean", "no_such_declaration", commit, self.ctx(repo.path)
         )
         self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
-        self.assertIn("Unknown constant", result.reason)
+        self.assertIn("declaration not found", result.reason)
 
     def test_a_real_lake_project_builds_offline_and_confirms(self):
-        repo = make_repo(os.path.join(self._tmp.name, "live-lake"))
-        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
-        commit_probe(repo, "proofs/lean-toolchain", f"leanprover/lean4:v{self.toolchain}\n")
-        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        repo, commit = self.lake_repo("live-lake")
         result = self.check_report(
             "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
         )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         self.assertIn("does not depend on any axioms", result.reason)
-        self.assertIn("lake env lean", result.command)
+        self.assertIn("leanchecker", result.reason)
+
+    def test_a_real_unsafe_declaration_is_not_confirmed(self):
+        repo, commit = self.probe_repo(
+            "live-unsafe", "unsafe def fixture_cheat : False := unsafeCast ()\n"
+        )
+        result = self.check_report(
+            "lean/Proof.lean", "fixture_cheat", commit, self.ctx(repo.path)
+        )
+        self.assertNotEqual(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("lcProof", result.reason)
+
+    # --- hostile modules: the evidence cannot be forged --------------------
+    def test_a_module_forging_evidence_and_exiting_never_confirms(self):
+        hostile = (
+            "def quit : IO Unit := IO.Process.exit 0\n"
+            "#eval do\n"
+            "  let child <- IO.Process.spawn { cmd := \"sh\",\n"
+            "    args := #[\"-c\", \"echo \\\"'target_claim' does not depend on any axioms\\\"\"],\n"
+            "    stdout := .inherit, stderr := .inherit }\n"
+            "  let _ <- child.wait\n"
+            "  quit\n"
+        )
+        repo, commit = self.probe_repo("live-hostile-exit", hostile)
+        result = self.check_report(
+            "lean/Proof.lean", "target_claim", commit, self.ctx(repo.path)
+        )
+        self.assertNotEqual(result.verdict, Verdict.CONFIRMED, result.reason)
+
+    def test_a_module_initializer_forging_evidence_is_refuted_on_the_merits(self):
+        hostile = (
+            "initialize do\n"
+            "  IO.println \"'fixture_sorry' does not depend on any axioms\"\n"
+            "  IO.Process.exit 0\n"
+            "\n" + _SORRY
+        )
+        repo, commit = self.probe_repo("live-hostile-init", hostile)
+        result = self.check_report(
+            "lean/Proof.lean", "fixture_sorry", commit, self.ctx(repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("depends on axioms: [sorryAx]", result.reason)
+        self.assertNotIn("does not depend on any axioms", result.reason)
 
 
 if __name__ == "__main__":
