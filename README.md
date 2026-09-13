@@ -27,7 +27,8 @@ Pruefset. Die Meldung kommt entweder aus einer Datei (`--report`) oder direkt au
 einer YesMem-Scratchpad-Section (`--section`): genau eines von beiden ist
 Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--report` ist
 `--repo` nur dann Pflicht, wenn die Meldung eine Behauptung enthaelt, deren
-Pruefer ein Repository braucht (`COMMIT`, `BRANCH`, Tests, Diff-Scope; eine per
+Pruefer ein Repository braucht (`COMMIT`, `BRANCH`, Tests, Diff-Scope,
+`COMPUTE`, `LEAN`; eine per
 `--files` ergaenzte Diff-Scope-Behauptung zaehlt mit); ein
 Report aus repo-freien Behauptungen (etwa `[HALT]`) laeuft ohne `--repo`. Fehlt
 `--repo` fuer einen repo-beduerftigen Report, bricht der Aufruf mit Exit 2 und
@@ -125,7 +126,7 @@ abgeschnittene Ellipse (`e5b68dd1…`, `...`) -- ist eine Vorlage und keine
 Behauptung: der Pruefer ignoriert sie wie eine Zeile ganz ohne Marker und
 meldet sie nicht als `unpruefbar`. Die Regel greift auf jeder Parser-Flaeche
 (`COMMIT`, `BRANCH`, `MERGE`, `DEPLOY`, `HALT`/`SCORE`, `SEARCHED`, `CYCLE`,
-`COMPUTE`, `IDENT`, `COLORING`, `ARTIFACT`, Diff-Scope und
+`COMPUTE`, `LEAN`, `IDENT`, `COLORING`, `ARTIFACT`, Diff-Scope und
 Testbehauptung) und pro Behauptung: traegt eine Vorlagenzeile daneben
 literale Marker -- etwa `[DEPLOY: no]` oder `[MERGE: no]` neben
 `[COMMIT: <hash>]` --, bleiben diese Behauptungen bestehen und behalten ihr
@@ -186,6 +187,13 @@ unbrauchbares bwrap (etwa durch AppArmor oder Kernelschalter) nicht als
 fehlgeschlagener Test fehlgedeutet wird. `--sandbox=require` kennt keinen
 stillen Rueckfall: ohne nutzbaren Sandkasten wird das Kommando nicht
 ausgefuehrt.
+
+Fuer `[LEAN]` gilt eine Verschaerfung: die Elaboration fuehrt Code aus, und
+`lake` wuerde fehlende Abhaengigkeiten ueber das Netz holen -- darum
+verhaelt sich `auto` dort wie `require`: ohne nutzbaren Sandkasten bleibt
+die Behauptung `unpruefbar` statt ungesandboxt zu laufen. Nur ein
+ausdrueckliches `--sandbox=off` elaboriert ohne bwrap und sagt das im
+Urteil. Details im Abschnitt "Formale Beweise".
 
 Der Sandkasten ersetzt die Allowlist nicht: nur erlaubte Testkommandos werden
 ueberhaupt ausgefuehrt, und alle uebrigen Beschraenkungen (Wegwerf-Checkout,
@@ -547,6 +555,99 @@ Testlaeufen Schreiben, IP-Netz und Prozesssicht, nicht Lesezugriffe. Die
 Limits (Zeit, Ausgabe) begrenzen einen Lauf, nicht die Meldung: eine Meldung
 kann viele COMPUTE-Behauptungen tragen, jede mit eigenem Lauf.
 
+## Formale Beweise (`[LEAN]`)
+
+Der staerkste Zeuge, den das Werkzeug kennt: `[LEAN: <pfad.lean> -> <satz>]`
+behauptet, dass im gepinnten Commit die Datei `<pfad.lean>` existiert und die
+Deklaration `<satz>` dort ohne `sorry`/`admit` bewiesen ist:
+
+```
+[LEAN: lean/cycle-bridge/CycleBridge/Cycle.lean -> CycleBridge.cycle_never_halts]
+```
+
+Die Bindung an den Commit ist dieselbe wie bei `[COMPUTE]`: genau ein
+hash-foermiger `[COMMIT]`-Marker der Meldung pinnt den Commit (Platzhalter wie
+`<hash>` zaehlen nicht); mehrere verschiedene Commits binden nichts, und die
+Behauptung bleibt `unpruefbar`.
+
+Der Pruefer checkt den Commit in einen Wegwerf-Checkout aus und arbeitet dort
+mit der echten Lean-Toolchain (aus dem `PATH`: `lean` und, fuer Lake-Projekte,
+`lake`; der elan-Wurzelpfad `ELAN_HOME` wird aus dem gefundenen Binärpfad
+abgeleitet, weil der Lauf isoliert mit `HOME=<checkout>` laeuft):
+
+1. `git cat-file` prueft, dass `<pfad.lean>` im Commit als Datei existiert
+   (fehlt sie dort, ist die Behauptung `widerlegt`).
+2. Liegt die Datei in einem Lake-Projekt (lakefile in ihrem Verzeichnis oder
+   darueber), baut `lake build <modul>` das Modul aus dem ausgecheckten
+   Quelltext; ein Kompilierfehler in der Zieldatei widerlegt die Behauptung
+   (erste Fehlerzeile im Urteil), ein Problem woanders bleibt `unpruefbar`.
+3. Der Pruefer kopiert die Datei im Checkout, haengt `#print axioms <satz>`
+   an und elaboriert die Kopie mit `lean` bzw. `lake env lean`.
+4. Aus der Ausgabe liest er die `#print axioms`-Zeile: nennt sie `sorryAx`,
+   ist die Behauptung `widerlegt` (genau diese Zeile steht im Urteil); sonst
+   ist sie `bestaetigt` und die Zeile mit der vollstaendigen Axiomliste steht
+   im Urteil.
+
+```
+$ python3 -m bemyself check --report lean-report.md --repo <repo>
+lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcf: re-elaborated with Lean 4.33.1 (the kernel checked every declaration during elaboration); #print axioms: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
+```
+
+Urteile: `bestaetigt` nur mit einer `#print axioms`-Zeile fuer genau diesen
+Satz ohne `sorryAx`. `widerlegt` bei `depends on axioms: [sorryAx]`, bei
+fehlender Deklaration (`Unknown constant`), bei fehlender Datei im Commit
+und bei einem Kompilierfehler in der Datei. `unpruefbar` bleibt die
+Behauptung ohne `lean` im `PATH`, ohne funktionierenden Sandkasten (auch bei
+`--sandbox=auto`), ohne Commit-Bindung, bei ungueltigem Pfad oder Satznamen,
+bei Timeout (600 s) und immer dann, wenn eine Abhaengigkeit des Projekts im
+Checkout fehlt -- der Urteilstext nennt dann Modul und erste Fehlerzeile;
+eine fehlende Abhaengigkeit ist nie ein Beweis gegen den Satz.
+
+Prueftiefe -- was ein `bestaetigt` zusichert: Die Elaboration ist eine
+**Re-Elaboration** des gepinnten Quelltexts; der Kernel von Lean prueft jede
+Deklaration waehrend der Elaboration, und `#print axioms` macht die Axiome
+sichtbar, auf denen der Beweis beruht (logische Grundaxiome wie `propext`,
+`Quot.sound` oder `Classical.choice` stehen dann im Urteil -- `bestaetigt`
+heisst nicht "axiomfrei"). Der separate Kernel-Pruefer `leanchecker` wurde
+untersucht und wird nicht genutzt: er akzeptiert Module, deren Beweis auf
+`sorryAx` beruht (empirisch geprueft mit Lean 4.33.1), kann die
+`#print axioms`-Evidenz also nicht ersetzen; das Urteil sagt darum
+"re-elaboriert", nie "unabhaengig kernelgeprueft". Die Axiomliste ist die
+Grenze der Aussage: ein Satz, der auf einem selbst deklarierten Axiom beruht
+oder ueber `native_decide` auf `Lean.ofReduceBool` baut, wird `bestaetigt`
+mit genau diesem Axiom im Urteil -- der Pruefer belegt, dass die Deklaration
+so, wie sie dasteht, vom Kernel akzeptiert ist, nicht dass ihre Axiome
+wahr oder wunschenswert sind, und nicht, dass der Satz das behauptet, was
+der Report meint.
+
+Toolchain und Abhaengigkeiten: `lean` (und `lake`) muessen im `PATH` liegen
+(eine elan-Installation erfuellt das); das Werkzeug selbst braucht sie nicht.
+Ein frischer Checkout bringt nur die getrackten Dateien mit --
+Abhaengigkeiten wie Mathlib sind nicht Teil des Commits. Hat das gepruefte
+Repository neben dem Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der
+Checkout keinen, wird dieser Cache read-only in denselben Pfad gebunden; das
+Urteil nennt den Pfad im Kommando. Fehlt der Cache und laesst sich die
+Abhaengigkeit nicht aufloesen, bleibt die Behauptung `unpruefbar` (nie
+`widerlegt`): das Netz ist im Sandkasten aus, und `lake` wuerde fehlende
+Abhaengigkeiten sonst per `git clone` nachladen.
+
+Isolation: Die Elaboration fuehrt Code aus (Taktiken, Metaprogramme,
+`#eval`); darum verlangt der Typ den Sandkasten auch im Modus `auto` --
+anders als bei Testkommandos gibt es keinen stillen ungesandboxten
+Rueckfall. Der Sandkasten bindet die Wurzel read-only (so bleibt die
+Toolchain unter `~/.elan` erreichbar), gibt dem Lauf eigenen Netz-, PID- und
+UTS-Namensraum und nur den Wegwerf-Checkout beschreibbar.
+
+**Grenzen:** `bestaetigt` heisst: die Datei steht so im gepinnten Commit,
+die Kopie dieses Quelltexts wurde von der Toolchain ohne `sorry` akzeptiert,
+und die Deklaration haengt an genau den Axiomen im Urteil. Es heisst nicht:
+die Aussage des Satzes ist wahr, die Abhaengigkeiten des Checkouts sind die
+des Commits (der gebundene Cache stammt aus dem Arbeitsbaum), oder der
+Beweis waere von einem unabhaengigen Pruefer nachgeprueft. Der Checkout
+bringt seinen eigenen Quelltext mit -- wer den Commit kontrolliert,
+kontrolliert die Datei; der Kernel prueft die Ableitung, nicht die Herkunft
+der Datei.
+
 ## Merges (`[MERGE]`)
 
 `[MERGE: <branch>]` behauptet, dass der Commit der Meldung der Merge des
@@ -849,8 +950,8 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt einundfuenfzig Meldungen im Report-Format: sechsundzwanzig
-ehrliche und fuenfundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt dreiundfuenfzig Meldungen im Report-Format: siebenundzwanzig
+ehrliche und sechsundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
@@ -859,8 +960,11 @@ und -Scores, ein COMPUTE-Zertifikat mit falschem stdout-Hash, ein
 CYCLE-Zertifikat mit falschem Versatz, ein CYCLE-Zertifikat fuer eine
 Maschine, die im Fenster haelt, eine parameterisierte Identitaet mit
 verfaelschtem Koeffizienten, ein ARTIFACT-Zertifikat mit falschem Digest, ein
-ARTIFACT-Pfad, der mit `..` aus der Wurzel herauszeigt, und eine
-MERGE-Behauptung, die den Zielbranch statt des gemergten Branches nennt). Dazu kommen
+ARTIFACT-Pfad, der mit `..` aus der Wurzel herauszeigt, eine
+MERGE-Behauptung, die den Zielbranch statt des gemergten Branches nennt, und
+eine LEAN-Behauptung, deren Beweis auf `sorry` beruht -- `#print axioms`
+nennt `sorryAx`, die Meldung wird `widerlegt`; auf einem Host ohne
+Lean-Toolchain bleibt sie ehrlich `unpruefbar`, nie bestaetigt). Dazu kommen
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
 `unpruefbar`, eine ehrliche SEARCHED-Meldung, die fuer denselben
@@ -875,6 +979,11 @@ Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig), ein
 ehrliches ARTIFACT-Zertifikat (SHA-256 von `good.txt` unter der Wurzel des
 Fixture-Repos) und eine ehrliche MERGE-Meldung auf dem Merge-Commit des
 Fixtures (ein Parent ist der Tip von `topic`, der andere liegt auf `main`).
+Dazu eine ehrliche LEAN-Meldung (`g27-lean-proven`): der Satz `fixture_proven`
+in `lean/Proof.lean` wird mit einer echten Lean-Toolchain im `PATH`
+re-elaboriert und `bestaetigt` (Axiomliste im Urteil); auf einem Host ohne
+Lean bleibt sie ehrlich `unpruefbar` -- der Fall pinnt darum kein Urteil,
+sondern nur den ehrlichen Umgang mit beiden Hosts.
 Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings
 (`g26-placeholder-lines`): ihre Platzhalter-Marker ergeben keine Behauptung
 und keine `unpruefbar`-Zeile -- auch die gemischte Scope-Zeile
@@ -919,7 +1028,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus einundfuenfzig Meldungen (sechsundzwanzig ehrlich, fuenfundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus dreiundfuenfzig Meldungen (siebenundzwanzig ehrlich, sechsundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 
