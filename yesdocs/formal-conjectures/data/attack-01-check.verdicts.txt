@@ -1,0 +1,38 @@
+commit_exists  CONFIRMED     commit f9b0cb4ff7e43f113aa5101f6a52afd3acd76d7c resolves to f9b0cb4ff7e43f113aa5101f6a52afd3acd76d7c
+    cmd: git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.commitGraph=false -C /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack rev-parse --verify --quiet 'f9b0cb4ff7e43f113aa5101f6a52afd3acd76d7c^{commit}'
+    out: f9b0cb4ff7e43f113aa5101f6a52afd3acd76d7c
+searched       CONFIRMED     a bounded search of 100000000 steps found no halt; this does not prove that the machine never halts
+    cmd: simulate 1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE for at most 100000000 steps
+    out: halts=False steps=100000000 score=5392
+searched       CONFIRMED     a bounded search of 4294967296 steps found no halt; this does not prove that the machine never halts
+    cmd: simulate 1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA for at most 4294967296 steps
+    out: halts=False steps=4294967296 score=86040
+compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 1127 bytes) (sandboxed with bwrap)
+    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout f9b0cb4ff7e43f113aa5101f6a52afd3acd76d7c && bwrap --die-with-parent --ro-bind / / --dev /dev --proc /proc --tmpfs /run --bind <checkout> <checkout> --unshare-net --unshare-pid --unshare-uts --chdir <checkout> -- python3 -m bemyself.experiments.antihydra_deep --depth 22 --backend python
+    out: sha256=b3a02e093f9e6e3d55ac0a9bd3888c7bc78ea525a1e9ab16a0df51a0b3f018aa bytes=1127 exit=0
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/reductions.txt has the claimed sha256 (1336 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/reductions.txt under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=b5433ec3020c5d7ca9b5554f822fbfec6b0eff60eccceea5f803d39b60a7a455 bytes=1336
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/structure.txt has the claimed sha256 (940 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/structure.txt under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=59c3aa9baedcd3309575266380bc645ce0dafa43842110ec2094b7467eac079e bytes=940
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/bmo-phase2.msheet has the claimed sha256 (4656 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/bmo-phase2.msheet under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=ab27ea7f6e1f0bd063cf0a07cb79a6df45991369c0ac1f06fd4c115b47d83c10 bytes=4656
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/antihydra-deep-2p32.txt has the claimed sha256 (1770 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/antihydra-deep-2p32.txt under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=b777395166f2fceee2d92b5bcc6bc2033640a042d007614b447e16be7110fbe7 bytes=1770
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/raw-antihydra-2p32.txt has the claimed sha256 (433 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/raw-antihydra-2p32.txt under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=b7a74394f7210f3fc408573055f570ef312c017923f32157d194e7b3cab8a2bc bytes=433
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/bmo1-run.txt has the claimed sha256 (178 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/bmo1-run.txt under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=c1338d5974bcf48068d12a549c9dae2243f03e2fb3025114105491d06c1e7498 bytes=178
+artifact       CONFIRMED     yesdocs/formal-conjectures/attack-01.md has the claimed sha256 (17665 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/attack-01.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=06cf2163c78204f3da5ef711b30430c865f7d6350257b11827bcb4c53d1e5f57 bytes=17665
+artifact       CONFIRMED     yesdocs/formal-conjectures/README.md has the claimed sha256 (30874 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/README.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v17-bmo-attack
+    out: sha256=69cd704985714c776ccea9708f155cbbb52773b850cbfcf2f9360fbd63279c42 bytes=30874
+
+summary: CONFIRMED: 12, REFUTED: 0, UNVERIFIABLE: 0

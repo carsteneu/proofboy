@@ -49,13 +49,14 @@ from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
 from bemyself.model import ClaimType, Result, Verdict
 
 # Command prefixes a [COMPUTE] claim may run. Deliberately minimal: by default
-# only repository-owned modules as literal entries -- the simulator and the
-# bounded Erdős-Straus experiment; any other computation is opened explicitly
-# (--allow, repeated). No wildcard: a future module of the experiments package
-# is not opened implicitly.
+# only repository-owned modules as literal entries -- the simulator, the
+# bounded Erdős-Straus experiment and the Antihydra deep counter run; any other
+# computation is opened explicitly (--allow, repeated). No wildcard: a future
+# module of the experiments package is not opened implicitly.
 DEFAULT_COMPUTE_ALLOWLIST = (
     "python3 -m bemyself.turing",
     "python3 -m bemyself.experiments.erdos_straus",
+    "python3 -m bemyself.experiments.antihydra_deep",
 )
 
 # One compute run must finish within this many seconds.

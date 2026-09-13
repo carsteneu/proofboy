@@ -1,0 +1,41 @@
+# antihydra deep counter run
+# map: h_0=8, h -> h + h//2; counter +2 on even h, -1 on odd h (walk of the A-rule model)
+# backend: gmp (libgmp.so.10 via ctypes, order=1 big-endian); leaf block 2**8=256 steps
+# deviation = counter - floor(steps/2); checkpoints at powers of two
+steps=1 counter=2 deviation=2
+steps=2 counter=4 deviation=3
+steps=4 counter=5 deviation=3
+steps=8 counter=10 deviation=6
+steps=16 counter=14 deviation=6
+steps=32 counter=19 deviation=3
+steps=64 counter=35 deviation=3
+steps=128 counter=61 deviation=-3
+steps=256 counter=140 deviation=12
+steps=512 counter=259 deviation=3
+steps=1024 counter=518 deviation=6
+steps=2048 counter=1048 deviation=24
+steps=4096 counter=2147 deviation=99
+steps=8192 counter=3988 deviation=-108
+steps=16384 counter=8144 deviation=-48
+steps=32768 counter=16297 deviation=-87
+steps=65536 counter=32711 deviation=-57
+steps=131072 counter=65617 deviation=81
+steps=262144 counter=130610 deviation=-462
+steps=524288 counter=260347 deviation=-1797
+steps=1048576 counter=522584 deviation=-1704
+steps=2097152 counter=1044793 deviation=-3783
+steps=4194304 counter=2093612 deviation=-3540
+steps=8388608 counter=4186885 deviation=-7419
+steps=11800000 counter=5890334 deviation=-9666
+steps=16777216 counter=8374811 deviation=-13797
+steps=33554432 counter=16766182 deviation=-11034
+steps=67108864 counter=33534482 deviation=-19950
+steps=134217728 counter=67100950 deviation=-7914
+steps=268435456 counter=134198450 deviation=-19278
+steps=536870912 counter=268411954 deviation=-23502
+steps=1073741824 counter=536880530 deviation=9618
+steps=2147483648 counter=1073720884 deviation=-20940
+steps=4294967296 counter=2147493851 deviation=10203
+min_counter=0
+total_steps=4294967296
+check.brute.depth=20 checkpoints_compared=21 mismatches=none
