@@ -390,6 +390,31 @@ def _inside(path, root):
     return resolved == resolved_root or resolved.startswith(resolved_root + os.sep)
 
 
+def _part_of_the_commit(ctx, commit, path, checkout):
+    """Whether the found ``lean-toolchain`` belongs to what the claim was pinned to.
+
+    Inside the throwaway checkout it always does. Above it, only a file the
+    repository committed at that path counts: the checkout lives under the
+    tested repository (``--tmp``), so a repository can commit the very
+    directory the checkout is made in -- that file is still the checked
+    thing's doing, not the host's. Everything else above the checkout is host
+    state and stays the environment's.
+    """
+    if _inside(path, checkout):
+        return True
+    if not ctx.repo or not _inside(path, ctx.repo):
+        return False
+    from bemyself import checks  # lazy: checks imports the type registry
+
+    root = os.path.realpath(ctx.repo)
+    candidate = os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))
+    proc = checks._run_git(
+        ["git", "-C", ctx.repo, "cat-file", "-e", f"{commit}:{os.path.relpath(candidate, root)}"],
+        checks.GIT_TIMEOUT,
+    )
+    return proc.returncode == 0
+
+
 def _toolchain_dir(value):
     """The directory name elan gives a ``authority/name:version`` toolchain."""
     return value.replace("/", "--").replace(":", "---")
@@ -721,7 +746,9 @@ def check(claim, ctx):
     # sandbox. The gate itself fires after the form check below: whether the
     # claim can be bound at all is a property of the checked thing, not of the
     # host's sandbox capability -- a defect stays a defect on a host without
-    # bwrap. Everything that starts a tool stays behind the gate.
+    # bwrap. Everything that starts a Lean tool stays behind the gate; the
+    # throwaway checkout is made before it, because the form question needs
+    # the tree (making a checkout runs no repository code).
     mode = ctx.sandbox
     if mode not in checks.SANDBOX_MODES:
         return Result(
@@ -832,7 +859,7 @@ def check(claim, ctx):
             if value and not _TOOLCHAIN_RE.match(value):
                 # Never quote the value: the file may be a symlink to a host
                 # file outside the repository, and the verdict travels.
-                if not _inside(toolchain_file, checkout):
+                if not _part_of_the_commit(ctx, commit, toolchain_file, checkout):
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,
@@ -1426,7 +1453,7 @@ def check(claim, ctx):
         if late_file is not None:
             late_value = _toolchain_value(late_file)
             if late_value and not _TOOLCHAIN_RE.match(late_value):
-                if _inside(late_file, checkout):
+                if _part_of_the_commit(ctx, commit, late_file, checkout):
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,

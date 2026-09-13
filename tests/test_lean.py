@@ -1123,6 +1123,27 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIn("above the checkout", result.reason)
         self.assertNotIn("./evil", result.reason)
 
+    def test_a_committed_file_above_the_checkout_is_still_a_defect(self):
+        # Re-review finding (NEW-F3): the throwaway checkout lives under the
+        # tested repository (--tmp), so the repository can commit the very
+        # directory the checkout is made in. That file IS part of the pinned
+        # commit -- a defect, not a host boundary.
+        repo, commit = self.probe_repo("tc-committed-above", _PROOF)
+        commit = commit_probe(repo, ".yesmem/tmp/check/lean-toolchain", "./evil\n")
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        ctx = self.ctx(repo.path, tmp_dir=os.path.join(repo.path, ".yesmem", "tmp", "check"))
+        with self.patched_path(bin_dir):
+            claim, result = self.check_report_pair(
+                "lean/Proof.lean", "fixture_proven", commit, ctx
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
+        self.assertIn("does not hold a toolchain name", result.reason)
+        self.assertNotIn("./evil", result.reason)
+
     def test_a_toolchain_resolution_failure_at_the_build_stage_is_unverifiable(self):
         # P17 (b) at stage 1: the lake build fails because the toolchain
         # cannot be resolved; the verdict names that reason.

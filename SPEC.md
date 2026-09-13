@@ -465,7 +465,8 @@ das das Manifest nicht nennt, laeuft nicht; es gibt keinen stillen
 (Symlinks auf die identifizierten Werkzeuge) als ersten `PATH`-Eintrag:
 `leanchecker` und `lake` rufen `lean` ueber `PATH` auf, und ohne diese
 Pinnung koennte dieser Aufruf einen elan-Shim treffen, der die Toolchain
-wieder aus dem geprueften Baum aufloest. Jedes Urteil nennt die
+wieder aus dem geprueften Baum aufloest. Jedes Urteil ab der
+Werkzeug-Identifikation nennt die
 Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
 Datei, `[pinned]` bei Manifest-Pin; die Identitaetsangabe ersetzt keine
 Zusicherung ueber die Abhaengigkeits-Artefakte. Ohne Manifest gilt der
