@@ -97,6 +97,7 @@ class ComputeRegistryTest(unittest.TestCase):
             (
                 "python3 -m bemyself.turing",
                 "python3 -m bemyself.experiments.erdos_straus",
+                "python3 -m bemyself.experiments.antihydra_deep",
             ),
         )
 
@@ -162,6 +163,21 @@ class ComputeCheckTest(unittest.TestCase):
         result = self.check_report(
             "python3 -m bemyself.experiments.erdos_straus 8",
             digest("fixture erdos-straus\n"),
+            commit,
+            ctx,
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+
+    def test_the_default_allowlist_runs_the_deep_counter_module(self):
+        repo, commit = self.probe_repo(
+            "deep-counter",
+            "print('fixture antihydra-deep')\n",
+            filename=os.path.join("bemyself", "experiments", "antihydra_deep.py"),
+        )
+        ctx = self.ctx(repo.path, compute_allowlist=compute.DEFAULT_COMPUTE_ALLOWLIST)
+        result = self.check_report(
+            "python3 -m bemyself.experiments.antihydra_deep --depth 4",
+            digest("fixture antihydra-deep\n"),
             commit,
             ctx,
         )
