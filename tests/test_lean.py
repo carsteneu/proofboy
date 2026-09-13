@@ -27,7 +27,8 @@ from unittest import mock
 from bemyself import claimtypes, toolmanifest
 from bemyself.claimtypes import lean
 from bemyself.checks import Ctx, kind_needs_repo, run_claim
-from bemyself.model import Verdict
+from bemyself.cli import EXIT_DEFECT, exit_code
+from bemyself.model import Cause, Verdict
 from bemyself.report import parse_report
 from tests.fixtures import _git, commit_probe, make_repo
 
@@ -347,12 +348,16 @@ class LeanCheckTest(unittest.TestCase):
         return mock.patch.dict(os.environ, {"PATH": path})
 
     def check_report(self, path, theorem, commit, ctx, repo=None):
+        return self.check_report_pair(path, theorem, commit, ctx, repo)[1]
+
+    def check_report_pair(self, path, theorem, commit, ctx, repo=None):
+        """The claim and its result -- for tests that pin the run's exit code."""
         text = f"[LEAN: {path} -> {theorem}]\n"
         if commit is not None:
             text = f"**send_to payload:** `[COMMIT: {commit}]`\n" + text
         claims = [claim for claim in parse_report(text) if claim.kind == "lean"]
         self.assertEqual(len(claims), 1)
-        return run_claim(claims[0], ctx)
+        return claims[0], run_claim(claims[0], ctx)
 
     # --- the verdicts ------------------------------------------------------
     def test_an_empty_axiom_list_confirms(self):
@@ -969,17 +974,23 @@ class LeanCheckTest(unittest.TestCase):
         return bin_dir
 
     def test_a_path_like_toolchain_request_is_refused(self):
-        # P17 (a): the repository asks for a toolchain, it does not choose
-        # one. A path-like value must never reach the toolchain environment.
+        # P17 (a), P18b: the repository asks for a toolchain, it does not
+        # choose one. A path-like value violates the form a toolchain request
+        # must have, and that violation lies in the checked thing itself --
+        # so the claim cannot bind: a defect, exit 5, with and without
+        # --strict. It must never reach the toolchain environment.
         repo, commit = self.toolchain_repo("tc-path", "./evil", decoy=True)
         bin_dir = self.answering(
             self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
         )
         with self.patched_path(bin_dir):
-            result = self.check_report(
+            claim, result = self.check_report_pair(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
+        self.assertEqual(exit_code([(claim, result)], strict=True), EXIT_DEFECT)
         # The value itself is never quoted into the verdict: the committed
         # file may be a symlink to any host file the checker can read.
         self.assertNotIn("./evil", result.reason)
@@ -1048,14 +1059,17 @@ class LeanCheckTest(unittest.TestCase):
 
     def test_a_path_like_request_is_refused_without_an_elan_root_too(self):
         # The refusal does not depend on elan being in play: a path-like
-        # request is never honored, on any host.
+        # request is never honored, on any host -- and it is a form violation
+        # in the checked thing, so the class is defect, not environment.
         repo, commit = self.toolchain_repo("tc-path-plain", "./evil", decoy=True)
         bin_dir = self.answering(self.fake())
         with self.patched_path(bin_dir):
-            result = self.check_report(
+            claim, result = self.check_report_pair(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
         # The value itself is never quoted into the verdict: the committed
         # file may be a symlink to any host file the checker can read.
         self.assertNotIn("./evil", result.reason)
@@ -1164,10 +1178,12 @@ class LeanCheckTest(unittest.TestCase):
             }
         )
         with self.patched_path(bin_dir):
-            result = self.check_report(
+            claim, result = self.check_report_pair(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
         self.assertIn("does not hold a toolchain name", result.reason)
 
     def test_elan_is_recognized_through_a_shim_beside_a_concrete_lean(self):
@@ -1333,10 +1349,14 @@ class LeanCheckTest(unittest.TestCase):
             }
         )
         with self.patched_path(bin_dir):
-            result = self.check_report(
+            claim, result = self.check_report_pair(
                 "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
             )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        # P18b: the planted value is path-like -- a form violation in the
+        # checked thing, whatever stage sees it first. Defect, exit 5.
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
         self.assertIn("lean-toolchain file", result.reason)
         self.assertNotIn("./evil", result.reason)
 
@@ -1618,10 +1638,14 @@ class LeanLiveTest(unittest.TestCase):
         return repo, commit
 
     def check_report(self, path, theorem, commit, ctx):
+        return self.check_report_pair(path, theorem, commit, ctx)[1]
+
+    def check_report_pair(self, path, theorem, commit, ctx):
+        """The claim and its result -- for tests that pin the run's exit code."""
         text = f"[LEAN: {path} -> {theorem}]\n**send_to payload:** `[COMMIT: {commit}]`\n"
         claims = [claim for claim in parse_report(text) if claim.kind == "lean"]
         self.assertEqual(len(claims), 1)
-        return run_claim(claims[0], ctx)
+        return claims[0], run_claim(claims[0], ctx)
 
     def lake_repo(self, name, source=_LAKE_PROOF):
         repo = make_repo(os.path.join(self._tmp.name, name))
@@ -1689,18 +1713,23 @@ class LeanLiveTest(unittest.TestCase):
 
     # --- the P17 acceptance cases with the real toolchain ------------------
     def test_a_path_like_toolchain_request_never_runs_the_decoy(self):
-        # P17 (a): the decoy writes a marker when it runs; the checker refuses
-        # the path-like request before any tool starts, so the marker stays
-        # absent and the verdict is UNVERIFIABLE, never CONFIRMED. Unsandboxed
-        # on purpose: a sandboxed decoy could not write the marker at all, so
-        # only outside the sandbox is the marker real evidence.
+        # P17 (a) / P18b: the decoy writes a marker when it runs; the checker
+        # refuses the path-like request before any tool starts, so the marker
+        # stays absent and the verdict is UNVERIFIABLE, never CONFIRMED. The
+        # refusal is a form violation in the checked thing: class defect,
+        # exit 5 in both modes. Unsandboxed on purpose: a sandboxed decoy
+        # could not write the marker at all, so only outside the sandbox is
+        # the marker real evidence.
         marker = os.path.join(self._tmp.name, "decoy-marker-path.txt")
         self.clear_marker(marker)
         repo, commit = self.hostile_repo("live-toolchain-path", marker)
-        result = self.check_report(
+        claim, result = self.check_report_pair(
             "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="off")
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
+        self.assertEqual(exit_code([(claim, result)], strict=True), EXIT_DEFECT)
         self.assertNotIn("./evil", result.reason)
         self.assertIn("does not hold a toolchain name", result.reason)
         self.assertEqual(self.marker_lines(marker), [])
@@ -1791,10 +1820,12 @@ class LeanLiveTest(unittest.TestCase):
         repo, commit = self.hostile_repo(
             "live-toolchain-lake", marker, lakefile=_LAKEFILE
         )
-        result = self.check_report(
+        claim, result = self.check_report_pair(
             "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIs(result.cause, Cause.DEFECT, result.reason)
+        self.assertEqual(exit_code([(claim, result)]), EXIT_DEFECT)
         self.assertNotIn("./evil", result.reason)
         self.assertIn("does not hold a toolchain name", result.reason)
         self.assertEqual(self.marker_lines(marker), [])

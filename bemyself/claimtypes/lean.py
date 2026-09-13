@@ -54,7 +54,10 @@ environment is no error of the claim -- such a run is never a compile error
 of the file), timeout, a failed kernel re-check, a missing fresh artifact, a
 file the dependency build changed, an unreadable answer, and any dependency
 problem -- a missing dependency is never evidence against the theorem, and a
-failed build that does not name the checked file is never a refutation.
+failed build that does not name the checked file is never a refutation. A
+claim that cannot bind at all -- no commit, a path-like ``lean-toolchain``
+request, an unusable file name -- carries the DEFECT class instead: it fails
+the run with exit 5, with and without ``--strict``.
 
 Execution policy. Building the dependencies runs repository code and cannot
 be avoided. Sources that visibly execute code at elaboration time
@@ -80,10 +83,11 @@ throwaway checkout. ``ELAN_HOME`` points at the toolchain root so the elan
 shim works with ``HOME=<checkout>``. A ``lean-toolchain`` file in the checked
 repository is a request, not an authority: only elan's native
 ``authority/name:version`` form is accepted, and only when that toolchain is
-installed under ``<ELAN_HOME>/toolchains`` -- a path-like or uninstalled
-request leaves the claim UNVERIFIABLE, because elan would execute a path
-directly and the checker does not substitute a toolchain the project did not
-ask for. A run that cannot recognize a host elan root next to its tools (a
+installed under ``<ELAN_HOME>/toolchains``: a path-like value is a form
+violation in the checked thing, so it is a DEFECT (elan would execute the
+path directly), while an uninstalled request stays UNVERIFIABLE (the checker
+does not substitute a toolchain the project did not ask for). A run that
+cannot recognize a host elan root next to its tools (a
 copied or wrapped elan binary looks like a plain one) gets a neutral, empty
 ``ELAN_HOME`` instead of ``HOME=<checkout>``, so nothing can be resolved from
 the inspected tree -- which repository code could also plant while the build
@@ -986,7 +990,10 @@ def check(claim, ctx):
                 )
         # A `lean-toolchain` file is a request, not an authority. A path-like
         # value is refused whenever it is seen -- elan would execute the path
-        # directly, and that holds with or without an elan root. A well-formed
+        # directly, and that holds with or without an elan root. The value is
+        # present but violates the form a toolchain request must have, and
+        # that violation lies in the checked thing itself: the claim cannot
+        # bind, so it is a defect, never an environment boundary. A well-formed
         # request is only followed when an elan root can resolve it to an
         # installed toolchain; with a manifest pin for lean, the request is
         # not followed (the pin settles the toolchain).
@@ -1006,7 +1013,7 @@ def check(claim, ctx):
                     f"repository asks for a toolchain, it does not choose one (the value "
                     f"is not quoted: the file may point outside the repository)" + note_suffix,
                     sandboxed=sandboxed,
-                    cause=Cause.ENVIRONMENT,
+                    cause=Cause.DEFECT,
                 )
             request = (value or None) if lean_pin is None else None
         if elan_home is not None:
@@ -1367,8 +1374,9 @@ def check(claim, ctx):
         # elan executes a path-like value directly -- without consulting
         # ELAN_HOME. So the file is looked up once more before anything is
         # judged; the refusal mirrors the check above (a path-like value is
-        # never legitimate, a well-formed value only matters while nothing
-        # settles the toolchain).
+        # never legitimate -- a form violation in the checked thing, so a
+        # defect; a well-formed value only matters while nothing settles the
+        # toolchain -- that absence stays the environment's).
         late_file = _project_toolchain_file(project or os.path.dirname(real_file))
         if late_file is not None and not neutral_elan:
             late_value = _toolchain_value(late_file)
@@ -1381,21 +1389,30 @@ def check(claim, ctx):
                     f"the run cannot be pinned against; elan would execute the path, so the "
                     f"proof was not checked" + note_suffix,
                     sandboxed=sandboxed,
-                    cause=Cause.ENVIRONMENT,
+                    cause=Cause.DEFECT,
                 )
         if late_file is not None and neutral_elan:
             late_value = _toolchain_value(late_file)
-            if late_value and (
-                not _TOOLCHAIN_RE.match(late_value) or lean_pin is None
-            ):
+            if late_value and not _TOOLCHAIN_RE.match(late_value):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the checkout holds a lean-toolchain file with a path-like value the "
+                    f"run cannot be pinned against; elan would execute the path, so the "
+                    f"proof was not checked" + note_suffix,
+                    sandboxed=sandboxed,
+                    cause=Cause.DEFECT,
+                )
+            if late_value and lean_pin is None:
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
                     f"the checkout holds a lean-toolchain file the run cannot be pinned "
-                    f"against (a path-like value, or no host-side elan root next to the "
-                    f"tools); elan would resolve the toolchain from the inspected tree, so "
-                    f"the proof was not checked" + note_suffix,
+                    f"against (no host-side elan root next to the tools); elan would "
+                    f"resolve the toolchain from the inspected tree, so the proof was "
+                    f"not checked" + note_suffix,
                     sandboxed=sandboxed,
                     cause=Cause.ENVIRONMENT,
                 )
