@@ -735,12 +735,12 @@ pfadartige wird unabhaengig davon immer abgelehnt. Ein Werkzeug,
 das das Manifest nicht nennt, laeuft mit `--tools` gar nicht -- es gibt
 keinen stillen `PATH`-Rueckfall. Ohne Manifest gilt der bisherige Weg
 (`lean`/`lake`/`leanchecker` aus dem `PATH`). Bringt der Checkout ein
-eigenes elan-Heim mit (`.elan/settings.toml` oder `.elan/toolchains`) und
-laesst sich host-seitig keine elan-Wurzel erkennen, bekommt der Lauf ein
-neutrales, leeres `ELAN_HOME` -- ein Shim kann dann nichts aus dem
-Repository aufloesen, ein echtes Werkzeug ignoriert die Variable; eine
-angeforderte oder gepinnte Toolchain ist in diesem Zustand nicht
-bestaetigbar und bleibt `unpruefbar`. Jedes Urteil nennt die
+laesst sich host-seitig keine elan-Wurzel neben den Werkzeugen erkennen
+(eine Kopie oder ein Wrapper des elan-Binaries ist von einem gewoehnlichen
+nicht zu unterscheiden), bekommt der Lauf ein neutrales, leeres `ELAN_HOME`
+-- ein Shim kann dann nichts aus dem geprueften Baum aufloesen, ein echtes
+Werkzeug ignoriert die Variable; eine angeforderte oder gepinnte Toolchain
+ist in diesem Zustand nicht bestaetigbar und bleibt `unpruefbar`. Jedes Urteil nennt die
 Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
 Datei, `[pinned]` bei einem Manifest-Pin:
 
@@ -1076,7 +1076,8 @@ nennt `sorryAx`, die Meldung wird `widerlegt`; auf einem Host ohne
 Lean-Toolchain bleibt sie ehrlich `unpruefbar`, nie bestaetigt). Dazu kommen
 eine LEAN-Behauptung, deren Projekt `lean-toolchain='./evil'` samt Attrappe
 `lean/evil/bin/lean` committet -- der Pruefer lehnt die Anfrage vor jedem
-Werkzeuglauf ab, das Urteil ist `unpruefbar` und nennt den abgelehnten Wert
+Werkzeuglauf ab, das Urteil ist `unpruefbar` und nennt den Grund (den Wert
+selbst zitiert es nicht)
 (nie bestaetigt, nie widerlegt),
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich

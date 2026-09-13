@@ -1000,7 +1000,8 @@ def standard_set(fixture):
             "lean/evil/bin/lean -- elan wuerde den Pfad direkt ausfuehren. Der "
             "Pruefer lehnt die Anfrage vor jedem Werkzeuglauf ab (nur "
             "authority/name:version, nur installiert), das Urteil ist UNVERIFIABLE "
-            "und nennt den abgelehnten Wert -- nie CONFIRMED, nie REFUTED.",
+            "und nennt den Grund (den Wert selbst zitiert es nicht: die Datei "
+            "kann ein Symlink sein) -- nie CONFIRMED, nie REFUTED.",
             done(
                 payload("[DONE]", f"[COMMIT: {commits['lean-toolchain-path']}]"),
                 "[LEAN: lean/Proof.lean -> fixture_proven]",

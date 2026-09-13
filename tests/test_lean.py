@@ -1270,10 +1270,10 @@ class LeanCheckTest(unittest.TestCase):
 
     def test_an_unrecognized_shim_gets_a_neutral_elan_root(self):
         # Review finding: a copied or wrapped elan binary cannot be told from
-        # a plain one, so a checkout shipping its own elan home must not be
-        # left to HOME=<checkout>: the run gets a neutral, empty root.
+        # a plain one, and runs use HOME=<checkout> -- which repository code
+        # could plant with an elan home while the build runs. The neutral root
+        # is therefore handed over regardless of what the checkout contains.
         repo = make_repo(os.path.join(self._tmp.name, "neutral-root"))
-        commit_probe(repo, ".elan/settings.toml", 'default_toolchain = "./evil"\n')
         commit = commit_probe(repo, "lean/Proof.lean", _PROOF)
         bin_dir = self.answering(self.fake())
         with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
@@ -1295,7 +1295,6 @@ class LeanCheckTest(unittest.TestCase):
         # The neutral root cannot vouch for a requested toolchain, so such a
         # run is refused instead of guessed.
         repo = make_repo(os.path.join(self._tmp.name, "neutral-request"))
-        commit_probe(repo, ".elan/settings.toml", 'default_toolchain = "./evil"\n')
         commit_probe(repo, "lean/Proof.lean", _PROOF)
         commit = commit_probe(
             repo, "lean/lean-toolchain", "leanprover/lean4:v4.33.1\n"

@@ -416,14 +416,14 @@ elan aus dem geprueften Baum aufloesen zu lassen. Ein jeder elan-Shim unter
 den aufgeloesten Werkzeugen (nicht nur `lean`) fuehrt dazu, dass
 `ELAN_HOME` auf den Host-Wurzelpfad gesetzt wird -- sonst loeste der Shim
 seine Toolchain ueber `HOME=<checkout>` auf, das dem Repository gehoert.
-Bringt der Checkout ein eigenes elan-Heim mit (`.elan/settings.toml` oder
-`.elan/toolchains`) und laesst sich host-seitig keine elan-Wurzel erkennen
-(eine Kopie oder ein Wrapper des elan-Binaries ist von einem gewoehnlichen
-Binary nicht zu unterscheiden), bekommt der Lauf ein neutrales, leeres
-`ELAN_HOME`: ein Shim kann dann nichts aus dem Repository aufloesen, ein
-Werkzeug, das kein Shim ist, ignoriert die Variable. Eine in diesem Zustand
-angeforderte oder gepinnte Toolchain laesst sich nicht bestaetigen und macht
-die Behauptung `UNVERIFIABLE`.
+Laesst sich host-seitig keine elan-Wurzel neben den Werkzeugen erkennen (eine
+Kopie oder ein Wrapper des elan-Binaries ist von einem gewoehnlichen Binary
+nicht zu unterscheiden), bekommt der Lauf ein neutrales, leeres `ELAN_HOME`:
+ein Shim kann dann nichts aus dem geprueften Baum aufloesen -- auch nichts,
+was Repo-Code erst waehrend des Builds dort anlegt --, ein Werkzeug, das kein
+Shim ist, ignoriert die Variable. Eine in diesem Zustand angeforderte oder
+gepinnte Toolchain laesst sich nicht bestaetigen und macht die Behauptung
+`UNVERIFIABLE`.
 Eine im Ablauf nicht aufloesbare Toolchain (elans `no Lean toolchain found
 at ...`, `invalid toolchain name`, `empty toolchain file ...`,
 `no such release ...`, `no default toolchain configured`, `override
