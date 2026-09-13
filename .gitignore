@@ -6,3 +6,4 @@ __pycache__/
 digest/*.tmp
 lean/cycle-bridge/.lake/
 lean/erdos-straus/.lake/
+lean/antihydra-family/.lake/
