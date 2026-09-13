@@ -13,6 +13,10 @@ Die Arme unterscheiden sich nur in Präambel und Antwortkonvention:
       Prosa); C2 = C1 + vollstaendiges RC-Beispiel. Adressiert wird nur der
       unsichtbare Denkkanal (reasoning_content); sichtbare Zone und
       Antwortkonventionen bleiben identisch zu C.
+- H  (V16, Zwangsprompt, 2026-09-13): C + knallharter Zwangsblock im Stil
+      der Session-Reminder (MANDATORY/ATTENTION/SUPER WICHTIG/DU MUSST):
+      Denkspur UND Antwort ausschliesslich in V1.1-Zeilen, jede Prosa-Zeile
+      als Formfehler mit Konsequenz, kurzes Beispiel.
 
 Der Aufgabenkern bleibt arm-unabhaengig (task['prompt']); die Antwort-
 konvention pro Arm und Tier steht in ``answer_instruction``. Fuer
@@ -152,6 +156,43 @@ v h1: auto
 h1+
 =: Rest 0 (h1+)"""
 
+# --- V16 Zwangsprompt (2026-09-13): Arm H --------------------------------
+#
+# C0/C1/C2 adressieren den Denkkanal als hoefliche Instruktion (plus
+# Beispiel in C2). H uebt expliziten Zwang aus: Marker im Stil der
+# Session-Reminder, jede Prosa-Zeile als Formfehler mit Konsequenz, kurzes
+# Beispiel. Die sichtbare Zone und die Antwortkonventionen bleiben
+# identisch zu C; H erbt den maschinellen Reparatur-Rueckkanal.
+
+FORCE_BLOCK = """
+
+STOP. LIES DIES ZWEIMAL. DIESE REGEL IST NICHT OPTIONAL.
+
+SUPER WICHTIG -- MANDATORY -- ATTENTION: DU MUSST ab jetzt JEDE Zeile --
+deine vollstaendige Denkspur (reasoning_content) UND deine Antwort --
+ausschliesslich in der V1.1-Zeilenform oben schreiben. Jede Zeile beginnt
+mit einem gueltigen Tag-Kopf (g:, d:, a:, c:, h:, v:, q:, =:) oder einer
+Status-Mini-Zeile (<id>+, <id>-, <id>?, <id>!). NICHTS anderes ist erlaubt:
+kein Satz, keine Erklaerung, keine Vorrede, keine Zusammenfassung, kein
+Markdown.
+
+ATTENTION -- PROSA IST EIN FORMFEHLER, KEIN STILPROBLEM: Jede Zeile ohne
+gueltigen Tag-Kopf macht deine Antwort UNGUELTIG. Die Aufgabe gilt dann als
+NICHT geloest -- auch wenn das Ergebnis stimmt. Es gibt keine Ausnahme:
+nicht "nur kurz", nicht als Einleitung, nicht als Kommentar.
+
+KONSEQUENZ: Prosa-Zeile -> ungueltig. Zeile ohne Tag-Kopf -> ungueltig.
+Jede Zeile in V1.1 -> gueltig. Also: jede Zeile in V1.1, Zug fuer Zug.
+
+Beispiel einer korrekten Denkspur (Werte beliebig):
+g: (12+30)%7?
+a: M = 12+30
+c: M=42
+h1: (M%7)=0
+v h1: auto
+h1+
+=: 0 (h1+)"""
+
 LEGENDS = {
     "K": LEGEND_K,
     "B": LEGEND_B,
@@ -160,6 +201,7 @@ LEGENDS = {
     "C0": LEGEND_C,
     "C1": LEGEND_C + RC_STRONG,
     "C2": LEGEND_C + RC_STRONG + RC_EXAMPLE,
+    "H": LEGEND_C + FORCE_BLOCK,
 }
 
 

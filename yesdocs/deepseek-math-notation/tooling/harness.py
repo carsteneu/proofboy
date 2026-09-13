@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Pilot-Harness: fuehrt Aufgaben x Arme gegen die lokale Modell-Instanz aus.
 
-Transport ist der **direkte HTTP-Pfad** ueber den lokalen Proxy
-(``http://localhost:9099/v1/chat/completions``) mit dem DeepSeek-Schluessel
-aus ``~/.local/share/opencode/auth.json``. Verifiziert am 2026-09-12:
+Transport ist der **direkte HTTP-Pfad**: per Default ueber den lokalen Proxy
+(``http://localhost:9099/v1/chat/completions``), per ENV ``BEMYSELF_TARGET``
+auch direkt gegen DeepSeek (``deepseek``) oder den Cluster (``cluster``,
+privateTomMax). Der Schluessel kommt aus ``~/.local/share/opencode/auth.json``
+(deepseek- bzw. gateway-Eintrag). Verifiziert am 2026-09-12:
 
 - Der Aufruf kennt **keine Werkzeuge** — gemessen wird die Notation, nicht
   Tool-Nutzung; der Modell-Aufruf enthaelt nur unseren System- und User-Text.
@@ -58,6 +60,11 @@ Aufrufe::
 Die Sets kommen aus ``_TIER_A_SET``/``_TIER_B_SET`` (Default: v0.3); fuer eine
 Reproduktion alter Runden muessen diese Konstanten bewusst umgestellt werden
 (die v0.2-Dateien liegen unveraendert im Sets-Ordner).
+
+Transport-Umstellung (V16): ``BEMYSELF_TARGET=proxy|deepseek|cluster`` waehlt
+Endpoint und Modell (Default ``proxy``, V11-V15-kompatibel);
+``BEMYSELF_MAX_TOKENS`` (Default 8192) und ``BEMYSELF_REASONING_EFFORT``
+(Default: Feld wird nicht gesendet) ueberschreiben den Request-Body.
 """
 
 from __future__ import annotations
@@ -87,6 +94,16 @@ from bemyself.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
 from prompts import build_messages, build_repair_message  # noqa: E402
 
 DEFAULT_PROXY_URL = "http://localhost:9099/v1/chat/completions"
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+CLUSTER_URL = "https://llm.ccm19.app/v1/chat/completions"
+
+# Die drei Transport-Ziele (V16): `url` + `model` bestimmen den Aufruf,
+# `auth` den Eintrag in auth.json. `proxy` bleibt der V11-V15-Pfad.
+TARGETS = {
+    "proxy": {"url": DEFAULT_PROXY_URL, "model": "deepseek-flash", "auth": "deepseek"},
+    "deepseek": {"url": DEEPSEEK_URL, "model": "deepseek-flash", "auth": "deepseek"},
+    "cluster": {"url": CLUSTER_URL, "model": "privateTomMax", "auth": "gateway"},
+}
 
 
 def proxy_url():
@@ -102,8 +119,64 @@ def proxy_url():
     return value or DEFAULT_PROXY_URL
 
 
-PROXY_URL = proxy_url()  # Kompatibilitaets-Konstante (Anzeige/Altcode)
-MODEL = "deepseek-flash"
+def target_name():
+    """Das gewaehlte Transport-Ziel: ``BEMYSELF_TARGET`` (Default ``proxy``)."""
+    value = os.environ.get("BEMYSELF_TARGET", "").strip().lower()
+    return value or "proxy"
+
+
+def target_config(name=None):
+    """(url, model, auth) des Ziels -- unbekannte Ziele brechen ab.
+
+    ``proxy`` bleibt ueber ``BEMYSELF_PROXY_URL`` umstellbar (Runbook:
+    gemietete GPU); die Direktziele ignorieren die Variable bewusst.
+    """
+    resolved = (name or target_name()).strip().lower()
+    entry = TARGETS.get(resolved)
+    if entry is None:
+        known = ", ".join(sorted(TARGETS))
+        raise SystemExit(f"unknown BEMYSELF_TARGET {resolved!r} (known: {known})")
+    config = dict(entry)
+    if resolved == "proxy":
+        config["url"] = proxy_url()
+    return config
+
+
+def model_name():
+    """Die Modell-ID des gewaehlten Ziels."""
+    return target_config()["model"]
+
+
+def _int_env(name, default):
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise SystemExit(f"{name} must be an integer, got {raw!r}") from None
+
+
+def max_tokens():
+    """Ausgabe-Budget je Aufruf (``BEMYSELF_MAX_TOKENS``, Default 8192).
+
+    Vorsicht beim Vergleich Proxy vs. Direkt: der YesMem-Proxy ersetzt
+    ``max_tokens`` durch ``max_completion_tokens``, das DeepSeek ignoriert --
+    ueber den Proxy ist das Budget faktisch wirkungslos (V16-Bericht 05-13).
+    """
+    return _int_env("BEMYSELF_MAX_TOKENS", 8192)
+
+
+def reasoning_effort():
+    """Optionales ``reasoning_effort`` (``BEMYSELF_REASONING_EFFORT``).
+
+    Leer = Feld wird nicht gesendet. Der Proxy injiziert fuer deepseek-flash
+    ``max`` (Config ``proxy.reasoning_effort``); der Direktpfad sendet nur,
+    was hier explizit steht.
+    """
+    return os.environ.get("BEMYSELF_REASONING_EFFORT", "").strip()
+
+
 AUTH_PATH = os.path.expanduser("~/.local/share/opencode/auth.json")
 SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
 RUNS_DIR = ROOT / ".yesmem" / "tmp" / "runs"
@@ -114,21 +187,24 @@ _TIER_B_SET = "tier_b_v11-b-0.3.json"
 # Runde-2-Fairness-Design: Diese Arme erhalten in der Reparaturrunde ihre
 # eigenen maschinellen Verdikte (Appendix + Befunde). K erhaelt die neutrale
 # Selbstpruefung -- Verdikte, die es nicht gibt, werden nicht erfunden.
-# C0/C1/C2 (V15) sind C-Varianten der RC-Umstellung und erben den Rueckkanal.
-MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2")
+# C0/C1/C2 (V15) sind C-Varianten der RC-Umstellung und erben den Rueckkanal;
+# H (V16) ist die Zwangsprompt-Variante und erbt ihn ebenfalls.
+MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2", "H")
 
 # Der einzige Trigger der Rundenkette (Haerte-Runde V13): der typisierte
 # Endzustand der Runde ist nicht bestaetigt, es folgt die naechste Runde.
 TRIGGER_NOT_CONFIRMED = "end_state_not_confirmed"
 
 
-def _api_key():
+def _api_key(target=None):
+    """Der Key-Eintrag des Ziels; die Fehlermeldung traegt nie einen Key."""
+    entry = target_config(target)["auth"]
     try:
         with open(AUTH_PATH, "r", encoding="utf-8") as handle:
-            return json.load(handle)["deepseek"]["key"]
-    except (OSError, KeyError, json.JSONDecodeError) as exc:
+            return json.load(handle)[entry]["key"]
+    except (OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
         raise SystemExit(
-            f"cannot read the deepseek key from {AUTH_PATH}: {type(exc).__name__}: {exc}"
+            f"cannot read the {entry} key from {AUTH_PATH}: {type(exc).__name__}"
         ) from None
 
 
@@ -142,22 +218,25 @@ def _load_set(filename):
 
 
 def call_model(messages, timeout):
-    """One chat completion (messages array, direct proxy); returns
+    """One chat completion (messages array, selected target); returns
     (payload, raw, duration, error)."""
-    body = json.dumps(
-        {
-            "model": MODEL,
-            "messages": messages,
-            "max_tokens": 8192,
-        }
-    ).encode("utf-8")
+    config = target_config()
+    fields = {
+        "model": config["model"],
+        "messages": messages,
+        "max_tokens": max_tokens(),
+    }
+    effort = reasoning_effort()
+    if effort:
+        fields["reasoning_effort"] = effort
+    body = json.dumps(fields).encode("utf-8")
     start = time.monotonic()
     try:
         # Der Request-Bau gehoert in den try: eine ungueltige
         # BEMYSELF_PROXY_URL (z.B. Leerzeichen) muss als Transportfehler
         # zurueckkommen, nicht als Traceback.
         request = urllib.request.Request(
-            proxy_url(),
+            config["url"],
             data=body,
             headers={
                 "Content-Type": "application/json",
@@ -368,7 +447,7 @@ def evaluate_answer(arm, task, answer, evidence_out=None):
         fragment["first_deviation"] = first_deviation
         fragment["checkpoints"] = pairs
         fragment["solved"] = matched == len(task["checkpoints_gold"])
-        if arm in ("B", "C", "D", "C0", "C1", "C2"):
+        if arm in ("B", "C", "D", "C0", "C1", "C2", "H"):
             sheet, result = _sheet_evaluation(answer)
             if evidence_out is not None:
                 evidence_out["sheet"] = sheet
@@ -672,12 +751,19 @@ def cmd_batch(args):
     runs_root = RUNS_DIR / time.strftime("%Y%m%d-%H%M%S")
     runs_root.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
+    transport = target_config()
     manifest = {
         "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "model": MODEL,
+        "model": transport["model"],
         "mode": "repair",
         "max_repairs": args.max_repairs,
-        "transport": "custom-endpoint" if os.environ.get("BEMYSELF_PROXY_URL", "").strip() else "proxy-9099",
+        "transport": {
+            "target": target_name(),
+            "url": transport["url"],
+            "model": transport["model"],
+            "max_tokens": max_tokens(),
+            "reasoning_effort": reasoning_effort() or None,
+        },
         "reasoning_history": "strip",
         "arms": arms,
         "reps": args.reps,
