@@ -17,13 +17,22 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
+python3 -m bemyself check --list-types [--json]
+python3 -m bemyself --list-types
 python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 ```
 
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
-Pruefset. Die Meldung kommt entweder aus einer Datei (`--report`) oder direkt aus
+Pruefset. `check --list-types` (auch ohne Subkommando: `python3 -m bemyself
+--list-types`) beantwortet die Frage nach den registrierten Behauptungstypen:
+je Eintrag `kind`, `needs_repo`, `binds_commit` und die Marker-Tokens, gelesen
+aus der Registry (`bemyself/claimtypes/`, `CLAIM_TYPES`), nicht aus einer
+Zweitliste; `--json` liefert dieselbe Liste maschinenlesbar. `--profile
+<name>` deklariert, welche Behauptungsklassen eine Meldung dieser Gattung
+enthalten MUSS -- siehe "Berichtsprofile und Negativraum". Die Meldung kommt
+entweder aus einer Datei (`--report`) oder direkt aus
 einer YesMem-Scratchpad-Section (`--section`): genau eines von beiden ist
 Pflicht, sonst bricht der Aufruf mit Exit 2 und usage ab. Mit `--report` ist
 `--repo` nur dann Pflicht, wenn die Meldung eine Behauptung enthaelt, deren
@@ -55,7 +64,7 @@ Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
 | 2 | Fehler (Report fehlt oder zu gross, benoetigtes `--repo` fehlt oder ist ungueltig, Section unbekannt oder nicht lesbar) |
 | 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
 | 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar` (Klasse `environment` oder `unverifiable`), nichts `widerlegt` |
-| 5 | Mindestens eine Behauptung ist ein Defekt (Klasse `defect`, der Bericht ist schuld) -- scheitert mit und ohne `--strict` |
+| 5 | Mindestens eine Behauptung ist ein Defekt (Klasse `defect`, der Bericht ist schuld) -- scheitert mit und ohne `--strict`. Dazu zaehlen seit P19 auch ein Marker, dessen Kuerzel kein registrierter Typ beansprucht, und eine von `--profile` geforderte Klasse, die die Meldung nicht hergibt |
 | 6 | Nur mit `--strict`: nichts `widerlegt`, und mindestens eine Behauptung wurde wegen eines Budgets nicht ausgefuehrt (Klasse `limit`) |
 
 Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
@@ -82,9 +91,10 @@ Die Zusage gilt den Behauptungen, die die Meldung aufstellt: eine Zeile, die
 als Vorlage gelesen wird (siehe "Grenzen"), stellt keine auf und erscheint in
 keiner Ausgabe -- weder im JSON noch im Exit-Code ist unterscheidbar, ob sie
 fehlte oder als Platzhalter dastand. Ein Gate darf das Fehlen einer Zeile
-deshalb nicht als Nachweis lesen; wo eine Zeile Pflicht ist, muss das Gate sie
-fordern (etwa als Pflichtzeile im Report-Template), nicht ihre Abwesenheit
-messen.
+deshalb nicht als Nachweis lesen; wo eine Zeile Pflicht ist, muss es sie
+fordern. Genau dafuer gibt es die Profile: `--profile <name>` deklariert die
+Pflichtklassen einer Meldungsgattung und misst ihr Fehlen als Defekt (Exit 5)
+-- auch dann, wenn die Zeile nur als Vorlage dasteht.
 
 ## Klassen nicht bestaetigter Behauptungen
 
@@ -94,7 +104,7 @@ Zaehlung im JSON (`classes`) und in der Schlusszeile des Urteilstexts:
 
 | Klasse | Bedeutung | Scheitert |
 |---|---|---|
-| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte. | immer, auch ohne `--strict` (Exit 5) |
+| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte, ein Marker mit unbekanntem Kuerzel oder eine von `--profile` geforderte Klasse, die fehlt. | immer, auch ohne `--strict` (Exit 5) |
 | `environment` | Es fehlt eine Faehigkeit der Umgebung: kein Remote, kein `bwrap`, kein Werkzeug oder Modul, kein `--repo`/`--artifact-root`/`--base`, das Kommando steht nicht auf der Allowlist. | nur mit `--strict` (Exit 4) |
 | `limit` | Ein Budget war ausgeschoepft, bevor die Behauptung laufen konnte: Schritt-/Suchzahl, Zeit, Ausgabe- und Tape-Grenzen, Artefaktgroesse. | nur mit `--strict` (Exit 6) |
 | `unverifiable` | Der Rest (echte Unwissenheit): der Versuch lief und konnte nicht entscheiden (Fetch, Clone oder Diff schlugen fehl, der Branch-Tip wanderte weiter, eine Prosa-Zahl wie `2^^^5`, kein Checker fuer `[DEPLOY]`). Die Klasse ist der Default. | nur mit `--strict` (Exit 4) |
@@ -117,6 +127,50 @@ Jeder Lauf endet mit einer Schlusszeile ueber alle Kategorien, zum Beispiel:
 widerlegt, `environment`, `unverifiable` -- auch eine Behauptung ohne Checker
 wie `[DEPLOY]`), `not executed` die beiden Faelle, in denen kein Urteil
 moeglich war: Defekt und ausgeschoepftes Budget.
+
+## Berichtsprofile und Negativraum
+
+`--profile <name>` deklariert, welche Behauptungsklassen eine Meldung dieser
+Gattung enthalten MUSS. Das erste Profil ist `yesloop-done`: ein DONE-Bericht
+muss einen Commit (`[COMMIT]`), einen Branch (`[BRANCH]`) und einen Testlauf
+(`Tests run: ...`, Exit 0 oder nicht -- die Vorgabe verlangt die
+Testbehauptung, kein gruenes Ergebnis) nennen. Fehlt eine geforderte Klasse --
+auch weil die Zeile eine Vorlage mit Platzhalter-Rumpf ist und deshalb nach
+der P15-Regel gar keine Behauptung aufstellt --, erzeugt der Lauf eine
+zusaetzliche Behauptung `profile` mit Klasse `defect`: Exit 5, mit und ohne
+`--strict`, und das Urteil nennt Profilname und fehlende Klasse(n). Genau
+diese Luecke schliesst das Profil: eine Meldung, die sich hinter Vorlagen
+versteckt, stellt keine Behauptung auf, erfuellt ihr Profil aber auch nicht.
+
+Ein unbekannter Profilname ist ein usage-Fehler (Exit 2, die Auswahl nennt die
+registrierten Namen). Die Registry steht als `PROFILES` in
+`bemyself/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe
+ein Tupel akzeptierter Behauptungsklassen (`tests_green` und `tests_exit`
+sind zwei Formen derselben Vorgabe Testlauf). Eine vom Profil geforderte
+Klasse gilt als vorhanden, sobald die Meldung eine Behauptung dieses kind
+hergibt -- das Urteil dieser Behauptung darf dabei `unpruefbar` sein; eine
+zusaetzliche `diff_scope`-Behauptung aus `--files` zaehlt mit.
+
+Jeder abgeschlossene Lauf -- auch ein leerer Bericht -- endet mit der
+Negativraum-Zeile:
+
+    negativraum: gesucht: commit_exists, branch_pushed, tests_green/tests_exit; gefunden: commit_exists, branch_pushed; gefehlt: tests_green/tests_exit
+
+`gesucht` nennt die Vorgaben des Profils in Deklarationsreihenfolge (ohne
+`--profile` steht dort `keine (ohne --profile)`), `gefunden` die
+Behauptungsklassen der Meldung in der Reihenfolge ihres Auftretens, `gefehlt`
+die nicht erfuellten Vorgaben. Die Befunde des Pruefers selbst (`profile`,
+`unknown_marker`) zaehlen nicht als gefundene Klasse -- sie stehen als Defekt
+in der Urteilsliste. So bleiben "nichts gefunden" und "nichts gesucht"
+unterscheidbar: eine leere Meldung ohne Profil meldet `gesucht: keine ...;
+gefunden: keine; gefehlt: keine`, dieselbe Meldung mit
+`--profile yesloop-done` meldet die drei gesuchten Klassen, `gefunden: keine`
+und alle drei als gefehlt (und scheitert am Profil). Im JSON steht derselbe
+Befund als `negative_space` (`profile`, `sought`, `found`, `missing`;
+gesucht und gefehlt als Listen der akzeptierten Klassen je Vorgabe, damit
+Alternativen maschinenlesbar bleiben). In Fehler-Nutzlasten (unlesbarer
+Report, fehlendes `--repo`) fehlt `negative_space`: dort wurde nichts
+beurteilt.
 
 ## Grenzen
 
@@ -194,6 +248,27 @@ Kindprozess, und ein Commit kann gruene Ausgabe selbst faelschen. Der Pruefer
 laeuft gegen den behaupteten Commit; die Ehrlichkeit des Repos kann er nicht
 garantieren. Branch-Namen, Commit-Hashes und
 Basis-Revisionen werden streng geprueft, bevor ein Git-Kommando sie sieht.
+
+Ein Marker, dessen Kuerzel kein registrierter Behauptungstyp beansprucht, ist
+ein Defekt (Exit 5): er wurde frueher still ignoriert, und damit konnte eine
+Meldung eine Behauptung unbekannter Form an der Pruefung vorbeischmuggeln.
+Ein Marker ist ein Grossbuchstaben-Token (A-Z, 0-9, ohne Trenner), ein
+Doppelpunkt und ein klammerfreier Rumpf -- etwa `[FROB: 1]`. Die
+beanspruchten Tokens stehen an den Typen (`ClaimType.markers`, Default der
+grossgeschriebene kind; `[HALT]` beansprucht zusaetzlich `[SCORE]`) und in
+den Kernmarkern `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY`; `--list-types` nennt
+sie. Kein Marker sind Klammertexte ohne Doppelpunkt (`[DONE]`, `[1]`), mit
+kleingeschriebenem oder gemischtem Kuerzel (`[sic]`, `[foo: bar]`,
+`[Foo: bar]`) und Tokens mit Trenner (etwa die Regex-Zeichenklasse
+`[A-Z: x]`); ein leerer Rumpf (`[FROB:]`) ist dagegen ein Marker. Die
+P15-Regel bleibt in Kraft: traegt der Rumpf eines unbekannten Kuerzels einen
+Platzhalter (`[FROB: <wert>]`, `[FROB: ...]`, `[FROB: TODO]`), ist die Zeile
+eine Vorlage und kein Defekt -- dieselbe Form wie die Briefing-Zeilen einer
+yesloop-Section. Wie ueberall entscheidet die Form allein: zitiert eine
+gepruefte Meldung Prosa dieses Aussehens -- etwa eine Literaturangabe
+`[FEVER: ...]` mit echtem Rumpf --, ist das ein Defekt, obwohl die Zeile
+harmlos gemeint war. Wer Tokens benutzt, die kein Typ beansprucht, muss
+zuerst einen Typ registrieren (siehe "Neuen Behauptungstyp hinzufuegen").
 
 ## Sandkasten
 
@@ -1023,6 +1098,39 @@ Und ob die Behauptung an den Commit der Meldung bindet:
 der Behauptung auf den genau einen `[COMMIT]`-Hash der Meldung (mehrere
 verschiedene Hashes binden nichts); ohne die Angabe bleibt `commit` `None`.
 
+Welche Marker-Tokens der Typ beansprucht, deklariert er ebenfalls am Eintrag:
+`ClaimType(..., markers=("EVEN",))`. Ohne die Angabe gilt der
+grossgeschriebene `kind` -- die Konvention jedes eingebauten Typs, deshalb
+braucht das Beispiel oben keine Zeile. Ein zweiter Marker, der im `parse`
+mitlaeuft, muss deklariert werden: `[HALT]` beansprucht `SCORE` ueber
+`markers=("HALT", "SCORE")`. Ein Marker-Token, das kein registrierter Typ
+beansprucht, ist ein Defekt (siehe "Grenzen") -- wer `markers` falsch
+deklariert, sieht das sofort im ersten Parse-Test und in `--list-types`.
+
+### Checkliste fuer einen neuen Typ
+
+Ein neuer Typ ist erst fertig, wenn diese vier Punkte belegt sind:
+
+1. **Parse-Test MIT Platzhaltervariante:** eine Zeile mit echtem Wert ergibt
+   genau eine Behauptung des neuen `kind`, dieselbe Zeile mit
+   Platzhalter-Rumpf (`<wert>`, `TODO`, `...`) ergibt keine -- die
+   P15-Regel gilt auch fuer den neuen Typ.
+2. **Negativtest mit benanntem Zeugen:** eine falsche Behauptung endet
+   `REFUTED`, und das Urteil nennt den Zeugen (die neu hergeleitete Zahl, den
+   abweichenden Hash, den ersten Verstoss), nicht nur "falsch".
+3. **`markers` deklariert:** das Tupel der Marker-Tokens, die der Typ
+   beansprucht; ohne die Angabe gilt der grossgeschriebene `kind`. Ein Token,
+   das kein Typ beansprucht, ist ein Defekt (Exit 5).
+4. **Eval-Eintrag:** eine ehrliche Meldung (wird bestaetigt) und eine auf
+   bekannte Weise falsche (wird nie bestaetigt) im Pruefset, mit gepinnten
+   Urteilen -- sonst bleibt die Messlatte blind fuer den neuen Typ.
+
+Dazu die beiden Deklarationen, die der Pruefer aus dem Registry-Eintrag
+liest: `needs_repo=True`, wenn `check` ein Repository liest (sonst laeuft ein
+Report ohne `--repo` bis zu dieser Behauptung durch und verlangt ihn dann
+nicht), und `binds_commit=True`, wenn die Behauptung an den einen
+`[COMMIT]`-Hash der Meldung binden soll.
+
 Durchgerechnetes COMPUTE-Mini-Beispiel (der Typ, an dem beides zusammenkommt):
 
 ```python
@@ -1104,8 +1212,8 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt vierundfuenfzig Meldungen im Report-Format: siebenundzwanzig
-ehrliche und siebenundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt sechzig Meldungen im Report-Format: dreissig
+ehrliche und dreissig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
@@ -1149,6 +1257,14 @@ Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings
 und keine `unpruefbar`-Zeile -- auch die gemischte Scope-Zeile
 (`bemyself/model.py, <pfad2>`) entfaellt als Ganzes --, nur der echte Commit
 und das literale `[MERGE: no]` zaehlen; `expect_claim_count` pinnt das.
+Dazu vier P19-Meldungen: eine ehrliche Vollmeldung unter dem Profil
+`yesloop-done` (Commit, Branch, Testlauf -- kein Profildefekt,
+`expect_claim_count` pinnt die drei Behauptungen), eine ehrliche Meldung mit
+dem Vorlagen-Marker eines unbekannten Kuerzels (`[FROB: <wert>]`; ein
+Platzhalter-Rumpf ist kein Defekt), eine falsche Meldung mit unbekanntem
+Marker und echtem Rumpf (Defekt, Exit 5) und eine falsche, der unter dem
+Profil die Testbehauptung fehlt (Profildefekt, Exit 5, Urteil mit Profilname
+und fehlender Klasse).
 Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
 `python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
@@ -1188,7 +1304,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus vierundfuenfzig Meldungen (siebenundzwanzig ehrlich, siebenundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus sechzig Meldungen (dreissig ehrlich, dreissig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 
