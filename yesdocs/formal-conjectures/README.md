@@ -455,6 +455,25 @@ Halt-Familie der reduzierten Regel. Artefakt gebunden:
 
 [ARTIFACT: lean/antihydra-family/Antihydra.lean -> 0ea9dba32b9e588e2dfcd24e988a5619ff9e72383317efb0460359173d3a985b]
 
+**Nachtrag 2026-09-14 (V21, `attack-02.md`).** Der Antihydra-Lemma-Loop (Runden
+1-18 mit externem Vorschlagsmodell `gpt-6-astra`, 2026-09-13/14) ist als
+`attack-02.md` eingefroren: kantenweise 2-Byte-Potentiale sind auf der echten Bahn
+durch Zeugen widerlegt, der beobachtete 3-Byte-Graph trägt ein verifiziertes
+Potential der Breite 92 (Zeugenpfad 23 Knoten / -92,
+`data/antihydra-wide92-cert.json`), der Chronologie-Drawdown beträgt 73, und der
+gesamte Angriff reduziert sich auf eine offene Drawdown-Schranke. Dazu das
+generalisierte Werkzeug `tools/fast_orbit.py` (Transfer-Identität, bit-identisch
+zu den eingefrorenen Läufen, mit Tests) und die 17 Rohantworten des Loops.
+**Kein Lösungsergebnis**; Antihydra bleibt offen. Artefakte gebunden:
+
+[ARTIFACT: yesdocs/formal-conjectures/tools/fast_orbit.py -> 2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59]
+[ARTIFACT: yesdocs/formal-conjectures/tools/test_fast_orbit.py -> 60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0]
+[ARTIFACT: yesdocs/formal-conjectures/data/antihydra-wide92-cert.json -> f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 8e32c92ac90630436073e447dde5265fa295da47099d2fd46baa454314e7e3b9]
+
+Die ausführbaren Prüfungen des Nachtrags bündelt `data/attack-02-check.txt`
+(u. a. `[COMPUTE]` auf `tools/fast_orbit.py`).
+
 ### 3.3 Einordnung
 
 Der Angriff zeigt für die Shortlist, was im Testfeld **wirklich prüfbar**
