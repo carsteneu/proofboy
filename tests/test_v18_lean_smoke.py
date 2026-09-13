@@ -94,6 +94,19 @@ class SummarizeTest(unittest.TestCase):
         summary = lean_smoke.summarize(results)
         self.assertEqual(summary["transport_errors"], 1)
 
+    def test_exit_code_signals_transport_failures_only(self):
+        # invalid/timeout/no_code sind Messergebnisse, kein Werkzeug-Fehlschlag.
+        self.assertEqual(lean_smoke.exit_code({"transport_errors": 0, "invalid": 3, "timeout": 1}), 0)
+        self.assertEqual(lean_smoke.exit_code({"transport_errors": 1}), 1)
+
+    def test_render_labels_transport_failures_under_no_code(self):
+        results = [self._entry("valid", "none")]
+        summary = lean_smoke.summarize(results)
+        summary["no_code"] = 2
+        summary["transport_errors"] = 1
+        md = lean_smoke.render_summary(summary, results)
+        self.assertIn("ohne Code 2 (davon Transportfehler 1)", md)
+
 
 class ProbesTest(unittest.TestCase):
     def test_probe_list_shape(self):

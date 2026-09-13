@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests des leancheck-Sandkasten-Elaborators V18 (Lean-4-Schnipsel).
+"""Tests des leancheck-Elaborators V18 (Lean-4-Schnipsel).
 
 leancheck legt je Aufruf ein Minimalprojekt (gepinnte Toolchain, keine
 Dependencies) an, laesst ``lake env lean`` mit hartem Timeout darauf laufen
@@ -17,6 +17,7 @@ arbeiten zweigleisig:
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
 import stat
 import sys
@@ -106,6 +107,30 @@ class FakeLakeTests(unittest.TestCase):
         res = leancheck.check("import Std\n", lake_bin=str(self.tmp / "does-not-exist"), root=self.tmp / "root")
         self.assertEqual(res["status"], "infra_error")
         self.assertIn("lake", res["message"].lower())
+
+    def test_nonzero_exit_without_error_lines_is_infra_error(self):
+        # Ein lake-Abbruch ohne parsebare Diagnosezeile (fehlende Datei,
+        # elan-Downloadfehler, unbekannte Option) darf NICHT als valid gelten.
+        lake = _fake_lake(self.tmp, 'echo "error: no such file or directory"\nexit 1\n')
+        res = leancheck.check("import Std\n", lake_bin=str(lake), root=self.tmp / "root")
+        self.assertEqual(res["status"], "infra_error")
+        self.assertEqual(res["exit_code"], 1)
+        self.assertIn("1", res["message"])
+
+    def test_relative_snippet_arg_is_used(self):
+        # Lean schreibt Diagnosen mit dem Argument-Pfad; bei absolutem Pfad
+        # mit Leerzeichen zerfällt die Dateiprefix-Erkennung. Darum wird der
+        # Schnipsel relativ zum Projekt-cwd übergeben.
+        lake = _fake_lake(self.tmp, 'printf "%s\\n" "$3"\n')
+        res = leancheck.check("import Std\n", lake_bin=str(lake), root=self.tmp / "root")
+        arg = res["output"].strip()
+        self.assertFalse(os.path.isabs(arg), arg)
+        self.assertTrue(arg.endswith(".lean"), arg)
+
+    def test_resolve_root_returns_absolute(self):
+        resolved = leancheck._resolve_root(Path("some") / "relative")
+        self.assertTrue(resolved.is_absolute())
+        self.assertEqual(Path(leancheck._resolve_root(None)).is_absolute(), True)
 
     def test_no_print_axioms_without_request(self):
         lake = _fake_lake(self.tmp, 'cat "$3"\n')
@@ -237,6 +262,26 @@ class RealLeanTests(unittest.TestCase):
         )
         self.assertEqual(res["status"], "valid", res.get("output"))
         self.assertIsNone(res["axioms"])
+
+    def test_root_with_spaces_classifies_invalid(self):
+        # Regression (Review-Befund): Root-Pfade mit Leerzeichen dürfen die
+        # Fehlerzeilen-Erkennung nicht brechen (sonst stilles `valid`).
+        spaced = self.tmp / "mit leerzeichen" / "root"
+        res = leancheck.check(
+            "import Std\n\ntheorem main_thm : (2 + 2 = 5) := by decide\n", root=spaced
+        )
+        self.assertEqual(res["status"], "invalid", res.get("output"))
+        self.assertTrue(res["errors"])
+
+    def test_root_with_spaces_classifies_valid(self):
+        spaced = self.tmp / "auch hier drin" / "root"
+        res = leancheck.check(
+            "import Std\n\ntheorem main_thm : (2 + 2 = 4) := by decide\n",
+            root=spaced,
+            print_axioms_for="main_thm",
+        )
+        self.assertEqual(res["status"], "valid", res.get("output"))
+        self.assertEqual(res["axioms"], "none")
 
 
 if __name__ == "__main__":

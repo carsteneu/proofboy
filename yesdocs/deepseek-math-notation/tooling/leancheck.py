@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""leancheck — schlanker Sandkasten-Elaborator fuer Lean-4-Schnipsel (V18).
+"""leancheck — schlanker Elaborator fuer Lean-4-Schnipsel (V18).
+
+Kein Sandkasten (offengelegt in der Runde 05-14 §5.4): die Elaboration kann
+IO ausfuehren; fuer fremde/untrusted Quellen ist eine Sandkasten-Ausfuehrung
+noetig (vgl. die [LEAN]-Checker-Haertung im Nachbar-Zweig).
 
 Jeder Aufruf legt unter ``<root>/snips/`` eine eindeutige ``.lean``-Datei an
 und laesst ``lake env lean`` mit hartem Timeout (Prozessgruppe) darauf laufen.
@@ -30,6 +34,11 @@ Aufruf::
 Als Bibliothek: ``check(source, timeout=60.0, print_axioms_for=None)``.
 Die Toolchain wird nicht heruntergeladen: fehlt ``lake``, ist das Ergebnis
 ``infra_error``.
+
+Werkzeug-Knoepfe (ENV, rein lokal): ``LEANCHECK_ROOT`` (Wurzel fuer Projekt
+und Schnipsel; Default ``<repo>/.yesmem/tmp/leancheck``) und
+``LEANCHECK_LAKE`` (Pfad zum lake-Binary; Default PATH bzw.
+``~/.elan/bin/lake``).
 """
 
 from __future__ import annotations
@@ -111,12 +120,15 @@ def _resolve_lake(lake_bin):
 
 
 def _resolve_root(root):
-    if root:
-        return Path(root)
-    env = os.environ.get("LEANCHECK_ROOT", "").strip()
-    if env:
-        return Path(env)
-    return ROOT / ".yesmem" / "tmp" / "leancheck"
+    """Wurzel fuer Projekt + Schnipsel -- immer absolut.
+
+    ``root``-Argument, sonst ``LEANCHECK_ROOT``, sonst Vorgabe unter
+    ``.yesmem/tmp``. Absolute Pfade sind noetig, weil ``lake`` mit cwd im
+    Projekt laeuft; ein relativer Root wuerde sonst auf das Projekt-cwd
+    bezogen und der Schnipsel-Pfad ginge ins Leere (Review-Befund).
+    """
+    candidate = Path(root) if root else Path(os.environ.get("LEANCHECK_ROOT", "").strip() or ROOT / ".yesmem" / "tmp" / "leancheck")
+    return candidate.resolve()
 
 
 def _write_project(project):
@@ -182,9 +194,13 @@ def check(source, *, timeout=60.0, print_axioms_for=None, root=None, lake_bin=No
     env["PATH"] = os.pathsep.join(path_parts)
 
     start = time.monotonic()
+    # Relativer Schnipsel-Pfad (cwd = Projekt): Lean schreibt Diagnosen mit
+    # dem Argument-Pfad; bei absolutem Pfad mit Leerzeichen zerfaellt die
+    # Dateiprefix-Erkennung und Fehler waeren unsichtbar (Review-Befund).
+    snippet_arg = os.path.relpath(str(snippet), str(project))
     try:
         proc = subprocess.Popen(
-            [lake, "env", "lean", str(snippet)],
+            [lake, "env", "lean", snippet_arg],
             cwd=str(project),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -219,14 +235,26 @@ def check(source, *, timeout=60.0, print_axioms_for=None, root=None, lake_bin=No
     result["axioms"] = _parse_axioms(result["output"])
 
     if result["status"] is None:
-        errors = result["errors"]
+        parsed_errors = result["errors"]
+        errors = parsed_errors
         if print_axioms_for:
             # Nur die angehaengte #print-Zeile darf Fehler beisteuern, die die
             # Gueltigkeit des Schnipsels nicht beruehren (unknownIdentifier
             # bei falschem Namen) -- ohne Anhang gibt es nichts zu filtern.
-            errors = [item for item in errors if item["line"] <= snippet_lines]
+            errors = [item for item in parsed_errors if item["line"] <= snippet_lines]
         result["errors"] = errors
-        result["status"] = "invalid" if errors else "valid"
+        if errors:
+            result["status"] = "invalid"
+        elif proc.returncode != 0 and not parsed_errors:
+            # Abbruch ohne jede parsebare Diagnose (fehlende Datei, elan-Fehler,
+            # unbekannte Option) ist ein Infrastrukturproblem -- NIE `valid`.
+            # Ein exit != 0 allein wegen der angehaengten #print-Zeile ist
+            # dagegen erwartbar und kein Infra-Fehler.
+            result["status"] = "infra_error"
+            tail = (result["output"] or "").strip().splitlines()
+            result["message"] = f"lake exit {proc.returncode} ohne Diagnosezeile: {tail[-1][:200] if tail else '(keine Ausgabe)'}"
+        else:
+            result["status"] = "valid"
     return result
 
 

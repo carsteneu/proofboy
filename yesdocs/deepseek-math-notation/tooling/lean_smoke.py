@@ -80,7 +80,13 @@ def build_prompt(probe):
 
 
 def summarize(results):
-    """Deskriptive Zaehlung ueber alle Sonden (keine Signifikanzaussagen)."""
+    """Deskriptive Zaehlung ueber alle Sonden (keine Signifikanzaussagen).
+
+    ``no_code`` zaehlt Sonden ohne extrahierbaren Lean-Code -- Transport-
+    fehler erzeugen keinen Code und werden zusaetzlich als ``transport_errors``
+    gefuehrt (Anzeige weist beide Zahlen getrennt aus, damit kein Fehlschlag
+    doppelt als „ohne Code" gelesen wird).
+    """
     counts = {"valid": 0, "invalid": 0, "timeout": 0, "infra_error": 0}
     no_code = 0
     axiom_free = 0
@@ -128,8 +134,8 @@ def render_summary(summary, results):
         "",
         f"- Sonden: {summary['n']} · valid {summary['valid']} ({summary['valid_frac']}) · "
         f"axiomfrei {summary['axiom_free']} · sorry {summary['sorry_used']} · "
-        f"invalid {summary['invalid']} · timeout {summary['timeout']} · ohne Code {summary['no_code']} · "
-        f"Transportfehler {summary['transport_errors']}",
+        f"invalid {summary['invalid']} · timeout {summary['timeout']} · "
+        f"ohne Code {summary['no_code']} (davon Transportfehler {summary['transport_errors']})",
         f"- Tokens: reasoning {summary['reasoning_tokens_sum']} · completion {summary['completion_tokens_sum']} · "
         f"Dauer {summary['duration_s_sum']} s",
         "",
@@ -219,6 +225,15 @@ def run_probes(call=None, check=None, probes=None, timeout=300.0, lean_timeout=6
     return {"results": results, "summary": summary}
 
 
+def exit_code(summary):
+    """Exit-Code fuer die CLI: 1, sobald ein Transportfehler auftrat.
+
+    ``invalid``/``timeout``/``no_code`` sind Messergebnisse (Daten), kein
+    Werkzeug-Fehlschlag; Transportfehler dagegen schon.
+    """
+    return 1 if summary.get("transport_errors") else 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", default=None)
@@ -232,8 +247,8 @@ def main(argv=None):
         probes = [probe for probe in PROBES if probe["id"] in wanted]
         if not probes:
             parser.error(f"keine bekannten Sonden in {args.probes!r}")
-    run_probes(probes=probes, timeout=args.timeout, lean_timeout=args.lean_timeout, out_dir=args.out)
-    return 0
+    result = run_probes(probes=probes, timeout=args.timeout, lean_timeout=args.lean_timeout, out_dir=args.out)
+    return exit_code(result["summary"])
 
 
 if __name__ == "__main__":

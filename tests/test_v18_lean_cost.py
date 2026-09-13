@@ -80,6 +80,14 @@ class MeasureTest(unittest.TestCase):
         md = lean_cost.render_markdown(lean_cost.measure(StubTokenizer(), ITEMS), lean_cost.summarize(lean_cost.measure(StubTokenizer(), ITEMS)))
         self.assertIn("x1", md)
         self.assertIn("Lean", md)
+        # Ohne expliziten Hash rendert der dokumentierte Stand (01-03b).
+        self.assertIn(lean_cost.TOKENIZER_SHA256, md)
+
+    def test_render_markdown_uses_given_hash(self):
+        rows = lean_cost.measure(StubTokenizer(), ITEMS)
+        md = lean_cost.render_markdown(rows, lean_cost.summarize(rows), sha256="ab" * 32)
+        self.assertIn("ab" * 32, md)
+        self.assertNotIn(lean_cost.TOKENIZER_SHA256, md)
 
     def test_default_items_are_triplets(self):
         for item in lean_cost.ITEMS:
@@ -114,6 +122,10 @@ class RealTokenizerTest(unittest.TestCase):
             self.assertGreater(row["lean_tokens"], 0)
             self.assertGreater(row["v11_tokens"], 0)
             self.assertGreater(row["prose_tokens"], 0)
+
+    def test_real_tokenizer_matches_documented_sha(self):
+        path = ROOT / ".yesmem" / "tmp" / "tokenizer" / "tokenizer.json"
+        self.assertEqual(lean_cost.sha256_file(path), lean_cost.TOKENIZER_SHA256)
 
 
 if __name__ == "__main__":

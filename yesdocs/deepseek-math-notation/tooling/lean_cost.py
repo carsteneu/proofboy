@@ -33,6 +33,10 @@ ROOT = HERE.parents[2]  # yesdocs/deepseek-math-notation/tooling -> repo root
 DEFAULT_TOKENIZER = ROOT / ".yesmem" / "tmp" / "tokenizer" / "tokenizer.json"
 DEFAULT_PYLIBS = ROOT / ".yesmem" / "tmp" / "pylibs"
 
+# Der dokumentierte Stand der Tokenizer-Datei (01-03b); die CLI rendert den
+# tatsaechlich geladenen Hash und weist auf Abweichungen hin.
+TOKENIZER_SHA256 = "c90dfa01249db1be4245780a052ede752e1361c612ac6d08e2bdada7d599476b"
+
 # Die Item-Liste ist der Inhalt der Sonde: je Zeile dieselbe Aussage in drei
 # Stilen. Lean-Zeilen sind, wo möglich, echte Std-Lean-4-Formen; fuer Trace-/
 # Zyklus-Aussagen steht eine Kommentar-Skizze (kein Std-Aequivalent).
@@ -139,11 +143,22 @@ def summarize(rows):
     return {"totals": totals, "ratios": ratios, "n_items": len(rows)}
 
 
-def render_markdown(rows, summary):
+def sha256_file(path):
+    """SHA-256 einer Datei -- bindet das gerenderte Ergebnis an den Stand."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def render_markdown(rows, summary, sha256=None):
     lines = [
         "# Token-Kosten-Sonde V18: Lean-Zeile vs. V1.1-Zeile vs. Prosa-Zeile",
         "",
-        f"- tokenizer.json SHA-256 `c90dfa01249db1be4245780a052ede752e1361c612ac6d08e2bdada7d599476b` · {summary['n_items']} Zeilen-Tripel",
+        f"- tokenizer.json SHA-256 `{sha256 or TOKENIZER_SHA256}` · {summary['n_items']} Zeilen-Tripel",
         "",
         "| Zeile | lean | v1.1 | prosa | lean/prosa | v1.1/prosa |",
         "|---|---|---|---|---|---|",
@@ -177,7 +192,14 @@ def main(argv=None):
     tok = load_tokenizer(args.tokenizer, args.pylibs)
     rows = measure(tok)
     summary = summarize(rows)
-    markdown = render_markdown(rows, summary)
+    sha256 = sha256_file(args.tokenizer) if Path(args.tokenizer).exists() else None
+    if sha256 and sha256 != TOKENIZER_SHA256:
+        print(
+            f"Warnung: tokenizer.json weicht vom dokumentierten Stand ab "
+            f"({sha256} != {TOKENIZER_SHA256}) -- das gerenderte Ergebnis traegt den tatsaechlichen Hash.",
+            file=sys.stderr,
+        )
+    markdown = render_markdown(rows, summary, sha256=sha256)
     print(markdown)
     if args.json:
         Path(args.json).write_text(
