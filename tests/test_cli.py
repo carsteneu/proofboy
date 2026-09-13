@@ -1114,6 +1114,14 @@ class ProfileCliTest(unittest.TestCase):
             {"profile": None, "sought": [], "found": [], "missing": []},
         )
 
+    def test_an_error_payload_carries_no_negative_space(self):
+        # Nothing was judged in an error run: the key would claim a finding
+        # that never happened.
+        proc, payload = self.payload("--report", os.path.join(self._tmp.name, "missing.txt"))
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("error", payload)
+        self.assertNotIn("negative_space", payload)
+
 
 class ListTypesTest(unittest.TestCase):
     """P19: ``--list-types`` reads the claim-type registry, not a copy."""

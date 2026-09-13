@@ -9,6 +9,7 @@ distinguishable.
 
 import re
 import unittest
+from unittest import mock
 
 from bemyself import claimtypes, profiles
 from bemyself.checks import Ctx, run_claim
@@ -101,6 +102,16 @@ class ProfileClaimTest(unittest.TestCase):
     def test_without_a_profile_nothing_is_added(self):
         claims = parse_report("[MERGE: no]\n")
         self.assertEqual(profiles.profile_claims(claims, None), claims)
+
+    def test_a_claim_added_by_the_cli_counts_as_present(self):
+        # The profile runs after the --files override, so a diff_scope claim
+        # the CLI added satisfies a profile that requires that class (the
+        # shipped yesloop-done profile does not name it; this pins the
+        # mechanism). Presence is a question of the claim's kind only.
+        override = Claim("diff_scope", 0, "--files override", {"planned": ("a.txt",)})
+        with mock.patch.dict(profiles.PROFILES, {"scoped": (("diff_scope",),)}):
+            claims = parse_report("[MERGE: no]\n") + [override]
+            self.assertEqual(profiles.profile_claims(claims, "scoped"), claims)
 
     def test_unknown_profile_name_raises(self):
         with self.assertRaises(KeyError):
