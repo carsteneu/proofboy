@@ -47,6 +47,16 @@ Rueckmeldung geht durch eine Default-Deny-Allowlist
 (:func:`_sanitize_reason`): nur die geprueften Beleg-Arten duerfen ihre
 Befunde durchreichen.
 
+Runde 4 (V14, Lokalisierung): die Rueckmeldung folgt einer Leiter
+``--feedback G0|G1|G2`` (Default G0). G0 ist der V13-Stand. G1 nennt die
+Klasse des Befunds ohne Werte (Maschinenbindung fehlt / Werte widerlegt /
+Form-Konvention) und schuetzt ungeprueste, aber gueltige Werte mit einer
+ausdruecklichen "Werte nicht aendern"-Anweisung; G2 ergaenzt die
+Positions-Klasse des Checkers (welche Vergleichs-Bedingung traegt nicht:
+Zustand / Kopf-Translation / Bandfenster). Jede Klasse ist aus der
+Checker-Semantik abgeleitet und traegt keine Referenzwerte; alles Unbekannte
+faellt auf den Default-Deny-Sanitizer zurueck.
+
 Aufrufe::
 
     python3 harness.py batch --arms K,B,C,D --reps 2 --tier-a 16 --tier-b 8
@@ -381,11 +391,8 @@ def evaluate_answer(arm, task, answer, evidence_out=None):
             # The sheet must reason about the task's machine: a self-consistent
             # sheet about another machine must not count as an answer (and no
             # extra unrelated bindings either).
-            task_machine = task["machine"].replace(" ", "").replace("_", "").upper()
-            bound = {
-                machine.source.replace(" ", "").replace("_", "").upper()
-                for machine in sheet.machines.values()
-            }
+            task_machine = _machine_key(task["machine"])
+            bound = _bound_machines(sheet)
             fragment["machine_bound"] = bool(bound) and bound == {task_machine}
             fragment["solved"] = (
                 bool(result.claim_results)
@@ -463,18 +470,195 @@ def _sanitize_reason(kind, verdict, reason):
     return reason
 
 
-def feedback_lines(arm, task, evidence):
-    """(appendix, notes) of the repair round -- sanitized, never gold.
+# ---------------------------------------------------------------------------
+# Runde 4 (V14): die Feedback-Leiter G0/G1/G2.
+#
+# G0 = der V13-Stand (oben): die sanitisierten Befunde, nicht weiter
+# lokalisiert. G1 = Klassen-Befunde ohne Werte (Bindung fehlt / Werte
+# widerlegt / Form-Konvention), inklusive der Schutzanweisung fuer
+# ungepruefte, aber gueltige Werte. G2 = G1 plus die Positions-Klasse des
+# Checkers (welche Vergleichs-Bedingung zuerst traegt nicht) -- abgeleitet
+# aus der Branch-Reihenfolge von ``claimtypes.cycle``/``witnesses._run_sim``,
+# niemals aus Referenzwerten. Alles, was keine der bekannten Klassen trifft,
+# faellt auf :func:`_sanitize_reason` zurueck (Default-Deny bleibt).
+#
+# Nicht darstellbar und deshalb bewusst gestrichen: eine Klasse "t1 liegt
+# nicht am Zyklus-Eintritt" -- der Checker kennt keinen solchen Zweig, und
+# jede Aussage darueber braeuchte den (Gold-nahen) echten Eintritt.
+
+FEEDBACK_LEVELS = ("G0", "G1", "G2")
+
+_BINDING_MISSING_MARKER = "no machine binding in the sheet"
+_BINDING_AMBIGUOUS_MARKERS = (
+    "several machine names appear in the target",
+    "multiple machine bindings but none referenced in the target",
+)
+
+_CLASS_BINDING_MISSING = (
+    "keine Maschinenbindung im Blatt: die genannten Werte sind nicht "
+    "widerlegt, nur nicht geprueft (erwartet 'a: M = <machine>')"
+)
+_HINT_BINDING_MISSING = (
+    "Hinweis: ergaenze nur die Maschinenbindung und aendere die genannten "
+    "Werte nicht - sie sind nicht widerlegt, nur ungeprueft."
+)
+_CLASS_BINDING_WRONG = (
+    "das Blatt bindet eine andere Maschine als die Aufgabe; belege die "
+    "Aufgaben-Maschine ('a: M = <machine>')"
+)
+_CLASS_VALUES_REFUTED = "das Zertifikat ist widerlegt (es traegt fuer diese Maschine nicht)"
+
+# Die Positions-Klassen (G2): welche Vergleichs-Bedingung des Checkers traegt
+# nicht? Reihenfolge = Pruefreihenfolge; alle Phrasen sind digit-frei.
+_LEG_CYC = {
+    "state": (
+        "widerlegt an der Zustands-Bedingung: die Zustaende an den beiden "
+        "Zyklus-Zeitpunkten stimmen nicht ueberein"
+    ),
+    "head": (
+        "widerlegt an der Translations-Bedingung: die Kopfdistanz zwischen "
+        "den beiden Zyklus-Zeitpunkten ist nicht die genannte Verschiebung d"
+    ),
+    "tape": (
+        "widerlegt an der Band-Bedingung: die Baender stimmen im erreichbaren "
+        "Fenster nicht ueberein"
+    ),
+    "halt": "widerlegt: die Maschine haelt innerhalb des Zertifikat-Fensters",
+}
+_SIM_LEG = {
+    "state": "bei Schritt {step} traegt der Zustand nicht (Referenzsimulation)",
+    "head": "bei Schritt {step} traegt die Kopfposition nicht (Referenzsimulation)",
+    "tape": "bei Schritt {step} traegt das Bandfenster nicht (Referenzsimulation)",
+}
+
+# Die Reason-Texte der Checker-Branches (cycle.check / witnesses._run_sim).
+# Lineare Muster (ReDoS-Lehre), gepinnt durch tests/test_v14_harness.py gegen
+# die echten Texte. Ein unbekannter Text faellt auf _sanitize_reason zurueck.
+_CYC_LEG_RES = (
+    (
+        "state",
+        re.compile(
+            r"\Acyc: the state at step [0-9]+ is [A-Z], not the state at step [0-9]+ \([A-Z]\)\Z"
+        ),
+    ),
+    (
+        "head",
+        re.compile(
+            r"\Acyc: the head at step [0-9]+ is at cell -?[0-9]+, not at cell -?[0-9]+ "
+            r"\+ -?[0-9]+ = -?[0-9]+\Z"
+        ),
+    ),
+    (
+        "tape",
+        re.compile(
+            r"\Acyc: the tape at step [0-9]+ differs from the tape at step [0-9]+ at "
+            r"relative position -?[0-9]+ inside the reachable window; so it is not the "
+            r"configuration at step [0-9]+ translated by -?[0-9]+\Z"
+        ),
+    ),
+    (
+        "halt",
+        re.compile(
+            r"\Acyc: the machine halted after [0-9]+ steps, inside the certificate "
+            r"window of [0-9]+ steps\Z"
+        ),
+    ),
+)
+_SIM_LEG_RES = (
+    ("state", re.compile(r"\Asim: at step ([0-9]+) the state is [A-Z], not [A-Z]\Z")),
+    ("head", re.compile(r"\Asim: at step ([0-9]+) the head is at -?[0-9]+, not -?[0-9]+\Z")),
+    ("tape", re.compile(r"\Asim: at step ([0-9]+) the written window is '[01]*', not '[01]*'\Z")),
+)
+
+
+def _row_class(kind, verdict, reason):
+    """(class, leg, step) of one row -- aus der Checker-Semantik, ohne Werte.
+
+    ``class`` ist eine der Klassen der Feedback-Leiter:
+    ``binding_missing`` (sim/cyc ohne Maschinenbindung),
+    ``binding_ambiguous`` (mehrere/namenlose Bindungen),
+    ``values_refuted`` (sim/cyc widerlegt; ``leg`` nennt die tragende
+    Vergleichs-Bedingung: state/head/tape/halt, ``step`` den modell-eigenen
+    sim-Schritt), ``chain`` (ref_unconfirmed), ``formula_refuted`` (auto/
+    range/py falsch), ``not_checkable`` (uebrige UNVERIFIABLE), ``other``.
+    """
+    if verdict == "CONFIRMED":
+        return ("ok", None, None)
+    if verdict == "REFUTED" and kind == "cyc":
+        for leg, pattern in _CYC_LEG_RES:
+            if pattern.match(reason):
+                return ("values_refuted", leg, None)
+        return ("values_refuted", None, None)
+    if verdict == "REFUTED" and kind == "sim":
+        for leg, pattern in _SIM_LEG_RES:
+            match = pattern.match(reason)
+            if match:
+                return ("values_refuted", leg, match.group(1))
+        return ("values_refuted", None, None)
+    if verdict == "UNVERIFIABLE":
+        if _BINDING_MISSING_MARKER in reason:
+            return ("binding_missing", None, None)
+        if any(marker in reason for marker in _BINDING_AMBIGUOUS_MARKERS):
+            return ("binding_ambiguous", None, None)
+        if kind == "ref":
+            return ("chain", None, None)
+        return ("not_checkable", None, None)
+    if kind == "ref":
+        return ("chain", None, None)
+    if kind in ("auto", "range", "py"):
+        return ("formula_refuted", None, None)
+    return ("other", None, None)
+
+
+def _render_note(kind, verdict, reason, level="G0"):
+    """The note text of one non-confirmed row at the given level.
+
+    G0 returns the V13-sanitized text unchanged. G1/G2 localize the known
+    classes; everything unrecognized goes through :func:`_sanitize_reason`
+    (default-deny). The class texts carry no digits of their own; the only
+    digits that can appear are model-owned (ids, the sim step).
+    """
+    if level == "G0":
+        return _sanitize_reason(kind, verdict, reason)
+    cls, leg, step = _row_class(kind, verdict, reason)
+    if cls == "binding_missing":
+        return f"{kind}: {_CLASS_BINDING_MISSING}"
+    if cls == "values_refuted":
+        if kind == "cyc":
+            if level == "G2" and leg:
+                return f"cyc: {_LEG_CYC[leg]}"
+            return f"cyc: {_CLASS_VALUES_REFUTED}"
+        if level == "G2" and leg:
+            return f"sim: {_SIM_LEG[leg].format(step=step)}"
+        return _sanitize_reason(kind, verdict, reason)
+    return _sanitize_reason(kind, verdict, reason)
+
+
+def _machine_key(text):
+    """A machine source compared name-insensitively (as evaluate_answer does)."""
+    return re.sub(r"[\s_]", "", text or "").upper()
+
+
+def _bound_machines(sheet):
+    """The normalized machine sources bound in the sheet (``a: M = ...``)."""
+    return {_machine_key(machine.source) for machine in getattr(sheet, "machines", {}).values()}
+
+
+def feedback_bundle(arm, task, evidence, *, level="G0"):
+    """(appendix, notes, hints, classes) of the repair round -- never gold.
 
     K (and any arm without machine-checked evidence) gets nothing: verdicts
-    that do not exist are not invented.
+    that do not exist are not invented. The classes are computed for every
+    level (the run data records them); the note texts follow the ladder.
     """
+    if level not in FEEDBACK_LEVELS:
+        raise ValueError(f"unknown feedback level {level!r}")
     if arm not in MACHINE_FEEDBACK_ARMS or not evidence:
-        return [], []
+        return [], [], [], []
     sheet = evidence.get("sheet")
     result = evidence.get("result")
     if result is None:
-        return [], []
+        return [], [], [], []
     # Getrennte Lookups: Claim-ids wie "v1" sind parserlegal; ein gemeinsames
     # Dict ueber nackte ids wuerde den v-Line-Kind umetikettieren und den
     # Sanitizer die Referenzwerte durchlassen.
@@ -484,19 +668,47 @@ def feedback_lines(arm, task, evidence):
         witness = sheet.witness_for(claim.cid)
         kinds_c[claim.cid] = witness.spec.kind if witness is not None and witness.spec else None
     notes = []
+    hints = []
+    classes = []
+
+    def _add(row_id, kind, verdict, reason):
+        cls, leg, _step = _row_class(kind, verdict, reason)
+        notes.append(f"{row_id}: {_render_note(kind, verdict, reason, level)}")
+        entry = {"id": row_id, "class": cls}
+        if leg:
+            entry["leg"] = leg
+        classes.append(entry)
+        if cls == "binding_missing" and level != "G0" and _HINT_BINDING_MISSING not in hints:
+            hints.append(_HINT_BINDING_MISSING)
+
     for row in result.v_results:
         if row.verdict.value == "CONFIRMED":
             continue
-        notes.append(
-            f"{row.vid}: {_sanitize_reason(kinds_v.get(row.vid), row.verdict.value, row.reason)}"
-        )
+        _add(row.vid, kinds_v.get(row.vid), row.verdict.value, row.reason)
     for row in result.claim_results:
         if row.verdict.value == "CONFIRMED":
             continue
-        notes.append(
-            f"{row.cid}: {_sanitize_reason(kinds_c.get(row.cid), row.verdict.value, row.reason)}"
-        )
-    return list(result.appendix), notes
+        _add(row.cid, kinds_c.get(row.cid), row.verdict.value, row.reason)
+    # Harness-Ebene (G1+): das Blatt ist in sich bestaetigt, bindet aber eine
+    # fremde Maschine -- ohne diese Note bliebe der Fall stumm ("nichts
+    # geprueft"), obwohl er nicht geloest ist.
+    if level != "G0" and not notes and task.get("tier_b_kind") == "cyc":
+        bound = _bound_machines(sheet)
+        task_machine = _machine_key(task.get("machine"))
+        if bound and task_machine and bound != {task_machine}:
+            notes.append(f"a: {_CLASS_BINDING_WRONG}")
+            classes.append({"id": "a", "class": "binding_wrong"})
+    return list(result.appendix), notes, hints, classes
+
+
+def feedback_lines(arm, task, evidence):
+    """(appendix, notes) of the repair round in the G0 (V13) shape.
+
+    Kept as the stable two-tuple wrapper for the older rounds' tests; the
+    level-aware path is :func:`feedback_bundle`.
+    """
+    verdicts, notes, _hints, _classes = feedback_bundle(arm, task, evidence, level="G0")
+    return verdicts, notes
 
 
 def _render_messages(messages):
@@ -515,7 +727,14 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
     """
     call = call or call_model
     max_repairs = getattr(args, "max_repairs", 2)
-    base = runs_root / task["id"] / f"{arm}-rep{rep}"
+    level = getattr(args, "feedback", "G0")
+    if level not in FEEDBACK_LEVELS:
+        raise ValueError(f"unknown feedback level {level!r}")
+    # G0 laeuft unter dem V13-Verzeichnisnamen (Bestandslogs bleiben lesbar);
+    # die Level-Zellen tragen ihr Level im Namen.
+    base = runs_root / task["id"] / (
+        f"{arm}-rep{rep}" if level == "G0" else f"{arm}-{level}-rep{rep}"
+    )
     base.mkdir(parents=True, exist_ok=True)
     system, user = build_messages(arm, task)
     messages = [
@@ -560,14 +779,17 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
         stop = solved or payload is None or round_index == max_repairs
         trigger = None
         repair_text = None
+        classes = []
         if not stop:
             trigger = TRIGGER_NOT_CONFIRMED
             result = evidence.get("result")
-            verdicts, notes = feedback_lines(arm, task, evidence)
+            verdicts, notes, hints, classes = feedback_bundle(arm, task, evidence, level=level)
             format_errors = list(result.format_errors) if result is not None else []
-            repair_text = build_repair_message(arm, task, verdicts, notes, format_errors)
+            repair_text = build_repair_message(arm, task, verdicts, notes, format_errors, hint_lines=hints)
         record["trigger"] = trigger
         record["next_feedback"] = repair_text
+        record["feedback_level"] = level
+        record["feedback_classes"] = classes
         rounds.append(
             {
                 "round": round_index,
@@ -596,6 +818,7 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
         "arm": arm,
         "tier": task["tier"],
         "rep": rep,
+        "feedback": level,
         "max_repairs": max_repairs,
         "rounds": rounds,
         "final_solved": bool(rounds and rounds[-1]["solved"]),
@@ -636,6 +859,7 @@ def cmd_batch(args):
         "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "model": MODEL,
         "mode": "repair",
+        "feedback": args.feedback,
         "max_repairs": args.max_repairs,
         "transport": "proxy-9099",
         "reasoning_history": "strip",
@@ -718,6 +942,13 @@ def main(argv=None):
             type=int,
             default=2,
             help="repair rounds after a not-confirmed round 0 (default 2)",
+        )
+        p.add_argument(
+            "--feedback",
+            choices=FEEDBACK_LEVELS,
+            default="G0",
+            help="repair-feedback ladder: G0 = V13 text, G1 = value-free classes, "
+            "G2 = G1 + checker leg classes (default G0)",
         )
 
     batch = sub.add_parser("batch", help="run the pilot matrix")
