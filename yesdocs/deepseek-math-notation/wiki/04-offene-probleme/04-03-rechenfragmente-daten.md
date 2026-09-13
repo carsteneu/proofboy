@@ -197,6 +197,9 @@ bis `n = 10^4` und nie `≡ 1 (mod 3)`; A34693-Sweep `2..10^4` ohne Verletzung d
 acht runner-bestätigten Zeilen (`#ok: v1 v2 v3 v4 c1 c2 c3 c4`) — Details,
 Grenzen und Reproduktionsbefehle:
 [yesdocs/formal-conjectures/README.md](../../../formal-conjectures/README.md).
+Der vollständige `lake build` des Klons lief mit dem vorhandenen mathlib-Cache
+in ~11 min durch (`Build completed successfully (10180 jobs)`, EXIT 0): der
+Toolchain-/Mathlib-Pin ist lokal voll reproduzierbar.
 
 ## Quellen
 

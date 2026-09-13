@@ -102,9 +102,12 @@ python3 -m unittest discover -s yesdocs/formal-conjectures/tools
 mathlib-Rev `v4.33.1` stimmen exakt mit der lokalen Installation überein; der
 mathlib-Oleancache (`~/.cache/mathlib`, 8690 Dateien) war aus dem E1-Lauf
 vorhanden, `lake exe cache get` meldete „Already decompressed 8690 file(s)“.
-Ein vollständiger `lake build` wurde angestoßen und lief im Hintergrund; er
-dient als Bonus-Messung und ist **kein** Träger der Scan-Aussagen oben
-(Status am Rundenende siehe §4).
+Ein vollständiger `lake build` lief danach in **~11 min durch** (12:31:34 →
+12:42:17, 16 Kerne): `Build completed successfully (10180 jobs)`, EXIT 0,
+1140 gebaute Repo-Module, keine Fehler/Warnungen im Log. Der Voll-Build ist auf
+dieser Maschine also billig (Klon 13 MB + vorhandener mathlib-Cache) — er ist
+trotzdem **kein** Träger der Scan-Aussagen oben; der Scan bleibt statisch und
+läuft ohne Lean.
 
 ## 2. Shortlist
 
@@ -380,9 +383,10 @@ identische endliche Prüfanker, mehrere Notationen derselben Frage.
    (BMO#1-Erstwerte, A34693-Namen, BMO#4-Closed-Form gegen Wiki) lief für die
    Shortlist-Kandidaten; der restliche Katalog ist nicht Statement-für-
    Statement gegen seine Quellen geprüft.
-6. **Scan ist statisch.** Keine Lean-Elaboration; die Voll-Build-Messung ist
-   Bonus (Status unten) und die Kennzahlen hängen am gepinnten Commit
-   `a2f4a1b`, nicht am jeweils aktuellen `main`.
+6. **Scan ist statisch.** Keine Lean-Elaboration; die Kennzahlen hängen am
+   gepinnten Commit `a2f4a1b`, nicht am jeweils aktuellen `main`. Der
+   Voll-Build lief zwar durch (§1), prüft aber nur das Kompilieren, nicht die
+   Interpretation der Kennzahlen.
 7. **Klon nur temporär.** `.yesmem/tmp/formal-conjectures` ist gitignored;
    `data/scan.json` (2,6 MB) ist das eingefrorene, hinreichend
    deterministische Abbild. Kein Push, kein Merge, kein Deploy.
