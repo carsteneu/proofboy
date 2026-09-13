@@ -151,6 +151,15 @@ stimmen mit dem gepinnten Artefakt ueberein.)
 - Quellenstand: 12.09.2026 (Wikipedia-Fassung vom Abruf; Ionascu & Wilson
   2010; Salez 2014; Mordell 1967). Rechnerischer Weltstand laut Wikipedia:
   bis `10^17` verifiziert.
+- **Lean-Zwilling (E1, 13.09.2026).** Die sechs Identitaeten aus Abschnitt 1
+  und ein endliches Fenster (n <= 1000) sind zusaetzlich im Lean-4-Kernel
+  bewiesen: `lean/erdos-straus/` (README dort) enthaelt die sechs Klassen als
+  Theoreme ueber Q fuer alle `t >= 1` plus eine generierte Zeugentabelle mit
+  Kernel-Beweis fuer `2 <= n <= 1000`; `lake build` gruen, Axiom-Audit nur
+  `propext`/`Classical.choice`/`Quot.sound`, kein `sorry`, kein
+  `native_decide`. Das verschiebt keine Grenze dieser Auswertung: der Kernel
+  deckt dasselbe Fenster und dieselben sechs Klassen -- die Vermutung bleibt
+  offen (Abschnitt 5, erster Punkt).
 
 ## Nachrechnen
 
