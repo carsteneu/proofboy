@@ -21,7 +21,7 @@ from bemyself.claimtypes.coloring import DEFAULT_COLORING_LIMIT
 from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
-from bemyself import toolmanifest
+from bemyself import claimtypes, profiles, toolmanifest
 from bemyself.model import Cause, Claim, Verdict
 from bemyself.report import parse_report
 from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
@@ -116,15 +116,24 @@ def build_parser():
             "1 = at least one REFUTED; 2 = error; 3 = nothing CONFIRMED; "
             "4 = --strict, nothing REFUTED, at least one CONFIRMED and at "
             "least one UNVERIFIABLE; 5 = at least one defective claim (the "
-            "report is at fault; fails with and without --strict); "
+            "report is at fault: an unknown marker, a class its profile "
+            "requires, a malformed binding; fails with and without --strict); "
             "6 = --strict, nothing REFUTED and at least one claim a budget "
             "kept from being executed. "
             "Exit 0 does not mean every claim was proven - read the summary "
-            "or --json to see the UNVERIFIABLE claims and their class, or "
-            "pass --strict to make an unchecked claim fail the run."
+            "or --json to see the UNVERIFIABLE claims and their class, pass "
+            "--strict to make an unchecked claim fail the run, or --profile "
+            "to demand the claim classes a report of that kind must contain."
         ),
     )
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument(
+        "--list-types",
+        action="store_true",
+        help="list the registered optional claim types and exit",
+    )
+    # Not required: `--list-types` is a question of its own, answered without
+    # a subcommand; main() turns a missing command into the usage error.
+    sub = parser.add_subparsers(dest="command", required=False)
     check = sub.add_parser("check", help="verify every claim in a report")
     check.add_argument("--report", help="path to the report file")
     check.add_argument(
@@ -158,6 +167,20 @@ def build_parser():
             "claim fails with exit 5 in both modes (without the flag the "
             "other exit codes are unchanged)"
         ),
+    )
+    check.add_argument(
+        "--profile",
+        choices=profiles.profile_names(),
+        help=(
+            "report profile: the claim classes a report of this kind must "
+            "contain; a required class the report does not yield is a defect "
+            "(exit 5, with and without --strict)"
+        ),
+    )
+    check.add_argument(
+        "--list-types",
+        action="store_true",
+        help="list the registered optional claim types and exit (no report needed)",
     )
     check.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     check.add_argument("--tmp", help="directory for throwaway checkouts")
@@ -387,7 +410,36 @@ def exit_code(results, strict=False):
     return EXIT_OK
 
 
-def _json_payload(source, repo, results):
+def list_types(json_mode=False):
+    """Print the registered optional claim types and what they declare.
+
+    Read from the registry (``bemyself.claimtypes.CLAIM_TYPES``), never a
+    copy: ``kind``, ``needs_repo`` and ``binds_commit`` are the contract of a
+    type, and the marker tokens show which report markers it claims -- the
+    set an unknown marker is measured against.
+    """
+    entries = [
+        {
+            "kind": claim_type.kind,
+            "needs_repo": claimtypes.type_needs_repo(claim_type.kind),
+            "binds_commit": claim_type.binds_commit,
+            "markers": list(claimtypes.marker_tokens(claim_type)),
+        }
+        for claim_type in claimtypes.CLAIM_TYPES
+    ]
+    if json_mode:
+        print(json.dumps(entries, indent=2, ensure_ascii=True))
+    else:
+        for entry in entries:
+            print(
+                f"{entry['kind']:<10} needs_repo={str(entry['needs_repo']):<5} "
+                f"binds_commit={str(entry['binds_commit']):<5} "
+                f"markers={','.join(entry['markers'])}"
+            )
+    return EXIT_OK
+
+
+def _json_payload(source, repo, results, profile=None):
     return {
         "report": source,
         "repo": repo,
@@ -407,10 +459,11 @@ def _json_payload(source, repo, results):
         ],
         "summary": summarize(results),
         "classes": class_summary(results),
+        "negative_space": profiles.negative_space(results, profile),
     }
 
 
-def render_text(results):
+def render_text(results, profile=None):
     width = max((len(claim.kind) for claim, _ in results), default=0)
     lines = []
     for claim, result in results:
@@ -432,6 +485,7 @@ def render_text(results):
         + ")"
         + f"; executed: {executed}, not executed: {len(results) - executed}"
     )
+    lines.append(profiles.render_negative_space(profiles.negative_space(results, profile)))
     return "\n".join(lines)
 
 
@@ -540,7 +594,9 @@ def run_check(args, parser):
         except toolmanifest.ToolManifestError as exc:
             return _source_error(args.json, source, repo, str(exc))
 
-    claims = _apply_files_override(parse_report(text), args.files)
+    claims = profiles.profile_claims(
+        _apply_files_override(parse_report(text), args.files), args.profile
+    )
 
     if repo is None:
         needed = next((claim.kind for claim in claims if kind_needs_repo(claim.kind)), None)
@@ -556,7 +612,12 @@ def run_check(args, parser):
         kind = "section" if args.section is not None else "report"
         print(f"bemyself: no verifiable claims found in the {kind}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_payload(source, repo, []), indent=2, ensure_ascii=True))
+            print(json.dumps(_json_payload(source, repo, [], args.profile), indent=2, ensure_ascii=True))
+        else:
+            # The negative space is what keeps this run apart from one that
+            # sought classes and missed them: "found nothing" and "sought
+            # nothing" must not read the same.
+            print(profiles.render_negative_space(profiles.negative_space([], args.profile)))
         return EXIT_NOTHING
 
     tmp_dir = _tmp_dir(args, repo)
@@ -589,9 +650,9 @@ def run_check(args, parser):
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 
     if args.json:
-        print(json.dumps(_json_payload(source, repo, results), indent=2, ensure_ascii=True))
+        print(json.dumps(_json_payload(source, repo, results, args.profile), indent=2, ensure_ascii=True))
     else:
-        print(sanitize(render_text(results)))
+        print(sanitize(render_text(results, args.profile)))
 
     return exit_code(results, strict=args.strict)
 
@@ -599,6 +660,9 @@ def run_check(args, parser):
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
+    if getattr(args, "list_types", False):
+        # Answered on its own: no report, no repository, no claim runs.
+        return list_types(json_mode=bool(getattr(args, "json", False)))
     if args.command == "check":
         _validate_check_args(parser, args)
         return run_check(args, parser)
@@ -607,5 +671,7 @@ def main(argv=None):
         from bemyself.eval import run_eval
 
         return run_eval(args)
+    if args.command is None:
+        parser.error("one of the commands check or eval is required")
     parser.error(f"unknown command: {args.command}")
     return EXIT_ERROR
