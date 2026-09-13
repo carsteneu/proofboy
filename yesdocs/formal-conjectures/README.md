@@ -338,6 +338,18 @@ Reproduktion:
 python3 -m bemyself.msheet run yesdocs/formal-conjectures/data/bmo-attack.msheet --json
 ```
 
+**Daten-Anker.** Die eingefrorenen Artefakte sind zusätzlich über
+`[ARTIFACT]`-Claims an dieses Dokument gebunden; der Prüfer liest die Dateien
+unter der Repo-Wurzel und vergleicht die SHA-256:
+
+[ARTIFACT: yesdocs/formal-conjectures/data/scan.json -> babe2ffac1336014bdd48f21db960ad607e9e74f9584fe7853b2253dc642e249]
+[ARTIFACT: yesdocs/formal-conjectures/data/probe.txt -> 93a93990c051f0ab6edfe20265d68e49152978b7d11dc9d1b771f3c38c1844fc]
+[ARTIFACT: yesdocs/formal-conjectures/data/bmo-attack.msheet -> 7d0b37d8da2ce589fef5a32498164fa8f75d6ab8aed1d4077a5ccd133f327bef]
+
+```bash
+python3 -m bemyself check --report yesdocs/formal-conjectures/README.md --repo . --strict
+```
+
 ### 3.3 Einordnung
 
 Der Angriff zeigt für die Shortlist, was im Testfeld **wirklich prüfbar**
