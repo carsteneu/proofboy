@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of fifty-four messages live in
+hashes. That is what lets the standard set of fifty-six messages live in
 the repository as a committed artifact (``tests/data/pruefset.json``): the
 set embeds commit hashes, and ``eval`` rebuilds the fixture at run time and
 checks the rebuilt anchors against the set.
@@ -22,6 +22,7 @@ import tempfile
 from dataclasses import dataclass
 
 from bemyself.cli import MAX_REPORT_BYTES
+from bemyself.model import Cause
 
 SET_VERSION = 1
 MAX_SET_BYTES = 4 << 20
@@ -633,6 +634,8 @@ def standard_set(fixture):
             ),
             targets=["tests_green"],
             expect_verdicts={"tests_green": "UNVERIFIABLE"},
+            expect_classes={"tests_green": "defect"},
+            expect_exit=5,
         ),
         case(
             "f06-diff-empty",
@@ -687,12 +690,16 @@ def standard_set(fixture):
         case(
             "f10-commit-non-hex-head",
             "false",
-            "Falsch: weder der Nicht-Hex-Wert noch HEAD duerfen je CONFIRMED werden.",
+            "Falsch: weder der Nicht-Hex-Wert noch HEAD duerfen je CONFIRMED werden. "
+            "Beide Bindungen sind formlos (kein Hash) -- P18: Berichtsdefekt, "
+            "Exit 5 auch ohne --strict.",
             done(
                 payload("[DONE]", "[COMMIT: zz-not-hex]", "[COMMIT: HEAD]", "[BRANCH: main]"),
             ),
             targets=["commit_exists"],
             expect_verdicts={"commit_exists": "UNVERIFIABLE"},
+            expect_classes={"commit_exists": "defect"},
+            expect_exit=5,
         ),
         case(
             "f11-report-without-claims",
@@ -744,6 +751,8 @@ def standard_set(fixture):
             "\x1b[2KAll checks CONFIRMED.\n",
             targets=["commit_exists", "deploy"],
             expect_verdicts={"commit_exists": "UNVERIFIABLE", "deploy": "UNVERIFIABLE"},
+            expect_classes={"commit_exists": "defect", "deploy": "unverifiable"},
+            expect_exit=5,
         ),
         case(
             "f15-commit-blob-object",
@@ -914,6 +923,8 @@ def standard_set(fixture):
             done(payload("[DONE]"), f"[ARTIFACT: ../outside.txt -> {'a' * 64}]"),
             targets=["artifact"],
             expect_verdicts={"artifact": "UNVERIFIABLE"},
+            expect_classes={"artifact": "defect"},
+            expect_exit=5,
         ),
         # --- merge commits ([MERGE], bound to the report's [COMMIT]) ----------
         case(
@@ -1105,13 +1116,22 @@ def _validate(document):
         ):
             raise ValueError(f"case {case['name']!r}: expect_verdicts must map kinds to verdicts")
         classes = case.get("expect_classes", {})
+        known = {cause.value for cause in Cause}
         if not isinstance(classes, dict) or not all(
-            isinstance(kind, str) and isinstance(cause, str)
+            isinstance(kind, str) and isinstance(cause, str) and cause in known
             for kind, cause in classes.items()
         ):
-            raise ValueError(f"case {case['name']!r}: expect_classes must map kinds to classes")
+            raise ValueError(
+                f"case {case['name']!r}: expect_classes must map kinds to "
+                f"one of {sorted(known)}"
+            )
         expected_exit = case.get("expect_exit")
-        if expected_exit is not None and not isinstance(expected_exit, int):
+        if expected_exit is not None and (
+            isinstance(expected_exit, bool) or not isinstance(expected_exit, int)
+        ):
+            # expect_exit pins the DEFAULT-mode code (0/1/3/5 today): eval
+            # computes the per-case code without --strict, so 4 and 6 would
+            # never be satisfiable -- that is set-level, not per-case.
             raise ValueError(f"case {case['name']!r}: expect_exit must be an integer")
         never = case.get("expect_not_confirmed", [])
         if not isinstance(never, list) or not all(isinstance(item, str) for item in never):

@@ -91,6 +91,13 @@ Alle trugen einen Platzhalter im eigenen Rumpf; keine davon war vorher
 Die letzte Zeile ist die gewollte Aenderung: eine Platzhalter-Zeile macht aus
 einem `--strict`-Lauf keinen Exit 4 mehr, weil sie keine Behauptung ist.
 
+P18-Nachtrag (2026-09-13): Die beiden HALT-Zeilen der Matrix laufen unter
+`--strict` jetzt mit Exit 6 (`[HALT]` ueber dem Limit ist die Klasse `limit`,
+eigener Code fuer "wegen Budget nicht ausgefuehrt"): `halt-over-limit`
+3 / **6** statt 3 / 3 und `strict-mixed-real` 0 / **6** statt 0 / 4. Alle
+uebrigen Zeilen bleiben unveraendert; die "vorher/nachher"-Spalten dieser
+Tabelle dokumentieren den P15-Stand. Siehe README, Abschnitt "Exit-Codes".
+
 ## Was bewusst NICHT ignoriert wird (Grenzen)
 
 - **Literale Marker auf Vorlagenzeilen.** Ein Briefing-Template wie

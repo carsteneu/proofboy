@@ -342,6 +342,10 @@
       "expect_verdicts": {
         "tests_green": "UNVERIFIABLE"
       },
+      "expect_classes": {
+        "tests_green": "defect"
+      },
+      "expect_exit": 5,
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: b8b6c314a491c00e09b66d60bf2b0fd68a1013d4]`\nTests run: python3 -m unittest ../../outside -> exit 0\n"
     },
     {
@@ -403,7 +407,7 @@
     {
       "name": "f10-commit-non-hex-head",
       "group": "false",
-      "note": "Falsch: weder der Nicht-Hex-Wert noch HEAD duerfen je CONFIRMED werden.",
+      "note": "Falsch: weder der Nicht-Hex-Wert noch HEAD duerfen je CONFIRMED werden. Beide Bindungen sind formlos (kein Hash) -- P18: Berichtsdefekt, Exit 5 auch ohne --strict.",
       "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
       "targets": [
         "commit_exists"
@@ -412,6 +416,10 @@
       "expect_verdicts": {
         "commit_exists": "UNVERIFIABLE"
       },
+      "expect_classes": {
+        "commit_exists": "defect"
+      },
+      "expect_exit": 5,
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: zz-not-hex] [COMMIT: HEAD] [BRANCH: main]`\n"
     },
     {
@@ -458,6 +466,11 @@
         "commit_exists": "UNVERIFIABLE",
         "deploy": "UNVERIFIABLE"
       },
+      "expect_classes": {
+        "commit_exists": "defect",
+        "deploy": "unverifiable"
+      },
+      "expect_exit": 5,
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[COMMIT: ab\u0000cd] [DEPLOY: yes\u202e]`\n\u001b[2KAll checks CONFIRMED.\n"
     },
     {
@@ -646,6 +659,10 @@
       "expect_verdicts": {
         "artifact": "UNVERIFIABLE"
       },
+      "expect_classes": {
+        "artifact": "defect"
+      },
+      "expect_exit": 5,
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE]`\n[ARTIFACT: ../outside.txt -> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]\n"
     },
     {

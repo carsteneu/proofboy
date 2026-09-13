@@ -123,6 +123,9 @@ def check(claim, ctx):
             cause=Cause.UNVERIFIABLE,
         )
     if claim.fields.get("score_conflict"):
+        # Two [SCORE] markers that disagree make the claim ambiguous, not
+        # defective: the report may be honest and the tool cannot decide
+        # which value to check (same residual rule as a prose number).
         return Result(
             Verdict.UNVERIFIABLE,
             reason="conflicting [SCORE] markers for this machine; the claim is ambiguous",

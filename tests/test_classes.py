@@ -93,6 +93,24 @@ class ExitCodeTest(unittest.TestCase):
                 self.assertEqual(exit_code(pairs), EXIT_OK)
                 self.assertEqual(exit_code(pairs, strict=True), EXIT_STRICT)
 
+    def test_limit_precedes_the_soft_classes_under_strict(self):
+        pairs = results(
+            (Verdict.CONFIRMED, None),
+            (Verdict.UNVERIFIABLE, Cause.LIMIT),
+            (Verdict.UNVERIFIABLE, Cause.ENVIRONMENT),
+            (Verdict.UNVERIFIABLE, Cause.UNVERIFIABLE),
+        )
+        self.assertEqual(exit_code(pairs), EXIT_OK)
+        self.assertEqual(exit_code(pairs, strict=True), EXIT_LIMIT)
+
+    def test_defect_precedes_a_limit(self):
+        pairs = results(
+            (Verdict.UNVERIFIABLE, Cause.DEFECT),
+            (Verdict.UNVERIFIABLE, Cause.LIMIT),
+        )
+        self.assertEqual(exit_code(pairs), EXIT_DEFECT)
+        self.assertEqual(exit_code(pairs, strict=True), EXIT_DEFECT)
+
     def test_baseline_matrix_is_unchanged(self):
         # Measured on base 1d7b070 before P18 (see .yesmem/tmp/baseline):
         # 0=confirmed, 1=refuted, 3=nothing confirmed, 4=strict+UNVERIFIABLE.
@@ -256,6 +274,32 @@ class ClassEndToEndTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         claim = self.claims(proc.stdout)["deploy"]
         self.assertEqual(claim["class"], "unverifiable")
+
+    def test_merge_claim_with_a_malformed_branch_is_a_defect(self):
+        # "-bad" is neither a status token nor a valid branch name: the claim
+        # cannot bind, so the report is at fault and the run fails without
+        # --strict. ([MERGE: no] by contrast stays residual.)
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [MERGE: -bad]`\n"
+        )
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 5, proc.stdout + proc.stderr)
+        claim = self.claims(proc.stdout)["merge"]
+        self.assertEqual(claim["verdict"], "UNVERIFIABLE")
+        self.assertEqual(claim["class"], "defect")
+        self.assertIn("not a valid branch name", claim["reason"])
+
+    def test_merge_status_token_stays_residual(self):
+        # [MERGE: no] carries nothing to check -- residual, strict-only.
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [MERGE: no]`\n"
+        )
+        proc = self.invoke("--report", report, "--json")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        claim = self.claims(proc.stdout)["merge"]
+        self.assertEqual(claim["class"], "unverifiable")
+        strict = self.invoke("--report", report, "--json", "--strict")
+        self.assertEqual(strict.returncode, 4, strict.stdout + strict.stderr)
 
     def test_json_summary_carries_the_class_counts(self):
         report = self.write_report(

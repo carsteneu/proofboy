@@ -1035,7 +1035,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 _last_lines(_tail_open(log)[0]),
-                f"command timed out after {TEST_TIMEOUT}s" + note_suffix,
+                f"command timed out after {TEST_TIMEOUT}s (built-in time limit)" + note_suffix,
                 sandboxed=sandboxed,
                 cause=Cause.LIMIT,
             )
@@ -1050,7 +1050,8 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes" + note_suffix,
+                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes "
+                "(built-in output limit)" + note_suffix,
                 sandboxed=sandboxed,
                 cause=Cause.LIMIT,
             )
@@ -1061,7 +1062,8 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
+                f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes "
+                "(built-in output limit); "
                 "the run cannot be verified from truncated output" + note_suffix,
                 sandboxed=sandboxed,
                 cause=Cause.LIMIT,
@@ -1122,7 +1124,8 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                "the run hit the per-file write limit; its outcome cannot be verified" + note_suffix,
+                f"the run hit the per-file write limit of {MAX_LOG_BYTES} bytes "
+                "(built-in limit); its outcome cannot be verified" + note_suffix,
                 sandboxed=sandboxed,
                 cause=Cause.LIMIT,
             )
@@ -1218,7 +1221,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
     if not _valid_branch(branch):
         return Result(
             Verdict.UNVERIFIABLE,
-            reason=f"the claim names no branch to check: {branch!r}",
+            reason=f"not a valid branch name: {branch!r}",
             cause=Cause.DEFECT,
         )
     value = (claim.fields.get("commit") or "").strip()

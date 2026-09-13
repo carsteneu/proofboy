@@ -67,10 +67,11 @@ liefern, deren Testbehauptung nie geprueft wurde, solange nur eine andere
 Behauptung bestaetigt ist (etwa ein existierender Commit). Mit `--strict` ist
 Exit 0 die Zusage: mindestens eine Behauptung bestaetigt, keine widerlegt,
 keine `unpruefbar`. Widerlegte Behauptungen bleiben Exit 1, ein Bericht ohne
-bestaetigte Behauptung bleibt Exit 3; die Codes 0-3 behalten in beiden Modi
-ihre Bedeutung. Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei
-Exit 0 mergen, also `python3 -m bemyself check --strict --report <datei>
---repo <pfad>`.
+bestaetigte Behauptung bleibt Exit 3 -- es sei denn, eine Behauptung ist ein
+Defekt (dann 5, in beiden Modi) oder, mit `--strict`, ein ausgeschoepftes
+Budget (dann 6). Die Codes 0-4 behalten sonst in beiden Modi ihre Bedeutung.
+Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei Exit 0 mergen,
+also `python3 -m bemyself check --strict --report <datei> --repo <pfad>`.
 
 Widerlegt dominiert: hat eine Meldung eine widerlegte Behauptung, bleibt es
 bei Exit 1, auch wenn daneben ein Defekt steht. Die Klassen selbst und die
@@ -111,6 +112,11 @@ Ausgabe, Tapes, Artefaktgroesse), sagt er das statt eine Option zu erfinden.
 Jeder Lauf endet mit einer Schlusszeile ueber alle Kategorien, zum Beispiel:
 
     summary: CONFIRMED: 1, REFUTED: 0, UNVERIFIABLE: 2 (defect: 1, environment: 0, limit: 1, unverifiable: 0); executed: 1, not executed: 2
+
+`executed` zaehlt jede Behauptung, die das Werkzeug verfolgt hat (bestaetigt,
+widerlegt, `environment`, `unverifiable` -- auch eine Behauptung ohne Checker
+wie `[DEPLOY]`), `not executed` die beiden Faelle, in denen kein Urteil
+moeglich war: Defekt und ausgeschoepftes Budget.
 
 ## Grenzen
 

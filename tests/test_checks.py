@@ -376,7 +376,9 @@ class CheckerTest(unittest.TestCase):
 
     def test_merge_unverifiable_for_head_as_the_branch(self):
         # HEAD is a revision; refs/heads/HEAD cannot exist. Resolving it
-        # anyway would compare against origin/HEAD's branch.
+        # anyway would compare against origin/HEAD's branch. HEAD counts as
+        # a status token ("no merge reported"), not as a malformed branch:
+        # the claim carries nothing to check, it is not accused of a defect.
         result = self.run_check("merge", value="HEAD", commit=self.repo["good"])
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("names no branch", result.reason)
