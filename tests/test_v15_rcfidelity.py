@@ -88,6 +88,21 @@ RC_V1_DRAFT = "\n".join(
     ]
 )
 
+# Ein komplettes Blatt in der Denkspur: endet mit der Claim-Zone, die der
+# Blatt-Parser verlangt ([HALT] ist die letzte Zeile jedes Blattes).
+RC_SHEET_FULL = "\n".join(
+    [
+        "g: cp 1: (B,1,1)?",
+        "a: M = 1RB1RZ_0LA0LA",
+        "h1: cp 1: (B,1,1)",
+        "v h1: sim(0..1)",
+        "h1+",
+        "CLAIM c1: cp 1: (B,1,1)",
+        "WITNESS c1: ref h1",
+        "[HALT] c1",
+    ]
+)
+
 
 class ParseRcTest(unittest.TestCase):
     """Zeilen-Klassifikation und Anteile auf synthetischen Texten."""
@@ -164,6 +179,20 @@ class ParseRcTest(unittest.TestCase):
         # Der Entwurf zaehlt nicht als Notation: die Metrik misst V1.1-Koepfe.
         self.assertEqual(metrics["notation_char_share"], 0.0)
 
+    def test_trailing_block_includes_the_claim_zone(self):
+        # Der Blatt-Entwurf endet mit CLAIM/WITNESS/[HALT]; ohne die
+        # Claim-Zeilen im Trailing-Lauf waere der Entwurf unsichtbar.
+        metrics = rcfidelity.parse_rc(RC_SHEET_FULL)
+        self.assertEqual(metrics["lines"], 8)
+        self.assertEqual(metrics["prose_lines"], 0)
+        self.assertEqual(metrics["trailing_notation_block"], 8)
+        self.assertEqual(metrics["claim_lines"], 3)
+
+    def test_trailing_block_stops_at_prose(self):
+        text = "\n".join(["CLAIM c1: x = 1", "WITNESS c1: auto", "[HALT] c1", "Und fertig."])
+        metrics = rcfidelity.parse_rc(text)
+        self.assertEqual(metrics["trailing_notation_block"], 0)
+
     def test_longest_line(self):
         line = "a: " + "x" * 4997
         metrics = rcfidelity.parse_rc(line)
@@ -186,9 +215,10 @@ class ParseRcTest(unittest.TestCase):
         self.assertEqual(metrics["status_lines"], 3)
         self.assertEqual(metrics["prose_lines"], 2)
 
-    def test_adversarial_line_is_linear(self):
-        # Kein ReDoS: eine 100k-Zeichen-Zeile mit v+-Kopf wird ohne
-        # Katastrophen-Backtracking verarbeitet (Scanner, keine Regex).
+    def test_adversarial_line_terminates(self):
+        # Kein ReDoS: eine 100k-Zeichen-Zeile mit v+-Kopf wird verarbeitet
+        # (Scanner, keine Regex). Die Laufzeit-Linearitaet wurde separat
+        # gemessen (50k Zeichen ~2,5 ms; 800k ~40 ms); hier nur Semantik.
         text = "v" + "1" * 50000 + " " + "a" * 50000
         metrics = rcfidelity.parse_rc(text)
         self.assertEqual(metrics["lines"], 1)
@@ -274,6 +304,31 @@ class AnalyzeRunsTest(unittest.TestCase):
         self.assertEqual(report["per_arm"]["C2-B"]["n_rounds"], 1)
         self.assertEqual(report["per_arm"]["C2-B"]["n_rc"], 0)
         self.assertEqual(report["per_arm"]["C2-B"]["rc_missing"], 1)
+
+    def test_unreadable_raw_is_counted_not_crashing(self):
+        root = self._root()
+        run_dir = self._make_run(root, "B3-9002", "C2", 1, "x")
+        (run_dir / "round0" / "raw.json").write_bytes(b'\xff\xfe{"kaputt')
+        report = rcfidelity.analyze_runs(root)
+        self.assertEqual(report["per_arm"]["C2-B"]["rc_missing"], 1)
+
+    def test_malformed_message_shapes_are_missing(self):
+        root = self._root()
+        run_dir = self._make_run(root, "B3-9002", "C1", 1, "x")
+        payloads = [
+            {"choices": [{"message": None}]},
+            {"choices": [{"message": {"reasoning_content": 42}}]},
+            {"choices": [{"message": {"reasoning_content": {"a": 1}}}]},
+            {"choices": ["kaputt"]},
+        ]
+        for payload in payloads:
+            (run_dir / "round0" / "raw.json").write_text(
+                json.dumps(payload), encoding="utf-8"
+            )
+            report = rcfidelity.analyze_runs(root)
+            self.assertEqual(
+                report["per_arm"]["C1-B"]["rc_missing"], 1, str(payload)[:60]
+            )
 
     def test_cli_writes_json_and_markdown(self):
         root = self._root()

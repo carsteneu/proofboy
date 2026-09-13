@@ -24,13 +24,14 @@ Runde 2 (V12): Reparatur-Loop. Runde 0 laeuft wie der Pilot; ist der
 Endzustand danach nicht bestaetigt, folgt eine Reparaturrunde (max.
 ``--max-repairs``, Default 2) mit dem Verdikt-Appendix des Runners im
 Verlauf. K erhaelt stattdessen eine neutrale Selbstpruefung; die Formel-Arme
-(B/C/D) erhalten ihre eigenen maschinell geprueften Verdikte -- niemals
-Referenzwerte (Gold-Leak-Schutz in :func:`feedback_lines`).
+(B/C/D und die RC-Varianten C0/C1/C2) erhalten ihre eigenen maschinell
+geprueften Verdikte -- niemals Referenzwerte (Gold-Leak-Schutz in
+:func:`feedback_lines`).
 
 Runde 3 (V13, Haerte): zwei Begriffe, getrennt gefuehrt --
 
 - **Erfolg** ist der tier-typisierte Endzustand einer Runde: Zahl exakt (K)
-  bzw. Beleg-Blatt bestaetigt (B/C/D), alle Checkpoints exakt (trace),
+  bzw. Beleg-Blatt bestaetigt (B/C/D, C0/C1/C2), alle Checkpoints exakt (trace),
   Zyklus-Zertifikat maschinenverifiziert (cyc, auch ohne Vorgabe).
 - **Trigger** ist das Ereignis, das die *naechste* Runde ausloest:
   ``end_state_not_confirmed`` (siehe :data:`TRIGGER_NOT_CONFIRMED`). Er steht

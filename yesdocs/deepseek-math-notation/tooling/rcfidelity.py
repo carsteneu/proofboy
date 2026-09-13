@@ -17,9 +17,16 @@ Was die Metrik misst (heuristisch, ehrlich als Heuristik ausgewiesen):
   Token-Kosten tragen.
 - **Degeneration**: leere Tag-Koepfe (``g:`` ohne Inhalt), identische
   Zeilenlaeufe (>= 3), laengste Zeile, laengster Prosa-Lauf.
-- **Bekannter Konfund**: der Blatt-Entwurf am Ende des RC traegt gueltige
-  V1.1-Tag-Zeilen; ``trailing_notation_block`` gibt seine Groesse an, damit
-  der Draft-Anteil von echter Denkspur-Notation unterscheidbar bleibt.
+- **Bekannter Konfund**: der Blatt-Entwurf in der Denkspur traegt gueltige
+  V1.1-Zeilen (auch die Claim-Zone CLAIM/WITNESS/[HALT]); der
+  ``trailing_notation_block`` misst den zusammenhaengenden
+  Notation-/Claim-Block am RC-Ende, damit der Draft-Anteil von echter
+  Denkspur-Notation unterscheidbar bleibt.
+
+Hinweis zur Grammatik: die Status-/v-Zeilen-Erkennung ist eine bewusst
+laxe Heuristik (Status-id: Ziffer irgendwo; v-Zeile: ``v<n> <ziel>:`` ohne
+Zeugentext-Pflicht) und damit weiter als der Blatt-Parser; in den
+V13/V15-Rohdaten traten keine abweichenden Zeilen auf.
 
 Kein Regex-Backtracking: die Kopf-Erkennung ist ein linearer Scanner
 (ReDoS-Lehre; V13-Security-Review).
@@ -45,7 +52,9 @@ STATUS_SUFFIX = "+-?!"
 CLAIM_PREFIXES = ("CLAIM ", "WITNESS ", "[HALT]")
 REPEAT_MIN_RUN = 3
 NOTATION_KINDS = ("tag", "v")
-NOTATION_KINDS_WITH_STATUS = ("tag", "v", "status")
+# Der Blatt-Entwurf endet mit der Claim-Zone (CLAIM/WITNESS/[HALT]) — ohne
+# die Claim-Zeilen waere ein vollstaendig notationisches RC unsichtbar.
+TRAILING_BLOCK_KINDS = ("tag", "v", "status", "claim")
 
 
 def _head_kind(line):
@@ -190,7 +199,7 @@ def parse_rc(text):
     )
     trailing_notation_block = 0
     for kind in reversed(kinds):
-        if kind in NOTATION_KINDS_WITH_STATUS:
+        if kind in TRAILING_BLOCK_KINDS:
             trailing_notation_block += 1
         else:
             break
@@ -226,12 +235,23 @@ def parse_rc(text):
 
 
 def _read_rc(raw_path):
-    """The full reasoning_content of one round's raw.json, or None."""
+    """The full reasoning_content of one round's raw.json, or None.
+
+    Fail-safe: jede unlesbare/korrupte Datei zaehlt als fehlend (rc_missing)
+    statt die Auswertung des ganzen Lauf-Baums abzubrechen.
+    """
     try:
         payload = json.loads(raw_path.read_text(encoding="utf-8"))
         message = payload["choices"][0]["message"]
-        return message.get("reasoning_content") or ""
-    except (OSError, KeyError, IndexError, TypeError, json.JSONDecodeError):
+        if not isinstance(message, dict):
+            return None
+        reasoning = message.get("reasoning_content")
+        if reasoning is None:
+            return ""
+        if not isinstance(reasoning, str):
+            return None
+        return reasoning
+    except (OSError, KeyError, IndexError, TypeError, ValueError):
         return None
 
 
@@ -347,8 +367,8 @@ def render_markdown(report):
         "Hinweise: `Tag-Zeilen` = (Tag- + v-Zeilen)/Zeilen (Metrik h); "
         "`Notation-Zeichen` ist der dokumentierte Zeichen-Proxy fuer den "
         "Token-Anteil (kein lokaler Tokenizer; unterschaetzt die Notation); "
-        "`Draft-Block` = zusammenhaengende Notationszeilen am RC-Ende "
-        "(Blatt-Entwurf, bekannte Ueberzeichnung). Keine Signifikanzaussagen."
+        "`Draft-Block` = zusammenhaengender Notations-/Claim-Block am RC-Ende "
+        "(Blatt-Entwurf inkl. CLAIM/WITNESS/[HALT]). Keine Signifikanzaussagen."
     )
     return "\n".join(lines)
 

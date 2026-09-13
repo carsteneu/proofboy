@@ -70,7 +70,7 @@ Ein lokaler Modell-Tokenizer steht nicht bereit (01-03b nutzte Zeichen-/Byte-Zä
 
 ### 3.4 Bekannter Konfund: der Blatt-Entwurf im RC
 
-Das Modell entwirft in der Denkspur regelmäßig das sichtbare Blatt — gültige Tag-Zeilen mitten im RC. Die Metrik weist `trailing_notation_block` und Zeilen-/Zeichenanteile getrennt aus; die Anteile sind darum Obergrenzen der „echten" Denkspur-Notation. In den V15-Läufen lag der Entwurf nie am RC-Ende (Draft-Block-Mittel 0,0 in allen Armen) — der Konfund ist präsent, aber messbar begrenzt.
+Das Modell entwirft in der Denkspur regelmäßig das sichtbare Blatt — gültige Tag-Zeilen, Statuszeilen und die Claim-Zone (CLAIM/WITNESS/[HALT]) mitten im RC. Die Metrik weist den zusammenhängenden Notations-/Claim-Block am RC-Ende als `trailing_notation_block` aus und zählt Zeilen-/Zeichenanteile über den ganzen Text; die Anteile sind darum Obergrenzen der „echten" Denkspur-Notation. Die V15-Läufe zeigen beide Formen: meist liegt der Entwurf mitten im RC (Kontrollarm C0 in beiden Tiers ohne Trailing-Block), teils steht Notation am RC-Ende (C1: ø 0,8 bzw. 1,0 Zeilen; C2-A ø 1,1), und im Extremfall ist der RC das ganze Blatt (B3-0007/C1: Trailing-Block 8 von 8 Zeilen).
 
 ### 3.5 Prefill als Probe, nicht als Annahme (C3)
 
@@ -78,7 +78,7 @@ Statt auf Doku-Zitate zu bauen, lief eine Live-Probe gegen denselben Transport (
 
 ### 3.6 Fairness der Arme
 
-Zwischen C0/C1/C2 differiert **nur** der RC-Absatz (Guard-Test: C0 byte-identisch zu C; alle C-Arme teilen Antwortkonventionen und Rückkanal). Kein Arm trägt Werte der Zertifikat-Aufgabe B3-0007 in der Instruktion (Test). Die Teilmenge (4 schnelle Tier-A-Zellen, alle 8 Tier-B-Zellen) und die Wiederholungszahlen (Tier A 2, Tier B 1 wie V13) ändern die Bedingungen der Vorrunde nicht.
+Zwischen C0/C1/C2 differiert **nur** der RC-Absatz (Guard-Test: C0 byte-identisch zu C; alle C-Arme teilen Antwortkonventionen und Rückkanal). Die RC-Zusätze tragen keine Aufgabenwerte (Test); B3-0007 ist die Vorgabe-Variante — dort steht das Zertifikat by design im geteilten Aufgaben-Prompt aller Arme. Die Teilmenge (4 schnelle Tier-A-Zellen, alle 8 Tier-B-Zellen) und die Wiederholungszahlen (Tier A 2, Tier B 1 wie V13) ändern die Bedingungen der Vorrunde nicht.
 
 ## 4. Protokoll und Läufe
 
@@ -90,7 +90,7 @@ Zwischen C0/C1/C2 differiert **nur** der RC-Absatz (Guard-Test: C0 byte-identisc
 
 Transport: direkter HTTP-Pfad `localhost:9099/v1/chat/completions` (Bearer; Modell `deepseek-flash`), wie in [05-08](05-08-pilotbericht-v1.1.md) §2 — kein Werkzeugzugriff, kein Sockel. `max_repairs=2` (Reparaturrunde = Wiederholung derselben Bitte plus maschinelle Verdikte, unverändert aus V13). Reproduktion: `harness.py batch --arms C0,C1,C2 --task-ids … --reps …`.
 
-**Abweichungen (dokumentiert):** (1) B3-0008/C1 riss in der Reparaturrunde den 300-s-Call-Cap (0 Tokens, `TimeoutError`); die Zelle zählt als nicht gelöst — die anderen Arme liefen unter demselben Cap, C0 und C2 lösten die Zelle in der Reparatur. (2) Die V13-Baseline ist rückwirkend metrisiert (kein Neulauf); sie dient als Kontext, nicht als Kontrolle. (3) Keine Neustart-Läufe; alle 48 V15-Läufe sind Erstläufe des jeweiligen Arms.
+**Abweichungen (dokumentiert):** (1) B3-0008/C1 riss in der Reparaturrunde den 300-s-Call-Cap (0 Tokens, `TimeoutError`); die Zelle zählt als nicht gelöst — die anderen Arme liefen unter demselben Cap, C0 und C2 lösten die Zelle in der Reparatur. (2) Die V13-Baseline ist rückwirkend metrisiert (kein Neulauf); sie dient als Kontext, nicht als Kontrolle. (3) Keine Neustart-Läufe; alle 48 V15-Läufe sind Erstläufe des jeweiligen Arms. (4) Die Rohdaten liegen (wie in den Vorrunden) unter dem gitignorierten `.yesmem/tmp/` und sind darum nur lokal verfügbar; im Repo stehen die Auswertungs-Assets.
 
 ## 5. Ergebnisse
 
@@ -109,7 +109,7 @@ Auch der V1.1-Arm C bleibt unter 10 % — die Denkspur war strukturell Prosa, in
 
 ### 5.2 Instruction-only verschiebt die Denkspur — in kurzen Zellen, nicht in langen
 
-Tier A (alle Runden): C0 13,5 % Tag-Zeilen / 8,7 % Notations-Zeichen; C1 21,1 % / 11,6 %; C2 25,9 % / 17,8 % (C2 mit n=9, inkl. einer Reparaturrunde). Die Instruktion wirkt: +7,6 pp bzw. +12,4 pp Tag-Zeilen gegenüber der frischen Kontrolle.
+Tier A (alle Runden): C0 13,5 % Tag-Zeilen / 8,7 % Notations-Zeichen; C1 21,1 % / 11,6 %; C2 25,9 % / 17,8 % (C2 mit n=9, inkl. einer Reparaturrunde). Die Instruktion wirkt (in dieser Stichprobe): +7,6 pp bzw. +12,4 pp Tag-Zeilen gegenüber der frischen Kontrolle.
 
 Tier B trennt scharf nach Aufgabentyp (nur Runde 0, je 4 Zellen):
 
@@ -119,9 +119,9 @@ Tier B trennt scharf nach Aufgabentyp (nur Runde 0, je 4 Zellen):
 | Zyklus B3-0005..08: Tag-Zeilen / Zeichen | 10,2 % / 1,6 % | 26,6 % / 19,2 % | 21,5 % / 4,3 % |
 | Zyklus ohne B3-0008 (drei kurze Zellen) | 13,6 % / 2,1 % | 34,8 % / 25,6 % | 28,0 % / 5,6 % |
 
-Die vier Trace-Zellen — die teuren Simulationen mit 30–40k Reasoning-Tokens je Lauf — ignorieren die Instruktion praktisch (≤2,6 %). Die kurzen Zyklus-Zellen folgen deutlich, am stärksten C1. Vollständig folgsam wird die Denkspur im Einzelfall: **B3-0007/C1 schreibt das komplette Blatt in den RC** (4 Tag-Zeilen, v-Zeile, Statuszeile, Claim-Zone; 0 Prosa-Zeilen, 197 Tokens gesamt) — RC ≡ Blatt, wörtlich.
+Die vier Trace-Zellen — die teuren Simulationen mit rund 20–40k Reasoning-Tokens je Lauf (Runde 0) — ignorieren die Instruktion praktisch (≤2,6 %). Die kurzen Zyklus-Zellen folgen deutlich, am stärksten C1. Vollständig folgsam wird die Denkspur im Einzelfall: **B3-0007/C1 schreibt das komplette Blatt in den RC** (3 Tag-Zeilen, 1 v-Zeile, 1 Statuszeile, Claim-Zone; 8 Zeilen, 0 Prosa-Zeilen, 197 Tokens gesamt) — RC ≡ Blatt, wörtlich.
 
-Qualitativ (Zitate aus den Läufen): C0 denkt englisch weiter („We need answer only in formal language…"); C1 denkt deutsch und *über* die Regel („Wir müssen die Denkzone und Denkspur in V1.1-Sprache halten. Keine Prosa.") — und fällt im nächsten Absatz wieder in Prosa; C2 pendelt zwischen englischer Prosa (B3-0003) und deutscher Meta-Prosa (A3-0016). Kurz: die Instruktion verschiebt Sprache und Selbstbeschreibung, aber nicht die Arbeitsform langer Spuren.
+Qualitativ (Zitate aus den Läufen): C0 denkt englisch weiter („We need answer only in formal language…", B3-0003/C0); C1 denkt deutsch und *über* die Regel („Ich muss die Denkzone und die Antwort trennen? Die Aufgabe sagt: ‚Denkspur-Zusatz (reasoni…'", B3-0003/C1) — und fällt im nächsten Absatz wieder in Prosa; C2 pendelt zwischen englischer Prosa (B3-0003/C2) und deutscher Meta-Prosa („Wir müssen die Denkzone und Denkspur in V1.1-Sprache halten. Keine Prosa.", A3-0016/C2). Kurz: die Instruktion verschiebt Sprache und Selbstbeschreibung, aber nicht die Arbeitsform langer Spuren.
 
 ### 5.3 Kosten und Korrektheit
 
@@ -135,17 +135,17 @@ Tier B (8 Läufe je Arm):
 | C1 | 7/8 | 7/8 | 234 499 | 29 312,4 | 1 (B3-0008, R1 Timeout) |
 | C2 | 6/8 | 8/8 | 294 317 | 36 789,6 | 2 (B3-0002 in 2 Runden, B3-0008 in 1) |
 
-C1 ist in Tier B nominell am billigsten — aber die Timeout-Zelle fehlt dort in der Summe (B3-0008/C1 verlor eine Reparaturrunde mit 0 Tokens; C0 und C2 zahlten in derselben Zelle 51k bzw. 41k Tokens für ihre Reparaturrunden). Die belastbare Aussage ist darum: **die drei Arme liegen in Tier B in derselben Kostenklasse** (29–40k Tokens je Lauf; B3-0008 dominiert alles). In Tier A kostet C1 rund +46 % und C2 rund +109 % gegenüber C0, bei vollständiger Korrektheit.
+C1 ist in Tier B nominell am billigsten — aber die Timeout-Zelle fehlt dort in der Summe (B3-0008/C1 verlor eine Reparaturrunde mit 0 Tokens; C0 zahlte in derselben Zelle 127k Tokens für seine zwei Reparaturrunden, C2 41k für seine eine). Die belastbare Aussage ist darum: **die drei Arme liegen in Tier B in derselben Kostenklasse** (29–40k Tokens je Lauf; B3-0008 dominiert alles). In Tier A kostet C1 rund +46 % und C2 rund +109 % gegenüber C0, bei vollständiger Korrektheit.
 
-Die Reparaturrunden selbst (6 Stück über alle Arme) sind Prosa-dominiert (Tag-Anteile 0,3–1,5 %) und tragen den Lauf nicht Richtung Notation. Auffälligster Einzelfall: B3-0002/C2 produzierte in Runde 1 einen **Zeilen-Loop** (die Zeile `101101101` 11× hintereinander — von der Metrik als `repeat_extra` gefangen) und löste die Zelle in Runde 2. Gesamtkosten der Runde: 878 638 Tokens (Tier A 30 946, Tier B 847 692) in 48 Läufen / 55 Runden, ~57 Minuten Modellzeit.
+Die Reparaturrunden (7 Stück über alle Arme: 1 in Tier A, 6 in Tier B) sind **in Tier B** Prosa-dominiert (Tag-Anteile 0,27–1,49 %); die einzige Tier-A-Reparaturrunde (A3-0016/C2 Runde 1) ist dagegen notation-nah — 60 % Tag-Zeilen, 0 Prosa-Zeilen, das RC spiegelt sogar das Maschinen-Verdikt als `a:`-Zeile. Auffälligster Einzelfall: B3-0002/C2 produzierte in Runde 1 einen **Zeilen-Loop** (die Zeile `101101101` 11× hintereinander — von der Metrik als `repeat_extra` gefangen) und löste die Zelle in Runde 2. Gesamtkosten der Runde: 878 638 Tokens (Tier A 30 946, Tier B 847 692) in 48 Läufen / 55 Runden, ~57 Minuten Modellzeit.
 
-Historischer Kontext (nur Größenordnung, Tag-Varianz): auf denselben 12 Aufgaben lag der V13-C-Arm bei ø 536 Tokens je Runde in Tier A und ø 36 344 in Tier B; die frische Kontrolle C0 liegt bei 849 (Tier A) bzw. 28 989 (Tier B). Die Abweichungen ±20–40 % bestätigen die doppelte Kontrolle (3.1).
+Historischer Kontext (nur Größenordnung, Tag-Varianz; einheitlich Reasoning-Tokens je Runde): auf denselben 12 Aufgaben lag der V13-C-Arm bei ø 536 Tokens je Runde in Tier A und ø 36 344 in Tier B; die frische Kontrolle C0 liegt bei ø 756 (Tier A) bzw. ø 31 692 (Tier B). Die Abweichungen ±20–40 % bestätigen die doppelte Kontrolle (3.1).
 
 ### 5.4 Prefill-Grenze (C3): die Denkspur ist per API nicht seedbar
 
 Probe gegen den Transport (gleicher Endpunkt wie die Läufe): (1) Kontrolle „Zaehle von 1 bis 3." → Antwort `1, 2, 3.` (2) Mit assistant-Präfix `VORSPANN-4711: ` (`prefix: True`) → Antwort `1, 2, 3.` — das Präfix wird **nicht** als Fortsetzung angewandt, sondern ignoriert (HTTP 200, identische Antwort ohne Präfix); Top-Level-`prefix` ebenso wirkungslos. (3) Eine weiche Variante (User bittet um Antwortstart „g: ") zeigt: die Form folgt der *Instruktion*, nicht dem Präfix.
 
-Die API-Doku stützt den Befund: „If the request does not carry the `tools` parameter: `reasoning_content` … even if passed to the API, it will be ignored and will not be concatenated into the context" ([DeepSeek Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode, accessed 2026-09-13)); die Prefix-Completion existiert nur als Beta-Feature und adressiert den sichtbaren Inhaltskanal ([DeepSeek Chat Prefix Completion](https://api-docs.deepseek.com/guides/chat_prefix_completion, accessed 2026-09-13)). Der Denkkanal ist damit per Bordmitteln **nicht** ansteuerbar außer über die Instruktion — C3 ist gestrichen (dokumentiert statt stillschweigend weggelassen).
+Die API-Doku stützt den Befund: „If the request does not carry the `tools` parameter: `reasoning_content` … even if passed to the API, it will be ignored and will not be concatenated into the context" ([DeepSeek Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode, accessed 2026-09-13)); die Prefix-Completion existiert nur als Beta-Feature und adressiert den sichtbaren Inhaltskanal ([DeepSeek Chat Prefix Completion](https://api-docs.deepseek.com/guides/chat_prefix_completion, accessed 2026-09-13)). Der Denkkanal ist damit per Bordmitteln **nicht** ansteuerbar außer über die Instruktion — C3 ist gestrichen (dokumentiert statt stillschweigend weggelassen). Probe-Transkript: `.yesmem/tmp/runs-v15-20260913/c3-prefill-probe.md` (Ablage-Konvention wie §4, Punkt 4).
 
 ## 6. Was belegt ist — und was nicht
 
@@ -156,7 +156,7 @@ Die API-Doku stützt den Befund: „If the request does not carry the `tools` pa
 3. **Die langen Trace-Zellen widerstehen** — alle Arme ≤2,6 % Tag-Zeilen; die Form der Massen-Tokens (90 %+ des Budgets) bleibt Prosa (§5.2).
 4. **Der Few-Shot-Zusatz bringt in Tier B keine Mehr-Treue** — C2 liegt dort unter C1 bei den Zeichenanteilen und über C0 nur in kurzen Zellen; in Tier A strukturiert er am stärksten, kostet aber +109 % Tokens (C0→C2) und erzeugte die Hälfte aller Reparatur-Trigger (§5.2/5.3).
 5. **Korrektheit hält** — Tier A 24/24 in allen Armen (V13-A: 0 Formfehler; C1-A anekdotisch 2), Tier B 23/24 final; der einzige Ausfall ist der Infrastruktur-Timeout der Zelle B3-0008/C1 (§5.3).
-6. **Die Metrik greift** — sie misst die Verschiebung, trennt Trace von Zyklus, fängt Degeneration (Zeilen-Loop B3-0002/C2) und weist den Draft-Konfund aus (§5.2/5.3).
+6. **Die Metrik greift** — sie misst die Verschiebung, trennt Trace von Zyklus, fängt Degeneration (Zeilen-Loop B3-0002/C2) und macht den Blatt-Entwurf messbar (Trailing-Block inklusive Claim-Zone; B3-0007/C1 = 8 von 8 Zeilen, §5.2/5.3).
 7. **Die Denkspur ist per API nicht prefillbar** — Live-Probe plus Doku (§5.4).
 
 **Nicht belegt / mit Vorsicht:**
@@ -170,15 +170,16 @@ Die API-Doku stützt den Befund: „If the request does not carry the `tools` pa
 ## 7. Offene Punkte (Kandidaten für die nächste Runde)
 
 1. **Der Widerstandskern sind die langen Spuren:** In Trace-Zellen denkt das Modell in Prosa über Simulationen — die Instruktion erreicht nur die kurzen Zellen. Kandidaten: RC-Format als *Rückkanal-Thema* (Meta-Instruktion nach einer Prosa-Runde), SFT auf RC-Notation (Trainingsweg, außerhalb dieser Runde), oder eine Analyse *welche* RC-Inhalte sich der Notation entziehen (argumentative/strategische Schritte vs. Rechen-Schritte).
-2. **Der Rückkanal hat den Denkkanal noch nie adressiert:** Reparaturrunden adressieren das Blatt; das RC blieb in allen 6 Reparaturrunden Prosa. Ein Format-Rückkanal für den Denkkanal („deine letzte Denkspur war Prosa") ist der billigste nächste Test.
-3. **C2 dosieren:** Das volle Beispiel führte zu längeren Spuren ohne Mehr-Treue in Tier B. Varianten: Beispiel nur mit Kurz-Zeilen; Gegenbeispiel (Prosa-Zeile explizit als falsch); Beispiel an die Zellgröße gekoppelt.
+2. **Der Rückkanal hat den Denkkanal noch nie adressiert:** Reparaturrunden adressieren das Blatt; in Tier B blieb auch das RC der sechs Reparaturrunden Prosa (0,27–1,49 % Tag-Zeilen), doch die einzige Tier-A-Reparaturrunde (A3-0016/C2) war notation-nah (60 % Tag-Zeilen, 0 Prosa) — der Kanal folgt dem Rückkanal also in kurzen Zellen bereits von selbst. Ein *expliziter* Format-Rückkanal für den Denkkanal („deine letzte Denkspur war Prosa") ist der billigste nächste Test.
+3. **C2 dosieren:** Das volle Beispiel führte zu längeren Spuren ohne Mehr-Treue in Tier B. Varianten: Beispiel nur mit Kurz-Zeilen; Gegenbeispiel (Prosa-Zeile explizit als falsch); Beispiel an die Zellgröße gekoppelt. Dazu der Wortlaut der RC-Instruktion: `v:` steht in der Kopf-Liste, obwohl v-Zeilen eigene Form haben, und das Beispiel nutzt nicht den Legenden-Klammerstil — bewusst erst für die **nächste** Arm-Generation geändert, um die Reproduzierbarkeit der V15-Arme zu erhalten.
 4. **B3-0008-Zelle sauber messen:** Der 300-s-Call-Cap reißt bei 79k-Token-Denkspuren (RC-Instruktion). Repetition mit größerem Cap (>600 s) oder Token-Cap statt Zeit-Cap, damit die Zelle nicht als Infrastruktur-Artefakt endet.
 5. **Metrik-Ausbau:** Regel-Spiegelung (Anteil Zeilen, die die Instruktion wörtlich zitieren — C1/C2 zeigten Meta-Zeilen), Sprachdetektion (DE/EN) als Spalte, Token-Proxy über den Modell-Tokenizer (01-03b), und Trace-vs-Cyc als feste Dimension im Renderer.
 6. **Nebenwirkung auf die sichtbare Zone prüfen:** Die zwei C1-A-Formfehler (doppelter h1-Block) könnten Instruktions-Bleed sein — ein sauberer A/B (RC-Satz mit/ohne sichtbaren-Zonen-Satz) trennt das.
+7. **`--task-ids`-Semantik nachschärfen** (Werkzeug-Hygiene): Duplikate überschreiben still dasselbe Lauf-Verzeichnis, `--task-ids ""` fällt still auf den Default-Sample zurück (während `" "` null Aufgaben wählt), und die Tier-Caps werden im task-ids-Pfad still ignoriert — im Help-Text dokumentieren oder ablehnen.
 
 ## Quellen
 
-1. Lokale Messung (2026-09-13): V15-Läufe `.yesmem/tmp/runs/20260913-093541` (Tier A, 24 Läufe) und `.yesmem/tmp/runs/20260913-094057` (Tier B, 24 Läufe), gesichert unter `.yesmem/tmp/runs-v15-20260913/`; 48 Läufe / 55 Runden, 878 638 Tokens (Tier A 30 946, Tier B 847 692), ~57 min Modellzeit; Auswertung `tooling/evaluate.py` + `tooling/rcfidelity.py`; Assets [05-12-eval-tierA.md](assets/05-12-eval-tierA.md), [05-12-eval-tierB.md](assets/05-12-eval-tierB.md), [05-12-rc-tierA.md](assets/05-12-rc-tierA.md), [05-12-rc-tierB.md](assets/05-12-rc-tierB.md).
+1. Lokale Messung (2026-09-13): V15-Läufe `.yesmem/tmp/runs/20260913-093541` (Tier A, 24 Läufe) und `.yesmem/tmp/runs/20260913-094057` (Tier B, 24 Läufe), gesichert unter `.yesmem/tmp/runs-v15-20260913/` (inkl. `c3-prefill-probe.md`); 48 Läufe / 55 Runden, 878 638 Tokens (Tier A 30 946, Tier B 847 692), ~57 min Modellzeit; Auswertung `tooling/evaluate.py` + `tooling/rcfidelity.py`; Assets [05-12-eval-tierA.md](assets/05-12-eval-tierA.md), [05-12-eval-tierB.md](assets/05-12-eval-tierB.md), [05-12-rc-tierA.md](assets/05-12-rc-tierA.md), [05-12-rc-tierB.md](assets/05-12-rc-tierB.md).
 2. V13-Rohdaten: `.yesmem/tmp/runs-v13-20260912/` (128 Läufe; rückwirkend metrisiert).
 3. [05-10-haerte-runde-v13.md](05-10-haerte-runde-v13.md) — V13 (Härte, Sets v0.3; offene Punkte §7).
 4. [05-09-rueckkanal-runde-v12.md](05-09-rueckkanal-runde-v12.md) — V12 (Reparatur-Loop, Arme K/B/C/D).
