@@ -234,7 +234,9 @@ def _aggregate(entries):
         status = lean.get("status")
         if status in counts:
             counts[status] += 1
-        if lean.get("axioms") == "none":
+        # Nur valide Zellen tragen eine sinnvolle Axiom-Aussage: die Sonde der
+        # angehaengten Zeile kann auch bei invalidem Schnipsel bestehen.
+        if status == "valid" and lean.get("axioms") == "none":
             axiom_free += 1
         if lean.get("sorry_used"):
             sorry_used += 1
@@ -347,8 +349,8 @@ def render_summary(summary, results):
         [
             "",
             "Hinweise: `valid` = elaboriert fehlerfrei (`leancheck`, Std-Minimalprojekt, Lean 4.33.1); "
-            "`axiomfrei` = ohne Axiome (`propext`/`Quot.sound` zaehlen nicht als axiomfrei); "
-            "`Fence` = Antwort enthielt einen Markdown-Code-Zaun; `RC-Lean`/`RC-Taktik` sind die "
+            "`axiomfrei` = ohne Axiome unter den validen Zellen (`propext`/`Quot.sound` zaehlen nicht als "
+            "axiomfrei); `Fence` = Antwort enthielt einen Markdown-Code-Zaun; `RC-Lean`/`RC-Taktik` sind die "
             "heuristischen `leanfidelity`-Anteile der Denkspur (Untergrenze bzw. ueberschaetzend bei "
             "zitierten Code-Zeilen in Prosa — Augenschein-Stichprobe im Bericht); n klein, keine Signifikanz.",
         ]
@@ -544,9 +546,13 @@ def main(argv=None):
         return exit_code(result["summary"])
     out_dir = Path(args.run)
     payload = _load_run(out_dir)
+    # Aggregate aus den Rohdaten neu berechnen: das gespeicherte Summary kann
+    # nach einer Metrik-Korrektur veraltet sein, die Renderer bleiben so
+    # deterministisch an der aktuellen Definition.
+    summary = summarize(payload["results"])
     summary_path = Path(args.summary) if args.summary else out_dir / "summary.md"
     raw_path = Path(args.raw) if args.raw else out_dir / "raw.md"
-    summary_path.write_text(render_summary(payload["summary"], payload["results"]), encoding="utf-8")
+    summary_path.write_text(render_summary(summary, payload["results"]), encoding="utf-8")
     raw_path.write_text(render_raw_table(payload["results"]), encoding="utf-8")
     print(f"geschrieben: {summary_path} · {raw_path}")
     return 0

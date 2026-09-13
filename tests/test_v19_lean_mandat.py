@@ -127,6 +127,15 @@ class TasksTest(unittest.TestCase):
             self.assertNotIn("ℕ", task["statement"], task["id"])
 
 
+class ManifestTest(unittest.TestCase):
+    def test_default_manifest_shape_without_secrets(self):
+        manifest = lean_mandat.default_manifest()
+        for key in ("target", "url", "model", "max_tokens"):
+            self.assertIn(key, manifest)
+        self.assertTrue(manifest["url"].startswith("http"))
+        self.assertNotIn("key", manifest)
+
+
 class CodeExtractTest(unittest.TestCase):
     def test_fenced_block_wins_and_flags(self):
         answer = "Hier:\n```lean\nimport Std\n\ntheorem main_thm : True := trivial\n```\n"
@@ -254,6 +263,24 @@ class RunMatrixTest(unittest.TestCase):
         rendered = lean_mandat.render_summary(result["summary"], result["results"])
         self.assertEqual((self.tmp / "out" / "summary.md").read_text(encoding="utf-8"), rendered)
         self.assertEqual(lean_mandat.render_raw_table(result["results"]), lean_mandat.render_raw_table(result["results"]))
+
+    def test_axiom_free_counts_valid_entries_only(self):
+        def entry(status, axioms):
+            return {
+                "variant": "V-A",
+                "grade": "trivial",
+                "usage": {},
+                "rc": {},
+                "error": None,
+                "fenced": False,
+                "statement_echo": False,
+                "duration_s": 0.0,
+                "lean": {"status": status, "axioms": axioms, "sorry_used": False},
+            }
+
+        summary = lean_mandat.summarize([entry("valid", "none"), entry("invalid", "none")])
+        self.assertEqual(summary["overall"]["valid"], 1)
+        self.assertEqual(summary["overall"]["axiom_free"], 1)
 
     def test_rc_metrics_come_from_leanfidelity(self):
         calls, seen = [], []
