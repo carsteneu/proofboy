@@ -8,10 +8,11 @@ die sichtbare Antwort dagegen wird mit einem Lean-geschriebenen Systemprompt
 zuverlaessig pures Lean. Dieser Runner macht die Proben reproduzierbar:
 
 - **Varianten V-A..V-E**: V-A Regeln als ``--``-Kommentare (Systemprompt selbst
-  Lean); V-B + ein Denkspur-Beispiel; V-C + drei Beispiele; V-D Completion-
-  Prefill (unfertiges ``have h1 : … := by`` im Assistant-Content); V-E = V-B
-  + Fence-Verbot. Die Variantentexte sind aus der Inline-Session geborgen;
-  V-C leitet monoton aus V-B ab (inline war die Basis dort kuerzer).
+  Lean); V-B + ein Denkspur-Beispiel; V-C + drei Beispiele; V-D eigener kurzer
+  Systemprompt (``SYS_D``) + Completion-Prefill (unfertiges ``have h1 : … := by``
+  im Assistant-Content); V-E = V-B + Fence-Verbot. Die Variantentexte sind aus
+  der Inline-Session geborgen; V-C leitet monoton aus V-B ab (inline war die
+  Basis dort kuerzer).
 - **Aufgaben-Grade**: trivial / mechanisch / Lemma (7 Aufgaben, alle mit
   vorvalidiertem Std-Referenzbeweis als ``ref_tactic``).
 
@@ -312,7 +313,7 @@ def _entry_diagnostic(entry):
     return lean.get("message")
 
 
-def render_summary(summary, results):
+def render_summary(summary):
     """Markdown-Asset mit den Aggregaten (deterministisch aus results.json)."""
     overall = summary["overall"]
     lines = [
@@ -485,9 +486,9 @@ def run_matrix(
         json.dumps({"manifest": manifest, "results": results, "summary": summary}, indent=1, ensure_ascii=False),
         encoding="utf-8",
     )
-    (out_dir / "summary.md").write_text(render_summary(summary, results), encoding="utf-8")
+    (out_dir / "summary.md").write_text(render_summary(summary), encoding="utf-8")
     (out_dir / "raw.md").write_text(render_raw_table(results), encoding="utf-8")
-    print(render_summary(summary, results))
+    print(render_summary(summary))
     return {"manifest": manifest, "results": results, "summary": summary}
 
 
@@ -558,7 +559,7 @@ def main(argv=None):
     summary = summarize(payload["results"])
     summary_path = Path(args.summary) if args.summary else out_dir / "summary.md"
     raw_path = Path(args.raw) if args.raw else out_dir / "raw.md"
-    summary_path.write_text(render_summary(summary, payload["results"]), encoding="utf-8")
+    summary_path.write_text(render_summary(summary), encoding="utf-8")
     raw_path.write_text(render_raw_table(payload["results"]), encoding="utf-8")
     print(f"geschrieben: {summary_path} · {raw_path}")
     return 0

@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,7 +131,12 @@ class TasksTest(unittest.TestCase):
 
 class ManifestTest(unittest.TestCase):
     def test_default_manifest_shape_without_secrets(self):
-        manifest = lean_mandat.default_manifest()
+        # Hermetisch: default_manifest liest BEMYSELF_TARGET/MAX_TOKENS aus der
+        # Umgebung — die Testumgebung wird auf gueltige Werte gepinnt.
+        with mock.patch.dict(
+            os.environ, {"BEMYSELF_TARGET": "deepseek", "BEMYSELF_MAX_TOKENS": "4096"}
+        ):
+            manifest = lean_mandat.default_manifest()
         for key in ("target", "url", "model", "max_tokens"):
             self.assertIn(key, manifest)
         self.assertTrue(manifest["url"].startswith("http"))
@@ -267,7 +274,7 @@ class RunMatrixTest(unittest.TestCase):
         saved = json.loads((self.tmp / "out" / "results.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["manifest"], self.manifest)
         self.assertEqual(len(saved["results"]), 4)
-        rendered = lean_mandat.render_summary(result["summary"], result["results"])
+        rendered = lean_mandat.render_summary(result["summary"])
         self.assertEqual((self.tmp / "out" / "summary.md").read_text(encoding="utf-8"), rendered)
         self.assertEqual(lean_mandat.render_raw_table(result["results"]), lean_mandat.render_raw_table(result["results"]))
 
