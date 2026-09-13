@@ -109,6 +109,13 @@ fi
 if [ "$mode" = build ] && [ -f "$dir/build.dirty" ]; then
   printf '\\n-- dirtied by another module\\n' >> "$(cat "$dir/build.dirty")"
 fi
+if [ "$mode" = build ] && [ -f "$dir/build.plant" ]; then
+  # Repository code can plant files while the build runs; line 1 is the
+  # target, line 2 the content.
+  target=$(head -n 1 "$dir/build.plant")
+  content=$(sed -n '2p' "$dir/build.plant")
+  printf '%s\\n' "$content" > "$target"
+fi
 if [ -f "$dir/$f.rc" ] && [ "$(cat "$dir/$f.rc")" != "0" ]; then
   # A failing build compiles nothing; a failing run produces no artifact.
   exit "$(cat "$dir/$f.rc")"
@@ -1309,6 +1316,29 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
         self.assertIn("cannot be confirmed against the host", result.reason)
         self.assertIn("leanprover/lean4:v4.33.1", result.reason)
+
+    def test_a_toolchain_file_planted_during_the_build_is_refused(self):
+        # Review finding (security round 2): repository code runs in the
+        # build; a `lean-toolchain` planted then would be read by an elan
+        # shim, and elan executes a path-like value directly -- without
+        # consulting ELAN_HOME. The file is looked up again before any
+        # further stage.
+        repo = make_repo(os.path.join(self._tmp.name, "late-toolchain"))
+        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
+        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        bin_dir = self.fake(
+            **{
+                "query.out": _answer("lake_proven", ""),
+                "build.plant": "../lean-toolchain\n./evil\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("lean-toolchain file", result.reason)
+        self.assertNotIn("./evil", result.reason)
 
     def test_the_launchers_resolve_lean_through_the_checker_owned_path(self):
         # The launchers call `lean` by name; that lookup must land on the

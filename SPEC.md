@@ -408,7 +408,8 @@ ersetzt. Beide Faelle bleiben `UNVERIFIABLE` mit dem Grund im Urteil, nie
 `REFUTED` (eine kaputte Umgebung ist kein Beweis gegen den Satz). Der
 abgelehnte Wert selbst wird nicht zitiert (die Datei kann ein Symlink auf
 eine beliebige vom Pruefer lesbare Host-Datei sein; die Datei wird bounded
-und verlustbehaftet gelesen).
+und verlustbehaftet gelesen) -- zitiert wird nur ein Wert, der die
+Zeichensatz-Regel `authority/name:version` erfuellt.
 `ELAN_TOOLCHAIN` des Operators hat Vorrang, sonst wird die einzige
 installierte Toolchain gepinnt; bringt das Projekt eine Toolchain-Datei mit
 und laesst sich host-seitig nichts bestimmen, wird der Lauf verweigert statt
@@ -419,11 +420,16 @@ seine Toolchain ueber `HOME=<checkout>` auf, das dem Repository gehoert.
 Laesst sich host-seitig keine elan-Wurzel neben den Werkzeugen erkennen (eine
 Kopie oder ein Wrapper des elan-Binaries ist von einem gewoehnlichen Binary
 nicht zu unterscheiden), bekommt der Lauf ein neutrales, leeres `ELAN_HOME`:
-ein Shim kann dann nichts aus dem geprueften Baum aufloesen -- auch nichts,
-was Repo-Code erst waehrend des Builds dort anlegt --, ein Werkzeug, das kein
-Shim ist, ignoriert die Variable. Eine in diesem Zustand angeforderte oder
-gepinnte Toolchain laesst sich nicht bestaetigen und macht die Behauptung
-`UNVERIFIABLE`.
+ein Shim kann dann keine Toolchain aus dem geprueften Baum aufloesen -- auch
+keine, die Repo-Code erst waehrend des Builds dort anlegt --, ein Werkzeug,
+das kein Shim ist, ignoriert die Variable. Eine in diesem Zustand
+angeforderte oder gepinnte Toolchain laesst sich nicht bestaetigen und macht
+die Behauptung `UNVERIFIABLE` (Grenze: das trifft auch Hosts mit echten
+Werkzeugen ohne elan, sobald das Repo eine `lean-toolchain` mitbringt).
+Unabhaengig vom Modus wird eine `lean-toolchain`-Datei nach dem Build erneut
+geprueft: ein pfadartiger Wert -- von elan ohne Umweg ausgefuehrt -- macht
+die Behauptung `UNVERIFIABLE`, ein wohlgeformter Wert nur dann, wenn nichts
+ihn gegen den Host festnagelt.
 Eine im Ablauf nicht aufloesbare Toolchain (elans `no Lean toolchain found
 at ...`, `invalid toolchain name`, `empty toolchain file ...`,
 `no such release ...`, `no default toolchain configured`, `override

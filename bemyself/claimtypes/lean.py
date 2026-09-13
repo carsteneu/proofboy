@@ -1272,6 +1272,41 @@ def check(claim, ctx):
                 )
 
         # --- stage 1b: compile the checked file itself ------------------------
+        # Repository code ran in the build above (Lake projects). A
+        # `lean-toolchain` file planted then would be read by an elan shim, and
+        # elan executes a path-like value directly -- without consulting
+        # ELAN_HOME. So the file is looked up once more before anything is
+        # judged; the refusal mirrors the check above (a path-like value is
+        # never legitimate, a well-formed value only matters while nothing
+        # settles the toolchain).
+        late_file = _project_toolchain_file(project or os.path.dirname(real_file))
+        if late_file is not None and not neutral_elan:
+            late_value = _toolchain_value(late_file)
+            if late_value and not _TOOLCHAIN_RE.match(late_value):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the checkout holds a lean-toolchain file with a path-like value that "
+                    f"the run cannot be pinned against; elan would execute the path, so the "
+                    f"proof was not checked" + note_suffix,
+                    sandboxed=sandboxed,
+                )
+        if late_file is not None and neutral_elan:
+            late_value = _toolchain_value(late_file)
+            if late_value and (
+                not _TOOLCHAIN_RE.match(late_value) or lean_pin is None
+            ):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the checkout holds a lean-toolchain file the run cannot be pinned "
+                    f"against (a path-like value, or no host-side elan root next to the "
+                    f"tools); elan would resolve the toolchain from the inspected tree, so "
+                    f"the proof was not checked" + note_suffix,
+                    sandboxed=sandboxed,
+                )
         # The evidence artifact is compiled from a copy of the pinned file:
         # never through the lakefile-driven build, and never through the
         # checked file's own path, which the build step may have rewritten.

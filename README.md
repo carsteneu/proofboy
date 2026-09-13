@@ -734,13 +734,18 @@ wohlgeformte Toolchain-Bitte wird mit Manifest-Pin nicht mehr befolgt, eine
 pfadartige wird unabhaengig davon immer abgelehnt. Ein Werkzeug,
 das das Manifest nicht nennt, laeuft mit `--tools` gar nicht -- es gibt
 keinen stillen `PATH`-Rueckfall. Ohne Manifest gilt der bisherige Weg
-(`lean`/`lake`/`leanchecker` aus dem `PATH`). Bringt der Checkout ein
-laesst sich host-seitig keine elan-Wurzel neben den Werkzeugen erkennen
-(eine Kopie oder ein Wrapper des elan-Binaries ist von einem gewoehnlichen
-nicht zu unterscheiden), bekommt der Lauf ein neutrales, leeres `ELAN_HOME`
--- ein Shim kann dann nichts aus dem geprueften Baum aufloesen, ein echtes
-Werkzeug ignoriert die Variable; eine angeforderte oder gepinnte Toolchain
-ist in diesem Zustand nicht bestaetigbar und bleibt `unpruefbar`. Jedes Urteil nennt die
+(`lean`/`lake`/`leanchecker` aus dem `PATH`). Laesst sich host-seitig keine
+elan-Wurzel neben den Werkzeugen erkennen (eine Kopie oder ein Wrapper des
+elan-Binaries ist von einem gewoehnlichen nicht zu unterscheiden), bekommt
+der Lauf ein neutrales, leeres `ELAN_HOME` -- ein Shim kann dann nichts aus
+dem geprueften Baum aufloesen, ein echtes Werkzeug ignoriert die Variable;
+eine angeforderte oder gepinnte Toolchain ist in diesem Zustand nicht
+bestaetigbar und bleibt `unpruefbar` (Grenze: das trifft auch Hosts mit
+echten Werkzeugen ohne elan, wenn das Repo eine `lean-toolchain` mitbringt;
+Abhilfe ist ein `--tools`-Eintrag fuer `lean` oder ein gesetztes
+`ELAN_HOME`). Eine `lean-toolchain`-Datei, die erst waehrend des Builds
+auftaucht, wird vor jeder weiteren Stufe erneut geprueft: ein pfadartiger
+Wert verweigert den Lauf, denn elan fuehrt ihn ohne Umweg aus. Jedes Urteil nennt die
 Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
 Datei, `[pinned]` bei einem Manifest-Pin:
 
