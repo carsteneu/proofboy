@@ -605,6 +605,25 @@ Ohne `--strict` bedeutet Exit 0 "mindestens eine Behauptung bestaetigt, keine wi
 
 `eval --strict` ist ein Opt-in mit derselben Doktrin auf Set-Ebene: der Lauf schlaegt mit Exit 4 fehl, sobald eine Behauptung des Sets unpruefbar bleibt und die Schwellen erfuellt sind; ein Lauf, der die Schwellen verfehlt, bleibt Exit 1. Das ausgelieferte Pruefset besteht diesen Modus bewusst nicht (unpruefbare Behauptungen sind Teil des Designs); `make eval` bleibt unveraendert Exit 0.
 
+## Klassen nicht bestaetigter Behauptungen
+
+Jede Behauptung, die nicht `bestaetigt` endet, traegt genau eine maschinenlesbare Klasse. Je Behauptung steht sie im JSON (`class`), als Zaehlung im JSON (`classes`) und in der Schlusszeile des Urteilstexts.
+
+| Klasse | Bedeutung | Wirkung |
+|---|---|---|
+| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte. | scheitert immer, Exit 5, auch ohne `--strict` |
+| `environment` | Es fehlt eine Faehigkeit der Umgebung: kein Remote, kein `bwrap`, kein Werkzeug oder Modul, kein `--repo`/`--artifact-root`/`--base`, Kommando nicht auf der Allowlist. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 4) |
+| `limit` | Ein Budget war ausgeschoepft, bevor die Behauptung laufen konnte: Schritt-/Suchzahl, Zeit, Ausgabe- und Tape-Grenzen, Artefaktgroesse. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 6) |
+| `unverifiable` | Der Rest (echte Unwissenheit): der Versuch lief und konnte nicht entscheiden (Fetch/Clone/Diff fehlgeschlagen, Branch-Tip wanderte weiter, Prosa-Zahl, kein Checker fuer `[DEPLOY]`). Default, wenn nichts anderes zutrifft. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 4) |
+
+Die Grenze zwischen `defect` und dem Rest ist bewusst eng: ein Wert, den das Werkzeug nicht interpretieren kann (eine Prosa-Zahl wie `2^^^5`, eine Maschine ausserhalb der bbchallenge-Notation, ein unsicheres Zertifikat wie `t2 <= t1`), ist kein Defekt -- der Bericht kann ehrlich sein, die Behauptung bleibt `UNVERIFIABLE` (Doktrin aus P7/P10/P12). `defect` heisst: die Behauptung kann so, wie sie dasteht, nicht einmal gebunden oder ausgefuehrt werden (fehlende oder formlose Bindung, Platzhalter als Wert, Pfad ausserhalb des Vertrauensraums, NUL). `defect` ist der einzige klassenbedingte Fehlschlag ohne `--strict`.
+
+Praezedenz der Exit-Codes: `REFUTED` (1) > `defect` (5) > nur mit `--strict`: `limit` (6) > nichts bestaetigt (3) > `environment`/`unverifiable` (4) > OK (0). Ohne Defekt und ohne ausgeschoepftes Budget behalten die Codes 0-4 exakt ihre bisherige Bedeutung; ein `REFUTED` dominiert auch den Defekt.
+
+Je nicht ausgefuehrtem Claim nennt der Urteilstext das Limit, den behaupteten Wert und die Option, die es anhebt (`--halt-limit`, `--search-limit`, `--cycle-limit`, `--coloring-limit`); eingebaute Grenzen (Zeit, Ausgabe, Tapes, Artefaktgroesse) werden als solche benannt statt eine Option zu erfinden. Jeder Lauf endet mit einer Schlusszeile, die beide Zaehlungen nennt: `summary: CONFIRMED: c, REFUTED: r, UNVERIFIABLE: u (defect: d, environment: e, limit: l, unverifiable: v); executed: N, not executed: M` mit `executed` = bestaetigt + widerlegt + environment + unverifiable und `not executed` = defect + limit.
+
+`limit`, `environment` und `unverifiable` scheitern nur mit `--strict` -- ohne Flag bleibt `UNVERIFIABLE` erlaubt (Exit 0 moeglich), weil niemand schuld ist: die Umgebung fehlt oder das Budget war zu klein. Genau dafuer gibt es den eigenen Limit-Code: ein Gate kann "konnte nicht pruefen" von "geprueft und durchgefallen" unterscheiden.
+
 ## Nicht-Ziele
 
 - Keine Reparatur, keine Korrektur von Meldungen. Der Pruefer urteilt, er handelt nicht.
