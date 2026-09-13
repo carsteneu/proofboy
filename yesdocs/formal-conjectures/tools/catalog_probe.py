@@ -186,17 +186,20 @@ def bmo8_hit(iterations):
 # ---------------------------------------------------------------------------
 
 def _is_prime(n):
-    """Deterministic Miller-Rabin for n < 3.3 * 10^24."""
+    """Deterministic Miller-Rabin for n < 3,317,044,064,679,887,385,961,981,
+    the smallest strong pseudoprime to all of the first 13 primes (bases
+    2..41). The witness 318665857834031151167461 (passing bases 2..37) is
+    covered by the test suite."""
     if n < 2:
         return False
-    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
+    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41):
         if n % p == 0:
             return n == p
     d, s = n - 1, 0
     while d % 2 == 0:
         d //= 2
         s += 1
-    for a in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
+    for a in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41):
         x = pow(a, d, n)
         if x in (1, n - 1):
             continue
@@ -252,6 +255,69 @@ def smallest_k_prime_sweep(nmax, cap=100_000):
 
 
 # ---------------------------------------------------------------------------
+# Rule 30 center column (Other/Rule30.lean: Rule 30 Prize, problems 1 and 2)
+# ---------------------------------------------------------------------------
+
+# Ground truth a(0)..a(101) of OEIS A051023 (center column of Rule 30), the
+# sequence the repo's own decide-checked prefix theorem refers to.
+RULE30_A051023 = [
+    1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1,
+    1, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 1,
+    0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1,
+    1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0,
+    0, 0, 1,
+]
+
+
+def rule30_center_bits(n):
+    """First n center-column bits of Rule 30 (windowed CA on a bytearray)."""
+    width = 2 * n + 4
+    offset = n + 2
+    cells = bytearray(width)
+    cells[offset] = 1
+    bits = []
+    for _ in range(n):
+        bits.append(cells[offset])
+        nxt = bytearray(width)
+        for i in range(1, width - 1):
+            nxt[i] = cells[i - 1] ^ (cells[i] | cells[i + 1])
+        cells = nxt
+    return bits
+
+
+def rule30_center_bits_sparse(n):
+    """First n center-column bits of Rule 30 (sparse live-cell set)."""
+    live = {0}
+    bits = []
+    for _ in range(n):
+        bits.append(1 if 0 in live else 0)
+        candidates = set()
+        for cell in live:
+            candidates.update((cell - 1, cell, cell + 1))
+        nxt = set()
+        for cell in candidates:
+            left = (cell - 1) in live
+            center = cell in live
+            right = (cell + 1) in live
+            if left ^ (center or right):
+                nxt.add(cell)
+        live = nxt
+    return bits
+
+
+def rule30_no_small_period(bits, max_period, window):
+    """The smallest period p <= max_period that repeats the last ``window``
+    bits, or None. Bounded evidence against eventual periodicity -- no proof."""
+    if window > len(bits):
+        raise ValueError("window larger than the computed prefix")
+    tail = bits[-window:]
+    for period in range(1, max_period + 1):
+        if all(tail[i] == tail[i + period] for i in range(window - period)):
+            return period
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Machine probe (this repository's simulator)
 # ---------------------------------------------------------------------------
 
@@ -264,8 +330,24 @@ def machine_probe(machine_text, steps):
     return {"halts": result.halts, "steps": result.steps, "score": result.score}
 
 
+def _machine_lines(prefix, machine_text, steps):
+    probe = machine_probe(machine_text, steps)
+    if "error" in probe:
+        return [f"{prefix}.machine.error={probe['error']}"]
+    return [f"{prefix}.machine.halts={probe['halts']} steps={probe['steps']} score={probe['score']}"]
+
+
 def _fmt(value):
     return "none" if value is None else str(value)
+
+
+def _fmt_not_found(values):
+    if not values:
+        return "none"
+    shown = ",".join(str(n) for n in values[:8])
+    if len(values) > 8:
+        shown += f",... (first 8 of {len(values)})"
+    return shown
 
 
 def report(small_iterations=10_000, big_iterations=1_000_000, sweep=10_000,
@@ -279,40 +361,43 @@ def report(small_iterations=10_000, big_iterations=1_000_000, sweep=10_000,
     lines.append(f"bmo1.first_ten_ok={str(pairs == BMO1_FIRST_TEN).lower()}")
     lines.append(f"bmo1.equality_index={_fmt(bmo1_no_equality(big_iterations))}")
     lines.append(f"bmo1.iterations={big_iterations}")
-    probe = machine_probe(BMO1_MACHINE, machine_steps)
-    lines.append(f"bmo1.machine.halts={probe['halts']} steps={probe['steps']} score={probe['score']}")
+    lines.extend(_machine_lines("bmo1", BMO1_MACHINE, machine_steps))
 
     stats = antihydra(antihydra_iterations)
     lines.append(f"bmo2.min_b={stats['min_b']} at n={stats['n_at_min']}")
     lines.append(f"bmo2.iterations={antihydra_iterations}")
-    probe = machine_probe(BMO2_MACHINE, machine_steps)
-    lines.append(f"bmo2.machine.halts={probe['halts']} steps={probe['steps']} score={probe['score']}")
+    lines.extend(_machine_lines("bmo2", BMO2_MACHINE, machine_steps))
 
-    _, hit = bmo3_sequence(small_iterations)
+    values3, hit = bmo3_sequence(small_iterations)
     lines.append(f"bmo3.power_of_four_hit={_fmt(hit)}")
-    lines.append(f"bmo3.iterations={small_iterations}")
+    lines.append(f"bmo3.iterations={len(values3) - 1}")
 
-    values, one = bmo4_sequence(small_iterations)
-    closed_form_ok = all(value == bmo4_closed_form(n) for n, value in enumerate(values))
+    values4, one = bmo4_sequence(small_iterations)
+    closed_form_ok = all(value == bmo4_closed_form(n) for n, value in enumerate(values4))
     lines.append(f"bmo4.closed_form_ok={str(closed_form_ok).lower()}")
     lines.append(f"bmo4.mod3_one_hit={_fmt(one)}")
-    lines.append(f"bmo4.iterations={small_iterations}")
+    lines.append(f"bmo4.iterations={len(values4) - 1}")
 
     lines.append(f"bmo5.hit={_fmt(bmo5_hit(small_iterations))}")
     lines.append(f"bmo5.iterations={small_iterations}")
-    probe = machine_probe(BMO5_MACHINE, machine_steps)
-    lines.append(f"bmo5.machine.halts={probe['halts']} steps={probe['steps']} score={probe['score']}")
+    lines.extend(_machine_lines("bmo5", BMO5_MACHINE, machine_steps))
 
     lines.append(f"bmo8.hit={_fmt(bmo8_hit(small_iterations))}")
     lines.append(f"bmo8.iterations={small_iterations}")
-    probe = machine_probe(BMO8_MACHINE, machine_steps)
-    lines.append(f"bmo8.machine.halts={probe['halts']} steps={probe['steps']} score={probe['score']}")
+    lines.extend(_machine_lines("bmo8", BMO8_MACHINE, machine_steps))
     lines.append("# bmo3/bmo4 machines are 5-symbol; bemyself.turing supports the 2-symbol notation only")
+
+    prefix = rule30_center_bits(256)
+    lines.append(f"rule30.oeis_a051023_prefix_ok={str(prefix[:len(RULE30_A051023)] == RULE30_A051023).lower()}")
+    lines.append(f"rule30.impl_cross_check_256={str(prefix == rule30_center_bits_sparse(256)).lower()}")
+    wide = rule30_center_bits_sparse(4096)
+    period = rule30_no_small_period(wide, max_period=128, window=1024)
+    lines.append(f"rule30.smallest_period_le_128_in_4096_bits={_fmt(period)}")
 
     stats = smallest_k_prime_sweep(sweep)
     lines.append(f"a34693.sweep=2..{sweep} checked={stats['checked']} "
                  f"max_k={stats['max_k']} at n={stats['max_k_n']}")
-    lines.append(f"a34693.not_found={_fmt(stats['not_found'] or None)}")
+    lines.append(f"a34693.not_found={_fmt_not_found(stats['not_found'])}")
     lines.append(f"a34693.violation_k_lt_n={_fmt(stats['violation_k_lt_n'])}")
     lines.append(f"a34693.violation_three_quarter={_fmt(stats['violation_three_quarter'])}")
     return "\n".join(lines) + "\n"

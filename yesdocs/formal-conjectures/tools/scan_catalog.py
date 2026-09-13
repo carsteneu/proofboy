@@ -21,6 +21,7 @@ Exit codes: 0 on success, 2 when CATALOG_DIR has no FormalConjectures/ tree.
 from __future__ import annotations
 
 import argparse
+import bisect
 import collections
 import json
 import re
@@ -33,16 +34,23 @@ STATEMENT_ROOT = "FormalConjectures"
 SOURCE_URL = "https://github.com/google-deepmind/formal-conjectures"
 
 # A category attribute must start its line (a docstring may close right
-# before it: ``-/@[category ...]`` counts); an inline mention inside prose
-# (``these `@[category test, ...]` results``) is not a declaration.
+# before it: ``-/@[category ...]`` counts) and may share the brackets with
+# other attributes (``@[simp, category API, AMS 5]``). An inline mention
+# inside prose (``these `@[category test, ...]` results``) is not a
+# declaration; brackets without a ``category`` field are skipped.
 _ATTRIBUTE_RE = re.compile(
-    r"^[ \t]*(?:-/)?[ \t]*@\[(?P<body>category[^\]]*)\]", re.MULTILINE
+    r"^[ \t]*(?:-/)?[ \t]*@\[(?P<body>[^\]]*)\]", re.MULTILINE
 )
 _KIND_RE = re.compile(
     r"[ \t]*(?:(?:noncomputable|private|protected|partial|unsafe)\s+)*"
     r"(?P<kind>theorem|lemma|def|abbrev|instance|example)\b"
 )
-_NAME_RE = re.compile(r"[ \t\n]+(?P<name>[A-Za-z_][A-Za-z0-9_.'«»]*)")
+# Lean identifiers may carry Unicode (``fixed_ε``, ``not_lt₂_of``): take
+# everything up to the next delimiter rather than an ASCII class.
+_NAME_RE = re.compile(r"[ \t\n]+(?P<name>[^\s:()\[\]{},=]+)")
+# Only blank lines and full-line comments may stand between a category
+# attribute and its declaration.
+_GAP_RE = re.compile(r"(?:[ \t]*(?:--[^\n]*)?\n)*")
 _ANSWER_RE = re.compile(r"answer\(\s*(?P<value>True|False|sorry)\s*\)")
 _FORMAL_PROOF_RE = re.compile(r'formal_proof[^"]*"([^"]+)"')
 _MODULE_DOC_RE = re.compile(r"/-!(.*?)-/", re.DOTALL)
@@ -71,10 +79,11 @@ _CATEGORY_CLASSES = ("research open", "research solved", "test", "textbook", "AP
 
 
 def parse_attributes(body: str) -> dict:
-    """The three parts of a category attribute body.
+    """The three parts of an attribute body.
 
-    ``research open, AMS 5 11, formal_proof using lean4 at "URL"`` becomes
-    ``{"categories": ["research open"], "ams": ["5", "11"], "formal_proof": URL}``.
+    ``category research open, AMS 5 11, formal_proof using lean4 at "URL"``
+    becomes ``{"categories": ["research open"], "ams": ["5", "11"],
+    "formal_proof": URL}``; a leading modifier such as ``simp,`` is ignored.
     """
     formal_proof = None
     proof_match = _FORMAL_PROOF_RE.search(body)
@@ -92,26 +101,28 @@ def parse_attributes(body: str) -> dict:
     return {"categories": categories, "ams": ams, "formal_proof": formal_proof}
 
 
-def _statement_text(text: str, start: int) -> str:
+def _statement_text(text: str, start: int, newlines, let_positions) -> str:
     """The text of one declaration's statement: after the name, before the
     top-level ``:=``.
 
     The theorem type may itself contain ``let ... := ...`` bindings (the
     ``let f := answer(sorry)`` idiom of the corpus): an ``:=`` on a line whose
     part before it names a ``let`` belongs to the type, not to the proof.
+    ``newlines``/``let_positions`` are sorted offset lists for the whole file
+    (precomputed once), keeping the search linear with bisect lookups.
     """
     pos = start
     while True:
         index = text.find(":=", pos)
         if index < 0:
-            index = len(text)
-            break
-        line_start = text.rfind("\n", 0, index) + 1
-        if re.search(r"\blet\b|\bletI\b", text[line_start:index]):
+            return text[start:].strip()
+        line_index = bisect.bisect_left(newlines, index)
+        line_start = newlines[line_index - 1] + 1 if line_index else 0
+        let_index = bisect.bisect_left(let_positions, index)
+        if let_index and let_positions[let_index - 1] >= line_start:
             pos = index + 2
             continue
-        break
-    return text[start:index].strip()
+        return text[start:index].strip()
 
 
 def _declarations(text: str):
@@ -120,26 +131,27 @@ def _declarations(text: str):
     Returns ``(declarations, unmatched)``: attributes that do not lead to a
     declaration are counted as unmatched instead of guessed into one.
     """
+    newlines = [match.start() for match in re.finditer("\n", text)]
+    let_positions = [match.start() for match in re.finditer(r"\blet\b|\bletI\b", text)]
     declarations = []
     unmatched = 0
     for match in _ATTRIBUTE_RE.finditer(text):
         attrs = parse_attributes(match.group("body"))
+        if not attrs["categories"]:
+            continue  # bracket without a category field (e.g. plain @[simp])
         # Between the attribute and the declaration only blank lines and
         # full-line comments may stand (or nothing at all).
-        tail = text[match.end() :]
-        tail = re.sub(r"^(?:[ \t]*(?:--[^\n]*)?\n)+", "", tail)
-        kind_match = _KIND_RE.match(tail)
+        gap = _GAP_RE.match(text, match.end()).end()
+        kind_match = _KIND_RE.match(text, gap)
         if not kind_match:
             unmatched += 1
             continue
-        head = tail[kind_match.end() :]
-        name_match = _NAME_RE.match(head)
-        name = name_match.group("name") if name_match else None
-        body_start = kind_match.end() + (name_match.end() if name_match else 0)
-        statement = _statement_text(tail, body_start)
+        name_match = _NAME_RE.match(text, kind_match.end())
+        body_start = name_match.end() if name_match else kind_match.end()
+        statement = _statement_text(text, body_start, newlines, let_positions)
         declarations.append(
             {
-                "name": name,
+                "name": name_match.group("name") if name_match else None,
                 "kind": kind_match.group("kind"),
                 "categories": attrs["categories"],
                 "ams": attrs["ams"],

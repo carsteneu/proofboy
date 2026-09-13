@@ -69,6 +69,18 @@ theorem demo_after_comment : answer(False) ↔ 1 + 1 = 2 := by
 private lemma demo_private (x : ℤ) : x = x := by
   rfl
 
+@[category test, AMS 5]
+theorem demo_unicode₂ (x : ℕ) : x = x := by
+  rfl
+
+@[simp, category API, AMS 5]
+theorem demo_api : True := by
+  trivial
+
+@[category test, AMS 5]
+theorem demo_lets : let a := answer(sorry); let b := 0; a = b := by
+  sorry
+
 end Demo
 """
 
@@ -160,16 +172,18 @@ class ScanFixtureTest(unittest.TestCase):
     def test_totals(self):
         totals = self.scan["totals"]
         self.assertEqual(totals["files"], 2)
-        # 5 in Demo.lean + 2 in 42.lean; the docstring mention is not a declaration.
-        self.assertEqual(totals["declarations"], 7)
+        # 8 in Demo.lean + 2 in 42.lean; the docstring mention is not a declaration.
+        self.assertEqual(totals["declarations"], 10)
         self.assertEqual(totals["research_open"], 2)
         self.assertEqual(totals["research_solved"], 2)
-        self.assertEqual(totals["answer_sorry"], 2)
+        self.assertEqual(totals["answer_sorry"], 3)
+        self.assertEqual(totals["api"], 1)
 
     def test_declaration_fields(self):
         decls = {d["name"]: d for d in self.files()[f"{PC}/Wikipedia/Demo.lean"]["declarations"]}
         self.assertEqual(set(decls), {
             "demo_open", "demo_solved", "demo_machine", "demo_after_comment", "demo_private",
+            "demo_unicode₂", "demo_api", "demo_lets",
         })
         self.assertEqual(decls["demo_open"]["categories"], ["research open"])
         self.assertEqual(decls["demo_open"]["ams"], ["11"])
@@ -181,6 +195,12 @@ class ScanFixtureTest(unittest.TestCase):
             "https://example.org/proof.lean",
         )
         self.assertEqual(decls["demo_private"]["kind"], "lemma")
+        # A shared bracket with a leading modifier still counts as the
+        # declaration's category attribute.
+        self.assertEqual(decls["demo_api"]["categories"], ["API"])
+        self.assertEqual(decls["demo_api"]["ams"], ["5"])
+        # Two type-level lets on one line: the statement runs to the proof.
+        self.assertEqual(decls["demo_lets"]["answer"], "sorry")
 
     def test_features(self):
         decls = {d["name"]: d for d in self.files()[f"{PC}/Wikipedia/Demo.lean"]["declarations"]}
@@ -257,9 +277,11 @@ class RealCloneTest(unittest.TestCase):
         # 17 of them are prose mentions inside docstrings/comments (checked by
         # offset), leaving 901 declarations whose type uses the answer gadget.
         self.assertEqual(totals["answer_sorry"], 901)
-        # 5421 raw lines contain the attribute string; one is a docstring
-        # mention (OpenQuantumProblems/23.lean), leaving 5420 declarations.
-        self.assertEqual(totals["declarations"], 5420)
+        # 5446 raw lines contain a category attribute (incl. shared brackets
+        # like ``@[simp, category API]``); one is a docstring mention
+        # (OpenQuantumProblems/23.lean), leaving 5445 declarations.
+        self.assertEqual(totals["declarations"], 5445)
+        self.assertEqual(totals["api"], 321)
 
 
 if __name__ == "__main__":

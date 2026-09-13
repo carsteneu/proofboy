@@ -8,10 +8,10 @@ bmo2.min_b=0 at n=0
 bmo2.iterations=100000
 bmo2.machine.halts=False steps=2000000 score=1982
 bmo3.power_of_four_hit=none
-bmo3.iterations=10000
+bmo3.iterations=9999
 bmo4.closed_form_ok=true
 bmo4.mod3_one_hit=none
-bmo4.iterations=10000
+bmo4.iterations=9999
 bmo5.hit=none
 bmo5.iterations=10000
 bmo5.machine.halts=False steps=2000000 score=1246
@@ -19,6 +19,9 @@ bmo8.hit=none
 bmo8.iterations=10000
 bmo8.machine.halts=False steps=2000000 score=505
 # bmo3/bmo4 machines are 5-symbol; bemyself.turing supports the 2-symbol notation only
+rule30.oeis_a051023_prefix_ok=true
+rule30.impl_cross_check_256=true
+rule30.smallest_period_le_128_in_4096_bits=none
 a34693.sweep=2..10000 checked=9999 max_k=84 at n=5207
 a34693.not_found=none
 a34693.violation_k_lt_n=none

@@ -99,6 +99,39 @@ class SmallestKPrimeTest(unittest.TestCase):
         self.assertEqual(cp.smallest_k_prime(3, cap=1), None)
 
 
+class Rule30Test(unittest.TestCase):
+    def test_lean_verified_prefix(self):
+        # Other/Rule30.lean proves by decide: the first 8 center-column bits
+        # are [true, true, false, true, true, true, false, false].
+        self.assertEqual(cp.rule30_center_bits(8), [1, 1, 0, 1, 1, 1, 0, 0])
+
+    def test_oeis_prefix_anchor(self):
+        self.assertEqual(len(cp.RULE30_A051023), 102)
+        self.assertEqual(cp.rule30_center_bits(len(cp.RULE30_A051023)),
+                         list(cp.RULE30_A051023))
+
+    def test_two_implementations_agree(self):
+        self.assertEqual(cp.rule30_center_bits(256), cp.rule30_center_bits_sparse(256))
+
+    def test_period_scan_finds_planted_period(self):
+        periodic = ([1, 0, 0, 1] * 300)[:1000]
+        self.assertEqual(cp.rule30_no_small_period(periodic, 10, 200), 4)
+        self.assertIsNone(cp.rule30_no_small_period(cp.rule30_center_bits_sparse(1024), 64, 512))
+
+
+class MillerRabinTest(unittest.TestCase):
+    def test_known_strong_pseudoprime_is_detected(self):
+        # Passes bases 2..37, caught by base 41 (Sorenson-Webster boundary).
+        witness = 318665857834031151167461
+        self.assertEqual(witness, 399165290221 * 798330580441)
+        self.assertFalse(cp._is_prime(witness))
+
+    def test_small_values(self):
+        self.assertTrue(cp._is_prime(2))
+        self.assertTrue(cp._is_prime(97))
+        self.assertFalse(cp._is_prime(91))
+
+
 class MachineProbeTest(unittest.TestCase):
     def test_bmo1_machine_no_halt_small(self):
         result = cp.machine_probe("1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE", 1000)
@@ -132,6 +165,7 @@ class ReportTest(unittest.TestCase):
         self.assertIn("bmo1.first_ten_ok=true", proc.stdout)
         self.assertIn("a34693.violation_k_lt_n=none", proc.stdout)
         self.assertIn("bmo8.machine.halts=False", proc.stdout)
+        self.assertIn("rule30.oeis_a051023_prefix_ok=true", proc.stdout)
 
 
 if __name__ == "__main__":

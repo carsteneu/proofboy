@@ -5,7 +5,7 @@
   },
   "collections": [
     {
-      "declarations": 140,
+      "declarations": 145,
       "files": 30,
       "name": "Arxiv",
       "research_open": 34,
@@ -19,7 +19,7 @@
       "research_solved": 9
     },
     {
-      "declarations": 2097,
+      "declarations": 2098,
       "files": 671,
       "name": "ErdosProblems",
       "research_open": 660,
@@ -61,21 +61,21 @@
       "research_solved": 14
     },
     {
-      "declarations": 30,
+      "declarations": 33,
       "files": 5,
       "name": "Millennium",
       "research_open": 12,
       "research_solved": 5
     },
     {
-      "declarations": 1533,
+      "declarations": 1538,
       "files": 227,
       "name": "OEIS",
       "research_open": 208,
       "research_solved": 106
     },
     {
-      "declarations": 123,
+      "declarations": 129,
       "files": 3,
       "name": "OpenQuantumProblems",
       "research_open": 34,
@@ -89,7 +89,7 @@
       "research_solved": 2
     },
     {
-      "declarations": 28,
+      "declarations": 30,
       "files": 7,
       "name": "Other",
       "research_open": 11,
@@ -110,7 +110,7 @@
       "research_solved": 0
     },
     {
-      "declarations": 680,
+      "declarations": 683,
       "files": 156,
       "name": "Wikipedia",
       "research_open": 264,
@@ -500,8 +500,24 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "not_lt",
-          "statement_chars": 95
+          "name": "not_lt₂",
+          "statement_chars": 98
+        },
+        {
+          "ams": [
+            "5"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "forall"
+          ],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "not_lt₂_of_forall_le",
+          "statement_chars": 80
         },
         {
           "ams": [
@@ -514,8 +530,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "not_lt",
-          "statement_chars": 137
+          "name": "not_lt₂_of_exists",
+          "statement_chars": 125
         },
         {
           "ams": [
@@ -528,8 +544,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "not_lt",
-          "statement_chars": 60
+          "name": "not_lt₂_self",
+          "statement_chars": 53
         },
         {
           "ams": [
@@ -542,8 +558,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "lt",
-          "statement_chars": 38
+          "name": "lt₂_example_1",
+          "statement_chars": 26
         },
         {
           "ams": [
@@ -556,8 +572,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "lt",
-          "statement_chars": 38
+          "name": "lt₂_example_2",
+          "statement_chars": 26
         },
         {
           "ams": [
@@ -570,8 +586,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "lt",
-          "statement_chars": 38
+          "name": "lt₂_example_3",
+          "statement_chars": 26
         },
         {
           "ams": [
@@ -584,8 +600,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "not_lt",
-          "statement_chars": 37
+          "name": "not_lt₂_example",
+          "statement_chars": 27
         },
         {
           "ams": [
@@ -601,8 +617,36 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "not_trans_lt",
-          "statement_chars": 60
+          "name": "not_trans_lt₂_nat",
+          "statement_chars": 54
+        },
+        {
+          "ams": [
+            "5"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "isIncreasing₂_nil",
+          "statement_chars": 37
+        },
+        {
+          "ams": [
+            "5"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "isIncreasing₂_singleton",
+          "statement_chars": 54
         },
         {
           "ams": [
@@ -617,8 +661,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "isIncreasing",
-          "statement_chars": 156
+          "name": "isIncreasing₂_const_length",
+          "statement_chars": 141
         },
         {
           "ams": [
@@ -732,6 +776,34 @@
           "kind": "theorem",
           "name": "maximalLength_le_isBigO",
           "statement_chars": 114
+        },
+        {
+          "ams": [
+            "5"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "tripleProduct_const",
+          "statement_chars": 91
+        },
+        {
+          "ams": [
+            "5"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "tripleProduct_vecConst_const",
+          "statement_chars": 95
         },
         {
           "ams": [
@@ -8488,6 +8560,21 @@
       "collection": "ErdosProblems",
       "cross_refs": [],
       "declarations": [
+        {
+          "ams": [
+            "5",
+            "20"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "nonCommutingGraph_adj",
+          "statement_chars": 83
+        },
         {
           "ams": [
             "5",
@@ -44077,8 +44164,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "erdos_868.variants.fixed_",
-          "statement_chars": 258
+          "name": "erdos_868.variants.fixed_ε",
+          "statement_chars": 256
         },
         {
           "ams": [
@@ -55987,8 +56074,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 78
+          "name": "μ_half_eq_uniform",
+          "statement_chars": 60
         },
         {
           "ams": [
@@ -56123,8 +56210,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 66
+          "name": "μ_sum_eq_one",
+          "statement_chars": 53
         },
         {
           "ams": [
@@ -56141,8 +56228,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 88
+          "name": "μFamily_univ",
+          "statement_chars": 75
         },
         {
           "ams": [
@@ -57402,6 +57489,54 @@
       "collection": "Millennium",
       "cross_refs": [],
       "declarations": [
+        {
+          "ams": [
+            "35"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "real"
+          ],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "divergence_of_not_differentiableAt",
+          "statement_chars": 74
+        },
+        {
+          "ams": [
+            "35"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "real"
+          ],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "divergence_zero",
+          "statement_chars": 36
+        },
+        {
+          "ams": [
+            "35"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "real"
+          ],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "divergence_const",
+          "statement_chars": 53
+        },
         {
           "ams": [
             "35"
@@ -79178,6 +79313,84 @@
           ],
           "answer": null,
           "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "count_false_morphism",
+          "statement_chars": 58
+        },
+        {
+          "ams": [
+            "68"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "count_true_morphism",
+          "statement_chars": 40
+        },
+        {
+          "ams": [
+            "68"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "forall",
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "count_false_finiteWord",
+          "statement_chars": 617
+        },
+        {
+          "ams": [
+            "68"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "forall",
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "count_true_finiteWord",
+          "statement_chars": 315
+        },
+        {
+          "ams": [
+            "68"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "length_finiteWord",
+          "statement_chars": 49
+        },
+        {
+          "ams": [
+            "68"
+          ],
+          "answer": null,
+          "categories": [
             "research solved"
           ],
           "features": [
@@ -84790,6 +85003,25 @@
           ],
           "formal_proof": null,
           "kind": "lemma",
+          "name": "mkStateVector_apply",
+          "statement_chars": 77
+        },
+        {
+          "ams": [
+            "5",
+            "15",
+            "81",
+            "94"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
           "name": "isNormalized_iff_norm_sq_eq_one",
           "statement_chars": 66
         },
@@ -84821,6 +85053,25 @@
           ],
           "answer": null,
           "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "permuteState_apply",
+          "statement_chars": 122
+        },
+        {
+          "ams": [
+            "5",
+            "15",
+            "81",
+            "94"
+          ],
+          "answer": null,
+          "categories": [
             "test"
           ],
           "features": [
@@ -84840,6 +85091,44 @@
           ],
           "answer": null,
           "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "combineFirst_leftIndex",
+          "statement_chars": 102
+        },
+        {
+          "ams": [
+            "5",
+            "15",
+            "81",
+            "94"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "combineFirst_rightIndex",
+          "statement_chars": 108
+        },
+        {
+          "ams": [
+            "5",
+            "15",
+            "81",
+            "94"
+          ],
+          "answer": null,
+          "categories": [
             "test"
           ],
           "features": [
@@ -84849,6 +85138,25 @@
           "kind": "theorem",
           "name": "not_existsAME_zero_dim",
           "statement_chars": 38
+        },
+        {
+          "ams": [
+            "5",
+            "15",
+            "81",
+            "94"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "card_config",
+          "statement_chars": 45
         },
         {
           "ams": [
@@ -84904,6 +85212,25 @@
           "kind": "theorem",
           "name": "not_isConstantConfig_example",
           "statement_chars": 76
+        },
+        {
+          "ams": [
+            "5",
+            "15",
+            "81",
+            "94"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "diagonalState_apply",
+          "statement_chars": 103
         },
         {
           "ams": [
@@ -86215,6 +86542,40 @@
           ],
           "answer": null,
           "categories": [
+            "API"
+          ],
+          "features": [
+            "int"
+          ],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "state_zero",
+          "statement_chars": 36
+        },
+        {
+          "ams": [
+            "37",
+            "68"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "state_succ",
+          "statement_chars": 40
+        },
+        {
+          "ams": [
+            "37",
+            "68"
+          ],
+          "answer": null,
+          "categories": [
             "test"
           ],
           "features": [],
@@ -86633,8 +86994,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "HasG",
-          "statement_chars": 115
+          "name": "HasGδSingletons.lindelof_card",
+          "statement_chars": 89
         }
       ],
       "path": "FormalConjectures/Paper/CardinalityLindelof.lean",
@@ -86660,8 +87021,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "HasCasasAlveroProp",
-          "statement_chars": 88
+          "name": "HasCasasAlveroPropᵣ.hasCasasAlveroProp",
+          "statement_chars": 67
         },
         {
           "ams": [
@@ -86688,8 +87049,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "hasCasasAlveroProp_iff",
-          "statement_chars": 79
+          "name": "hasCasasAlveroProp_iffᵣ",
+          "statement_chars": 77
         },
         {
           "ams": [
@@ -86705,8 +87066,8 @@
           ],
           "formal_proof": null,
           "kind": "lemma",
-          "name": "casas_alvero_iff",
-          "statement_chars": 270
+          "name": "casas_alvero_iffᵣ",
+          "statement_chars": 268
         },
         {
           "ams": [
@@ -89298,8 +89659,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "reed_conjecture_",
-          "statement_chars": 104
+          "name": "reed_conjecture_Δ_6_ω_2",
+          "statement_chars": 96
         }
       ],
       "path": "FormalConjectures/Paper/ReedOmegaDeltaChi.lean",
@@ -92674,42 +93035,42 @@
           ],
           "formal_proof": null,
           "kind": "lemma",
-          "name": null,
+          "name": "χ_supp",
+          "statement_chars": 43
+        },
+        {
+          "ams": [
+            "6"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "finset",
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "supp_χ",
+          "statement_chars": 45
+        },
+        {
+          "ams": [
+            "6"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [
+            "finset",
+            "nat"
+          ],
+          "formal_proof": null,
+          "kind": "lemma",
+          "name": "χ_le_iff",
           "statement_chars": 50
-        },
-        {
-          "ams": [
-            "6"
-          ],
-          "answer": null,
-          "categories": [
-            "API"
-          ],
-          "features": [
-            "finset",
-            "nat"
-          ],
-          "formal_proof": null,
-          "kind": "lemma",
-          "name": "supp_",
-          "statement_chars": 47
-        },
-        {
-          "ams": [
-            "6"
-          ],
-          "answer": null,
-          "categories": [
-            "API"
-          ],
-          "features": [
-            "finset",
-            "nat"
-          ],
-          "formal_proof": null,
-          "kind": "lemma",
-          "name": null,
-          "statement_chars": 59
         },
         {
           "ams": [
@@ -93787,8 +94148,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 352
+          "name": "Δ_claudeAlpogeHowell31",
+          "statement_chars": 329
         },
         {
           "ams": [
@@ -93851,8 +94212,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 293
+          "name": "Δ_ranksunbounded30",
+          "statement_chars": 274
         },
         {
           "ams": [
@@ -93915,8 +94276,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 316
+          "name": "Δ_elkiesKlagsbrun29",
+          "statement_chars": 296
         },
         {
           "ams": [
@@ -93979,8 +94340,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "theorem",
-          "name": null,
-          "statement_chars": 252
+          "name": "Δ_elkies28",
+          "statement_chars": 241
         },
         {
           "ams": [
@@ -98478,8 +98839,8 @@
           ],
           "formal_proof": null,
           "kind": "theorem",
-          "name": "AB",
-          "statement_chars": 97
+          "name": "ABφθSpec.existsUnique",
+          "statement_chars": 77
         },
         {
           "ams": [
@@ -98848,6 +99209,20 @@
           "kind": "theorem",
           "name": "IsPebblingMove.refl",
           "statement_chars": 203
+        },
+        {
+          "ams": [
+            "5"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "IsReachable.refl",
+          "statement_chars": 66
         },
         {
           "ams": [
@@ -99596,8 +99971,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "lemma",
-          "name": null,
-          "statement_chars": 16
+          "name": "τ_zero",
+          "statement_chars": 9
         },
         {
           "ams": [
@@ -99610,8 +99985,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "lemma",
-          "name": null,
-          "statement_chars": 15
+          "name": "τ_one",
+          "statement_chars": 9
         },
         {
           "ams": [
@@ -99624,8 +99999,8 @@
           "features": [],
           "formal_proof": null,
           "kind": "lemma",
-          "name": null,
-          "statement_chars": 17
+          "name": "τ_two",
+          "statement_chars": 11
         },
         {
           "ams": [
@@ -101772,6 +102147,36 @@
       "collection": "Wikipedia",
       "cross_refs": [],
       "declarations": [
+        {
+          "ams": [
+            "20",
+            "37"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "shift_apply",
+          "statement_chars": 73
+        },
+        {
+          "ams": [
+            "20",
+            "37"
+          ],
+          "answer": null,
+          "categories": [
+            "API"
+          ],
+          "features": [],
+          "formal_proof": null,
+          "kind": "theorem",
+          "name": "shift_one",
+          "statement_chars": 45
+        },
         {
           "ams": [
             "20",
@@ -107541,8 +107946,8 @@
     "answer_false": 157,
     "answer_sorry": 901,
     "answer_true": 227,
-    "api": 296,
-    "declarations": 5420,
+    "api": 321,
+    "declarations": 5445,
     "files": 1268,
     "other": 0,
     "research_open": 1466,

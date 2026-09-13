@@ -33,10 +33,10 @@ realen Klon), 12 Tests, grün.
 | Kennzahl | Wert |
 |---|---|
 | .lean-Dateien unter `FormalConjectures/` | 1268 |
-| kategorie-annotierte Deklarationen | 5420 |
+| kategorie-annotierte Deklarationen | 5445 |
 | `research open` | **1466** |
 | `research solved` | 1661 |
-| `test` / `textbook` / `API` | 1822 / 175 / 296 |
+| `test` / `textbook` / `API` | 1822 / 175 / **321** |
 | `answer(sorry)` auf Statement-Ebene | 901 (davon 895 in `research open`) |
 | `answer(True)` / `answer(False)` | 227 / 157 |
 | nicht zuordenbare `@[category]`-Vorkommen | 0 |
@@ -47,6 +47,14 @@ Vorkommen; 17 davon stehen in Prosa/Docstrings (z. B. „recorded here as
 Fälle (Statement-Bereich endet am ersten `:=`, das nicht zu einem
 `let`-Binding im Theorem-Typ gehört); die 17 Prosa-Fälle wurden per
 Offset-Abgleich einzeln klassifiziert.
+
+Methodische Notiz zu den Deklarationszahlen: 5446 Rohzeilen tragen eine
+`@[`-Annotation mit `category`-Feld (Zählung per
+`grep -rE '@\[[^]]*category'`); eine ist eine Docstring-Erwähnung
+(`OpenQuantumProblems/23.lean`), bleibt also 5445. Seit der kalten Abnahme
+(§6) erfasst der Scan auch geteilte Klammern mit vorangestellten Modifikatoren
+(`@[simp, category API, AMS 5]`, 25 Deklarationen — alle `API`, daher
+unverändert 1466 offene Statements); vorher fehlten diese 25.
 
 **Sammlungen** (nach offenen Statements):
 
@@ -76,11 +84,17 @@ Offset-Abgleich einzeln klassifiziert.
 Davon ohne `answer`-Gadget (direkte Aussage): 571; mit `answer(sorry)`:
 895.
 
-**Bezug zur Erdős–Straus-Frage aus E1.** Ein Statement zur
-Erdős–Straus-Vermutung existiert im Katalog **nicht** (Suche nach
-`4 / n =` / `1 / a + 1 / b + 1 / c` leer; „Straus“-Treffer sind
-Erdős–Graham–Ruzsa–Straus- bzw. Sylvester–Schur-Kontexte). E1s offene Frage
-ist damit negativ beantwortet.
+**Bezug zur Erdős–Straus-Frage aus E1.** Das Statement **existiert** im
+Katalog: `ErdosProblems/242.lean`, `erdos_242`
+(`@[category research open, AMS 11]`, angelehnt an Mathesis 1956):
+`∀ n > 2 ∃ x y z, 1 ≤ x < y < z ∧ 4/n = 1/x + 1/y + 1/z`, dazu die Variante
+`erdos_242.variants.schinzel_generalization` (Schinzel). E1s offene Frage ist
+damit **positiv** beantwortet (Erdős–Straus ist Katalog-Material!) — ein
+früherer Stand dieser Datei behauptete das Gegenteil, weil die Suchliterale
+(`4 / n =` als Zeichenfolge, `1 / a + 1 / b + 1 / c` mit genau diesen
+Variablennamen) die Lean-Formatierung (`(4 / n : ℚ) = 1 / x + 1 / y + 1 / z`)
+verfehlten; die kalte Abnahme fand den Treffer namensbasiert
+(`scan.json`-Eintrag `erdos_242`, §6 Finding 1).
 
 **Was der Scan nicht sagt.** Er elaboriert kein Lean: Statement-Grenzen sind
 eine `:=`-Heuristik mit dokumentierter Sonderregel für `let`-Bindings im
@@ -93,8 +107,10 @@ Scan nicht.
 ```bash
 git clone --depth 1 https://github.com/google-deepmind/formal-conjectures \
     .yesmem/tmp/formal-conjectures
+git -C .yesmem/tmp/formal-conjectures checkout a2f4a1b   # Pin der Messung
 python3 yesdocs/formal-conjectures/tools/scan_catalog.py \
-    .yesmem/tmp/formal-conjectures --json yesdocs/formal-conjectures/data/scan.json
+    .yesmem/tmp/formal-conjectures --json .yesmem/tmp/scan.json
+cmp .yesmem/tmp/scan.json yesdocs/formal-conjectures/data/scan.json  # byte-identisch
 python3 -m unittest discover -s yesdocs/formal-conjectures/tools
 ```
 
@@ -104,7 +120,9 @@ mathlib-Oleancache (`~/.cache/mathlib`, 8690 Dateien) war aus dem E1-Lauf
 vorhanden, `lake exe cache get` meldete „Already decompressed 8690 file(s)“.
 Ein vollständiger `lake build` lief danach in **~11 min durch** (12:31:34 →
 12:42:17, 16 Kerne): `Build completed successfully (10180 jobs)`, EXIT 0,
-1140 gebaute Repo-Module, keine Fehler/Warnungen im Log. Der Voll-Build ist auf
+1140 gebaute Repo-Module, keine Fehler/Warnungen im Log
+(Log `build2.log`; ein erster, beim Shell-Timeout abgebrochener Lauf hatte
+davor bereits 9039/10180 Jobs gebaut). Der Voll-Build ist auf
 dieser Maschine also billig (Klon 13 MB + vorhandener mathlib-Cache) — er ist
 trotzdem **kein** Träger der Scan-Aussagen oben; der Scan bleibt statisch und
 läuft ohne Lean.
@@ -122,6 +140,8 @@ K1 = 0 (nicht offen) schließt aus. Bewertung ehrlich, nicht wohlwollend.
 | 2 | BMO#5 `1RB0LD_1LC0RA_1RA1LB_1LA1LE_1RF0LC_---0RE` (ebd.) | 2 | 2 frag. | 2 | 2 | 2 | 2 | 2 |
 | 3 | BMO#2 Antihydra `1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA` (ebd.) | 2 | 2 frag. | 2 | 2 | 2 | 2 | 1 |
 | 4 | OEIS A34693 — kleinste `k` mit `k·n+1` prim (OEIS/34693.lean) | 1 | 2 | 2 | 2 | 1 | 2 | 1 |
+| 5 | Rule-30-Zentralspalte, Prize 1+2 (Other/Rule30.lean) | 2 | 2 frag. | 2 | 2 | 2 | 2 | 2 |
+| 6 | Erdős–Straus `erdos_242` (ErdosProblems/242.lean) | 2 | 2 | 2 | 2 | 2 | 2 | 1 |
 
 „K2 frag.“ = der Prüfpfad deckt **endliche Fragmente** vollständig
 („die Maschine läuft N Schritte ohne Halt“; „für dieses n existiert das k“),
@@ -194,7 +214,43 @@ das unterscheidet ein Testfeld-Fragment von einer lösbaren Aufgabe.
   TM-Familie: endliche Zeugen, triviale Lokal-Prüfbarkeit, saubere
   Abstufung; Notationseffekt geringer als bei Traces.
 
-### 2.5 Geschwister und Solved-Seite (keine Shortlist-Einträge)
+### 2.5 Rule 30 — Zentralspalte, Prize 1+2 (offen; in §3.4 mitgemessen)
+
+- **Was es ist.** `Other/Rule30.lean` formalisiert Wolframs Rule 30 samt
+  `centerColumn` und einem `[category test]`-Theorem
+  `centerColumn_prefix`, das die ersten acht Bits per `decide` gegen die
+  bekannte Folge (OEIS A051023) prüft. Offen sind **Prize-Problem 1**
+  (Zentralspalte ist nicht eventual-periodisch) und **Problem 2**
+  (Dichte 1/2 der Einsen) als `answer(sorry)`-Statements.
+- **Anschluss an unsere Kette.** Der endliche Teil ist voll maschinell:
+  CA-Simulation plus externe Ankerseqzenz; die Datei liefert die Definitionen
+  sogar im Repo mit. Kein Zertifikatspfad für die Gesamtaussagen
+  (Periodizität/Dichte über unendliche Zeit), daher wie BMO ein
+  Testfeld-Kandidat, kein Lösungsziel.
+- **Was fehlt.** Ein Beweis für Unendlichkeitsaussagen über die Spalte.
+- **Ehrliches Urteil.** Sehr guter Kandidat: die endliche Reproduktion ist
+  zweifach unabhängig prüfbar (Lean-`decide`-Prefix im Repo, OEIS-Anker,
+  zwei eigene Implementierungen) und der Sprung zur offenen Aussage ist klar
+  benannt.
+
+### 2.6 Erdős–Straus — `erdos_242` (offen; in dieser Runde nicht angegriffen)
+
+- **Was es ist.** Die Vermutung als Katalog-Statement (§1); dazu die
+  Schinzel-Variante.
+- **Anschluss an unsere Kette.** Maximal: `[IDENT]` ist exakt auf die Form
+  `4/n(t) = 1/a + 1/b + 1/c` zugeschnitten, `[COMPUTE]` mit
+  `bemyself.experiments.erdos_straus` in der Allowlist, und der E1-Lauf hat
+  sechs P12-Klassen im Kernel bewiesen. Die Katalog-Aussage ist aber die
+  volle Vermutung über alle `n`; endliche/klassenweise Zertifikate decken sie
+  nicht, und E1 hat die lokale Maschinerie bereits ausgeschöpft.
+- **Was fehlt.** Ein Beweis für die restlichen Kongruenzklassen (offenes
+  Forschungsproblem, nicht Budget-Frage).
+- **Ehrliches Urteil.** Für unser Testfeld der **nächstliegende** Katalog-
+  Anschluss überhaupt (die Kette wurde dafür gebaut) — aber genau deshalb in
+  dieser Runde nur eingeordnet, nicht angegriffen: der Angriff wäre eine
+  Wiederholung von E1 mit anderem Vorzeichen.
+
+### 2.7 Geschwister und Solved-Seite (keine Shortlist-Einträge)
 
 - **BMO#8** (`1RB0LD_0RC1RB_0RD0RA_1LE0RD_1LF---_0LA1LA`, offen) — dieselbe
   Klasse wie #1 (2 zusätzliche ganzzahlige Reformulierung); in §3.1
@@ -237,10 +293,10 @@ bmo2.min_b=0 at n=0
 bmo2.iterations=100000
 bmo2.machine.halts=False steps=2000000 score=1982
 bmo3.power_of_four_hit=none
-bmo3.iterations=10000
+bmo3.iterations=9999
 bmo4.closed_form_ok=true
 bmo4.mod3_one_hit=none
-bmo4.iterations=10000
+bmo4.iterations=9999
 bmo5.hit=none
 bmo5.iterations=10000
 bmo5.machine.halts=False steps=2000000 score=1246
@@ -248,6 +304,9 @@ bmo8.hit=none
 bmo8.iterations=10000
 bmo8.machine.halts=False steps=2000000 score=505
 # bmo3/bmo4 machines are 5-symbol; bemyself.turing supports the 2-symbol notation only
+rule30.oeis_a051023_prefix_ok=true
+rule30.impl_cross_check_256=true
+rule30.smallest_period_le_128_in_4096_bits=none
 a34693.sweep=2..10000 checked=9999 max_k=84 at n=5207
 a34693.not_found=none
 a34693.violation_k_lt_n=none
@@ -272,7 +331,17 @@ Was das **sagt** (jede Zeile ist eine endliche Beobachtung):
   Halt in je 2·10^6 Schritten.
 - `a34693`: Sweep n = 2..10^4 — jede Instanz hat ein `k < n` (Maximum
   `k = 84` bei `n = 5207`); **keine** Verletzung der schwachen **und**
-  keine der starken Schranke `(k−1)^4 < n^3`.
+  keine der starken Schranke `(k−1)^4 < n^3`. `not_found=none` heißt: kein
+  Suchlauf lief in die Suchkappe (sonst stünde dort eine Liste — ein
+  Kappen-Miss wird ausdrücklich **nicht** als Vermutungsverletzung gezählt).
+- `rule30.oeis_a051023_prefix_ok=true`: die ersten 102 Bits der Zentralspalte
+  (0..101) stimmen mit OEIS A051023 überein — unabhängig davon sind die
+  ersten acht davon im Repo selbst per Lean-`decide` bewiesen
+  (`centerColumn_prefix`); `impl_cross_check_256=true`: zwei verschiedene
+  eigene Implementierungen (Fenster-Bytearray und sparse Live-Zellen)
+  liefern dieselben 256 Bits; `smallest_period_le_128_in_4096_bits=none`:
+  in den letzten 1024 der 4096 berechneten Bits wiederholt sich keine
+  Periode `p ≤ 128` (endliche Evidenz gegen Prize 1, **kein** Beweis).
 
 Was das **nicht** sagt: nichts über die offenen Gesamtaussagen. „Kein Halt
 in 2·10^6 Schritten“ ist keine Nicht-Halte-Aussage; „kein Treffer bis n = 10^4“
@@ -352,8 +421,8 @@ python3 -m bemyself.msheet run yesdocs/formal-conjectures/data/bmo-attack.msheet
 `[ARTIFACT]`-Claims an dieses Dokument gebunden; der Prüfer liest die Dateien
 unter der Repo-Wurzel und vergleicht die SHA-256:
 
-[ARTIFACT: yesdocs/formal-conjectures/data/scan.json -> babe2ffac1336014bdd48f21db960ad607e9e74f9584fe7853b2253dc642e249]
-[ARTIFACT: yesdocs/formal-conjectures/data/probe.txt -> 539b217c34586a04b390fff9af70430cc9d25637d13bf46753bfcfe2f009b3d9]
+[ARTIFACT: yesdocs/formal-conjectures/data/scan.json -> 8505c975f59f26668e51791ba471385fcfa36341e4709354ae2a689208d10b58]
+[ARTIFACT: yesdocs/formal-conjectures/data/probe.txt -> ca9f2943a1a5c6b6dd7b0fbd908107fb5e0c89cc5f28333312232a97e256f410]
 [ARTIFACT: yesdocs/formal-conjectures/data/bmo-attack.msheet -> 7d0b37d8da2ce589fef5a32498164fa8f75d6ab8aed1d4077a5ccd133f327bef]
 
 ```bash
@@ -364,11 +433,22 @@ python3 -m bemyself check --report yesdocs/formal-conjectures/README.md --repo .
 
 Der Angriff zeigt für die Shortlist, was im Testfeld **wirklich prüfbar**
 ist: TM-Fragmente über `sim`/`[SEARCHED]` (Zeuge = ausgeführter Lauf),
-Zahlen-Fragmente über `range`-Zeugen (Zeuge = Zeuge im Wortsinn), und er
+Zahlen-Fragmente über `range`-Zeugen (Zeuge = Zeuge im Wortsinn), Zellautomaten
+über zwei unabhängige Implementierungen plus Fremdanker, und er
 zeigt die Grenze: die offenen Gesamtaussagen haben **keinen**
 Zertifikatspfad — jede „Antwort“ auf sie ist und bleibt eine endliche
 Beobachtung. Für das Notations-A/B ist genau diese Kombination interessant:
 identische endliche Prüfanker, mehrere Notationen derselben Frage.
+
+### 3.4 Rule 30 (nachtrags aus §2.5)
+
+Der Rule-30-Kandidat kam über die kalte Abnahme in die Shortlist (das Repo
+definiert den Zellautomaten selbst, `Other/Rule30.lean`); die Messung steht
+in §3.1: Bits 0..101 == OEIS A051023 (und Bits 0..8 davon Lean-`decide`-fest),
+zwei unabhängige Implementationen stimmen bis 256 überein, keine kleine
+Periode bis 4096 Bits. Was das **nicht** ist: ein Beweis der
+Nicht-Periodizität oder der Dichte 1/2 — nur gebundene Evidenz, ehrlich
+beschriftet.
 
 ## 4. Grenzen (ehrlich)
 
@@ -386,10 +466,13 @@ identische endliche Prüfanker, mehrere Notationen derselben Frage.
    Äquivalenzen stammen aus externer Dokumentation (Rocq für BMO#5, Lean für
    die BMO#1-Regeln, Wiki für die übrigen); lokal wurden nur beide Seiten
    *einzeln* endlich reproduziert.
-5. **Statement-Qualität nur stichprobenartig.** Der Docstring-Check
-   (BMO#1-Erstwerte, A34693-Namen, BMO#4-Closed-Form gegen Wiki) lief für die
-   Shortlist-Kandidaten; der restliche Katalog ist nicht Statement-für-
-   Statement gegen seine Quellen geprüft.
+5. **Statement-Qualität nur stichprobenartig — mit einem belegten Fehler.**
+   Der Docstring-Check (BMO#1-Erstwerte, A34693-Namen, BMO#4-Closed-Form gegen
+   Wiki) lief für die Shortlist-Kandidaten; ein früherer Stand dieser Datei
+   übersah außerdem das Erdős–Straus-Statement (`erdos_242`) und behauptete
+   seine Abwesenheit — gefunden von der kalten Abnahme, korrigiert (§1, §2.6,
+   §6). Der restliche Katalog ist nicht Statement-für-Statement gegen seine
+   Quellen geprüft.
 6. **Scan ist statisch.** Keine Lean-Elaboration; die Kennzahlen hängen am
    gepinnten Commit `a2f4a1b`, nicht am jeweils aktuellen `main`. Der
    Voll-Build lief zwar durch (§1), prüft aber nur das Kompilieren, nicht die
@@ -404,5 +487,28 @@ identische endliche Prüfanker, mehrere Notationen derselben Frage.
 - [Beaver Math Olympiad (BusyBeaverWiki)](https://wiki.bbchallenge.org/wiki/Beaver_Math_Olympiad) — BMO-Probleme 1–11, gelöste Fälle, Rocq-Verweis (Abruf 2026-09-13)
 - [`1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE` (BusyBeaverWiki)](https://wiki.bbchallenge.org/wiki/1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE) — Modell, Startkonfiguration, 10^8-Iterationen, Review 2026-04-19 (Abruf 2026-09-13)
 - [OEIS A34693](https://oeis.org/A34693) — kleinste `k` mit `k·n+1` prim (Abruf 2026-09-13)
+- [OEIS A051023](https://oeis.org/A051023) — Zentralspalte von Rule 30 (Anker der Bits 0..101; Abruf 2026-09-13)
 - Lokal: `tools/scan_catalog.py`, `tools/catalog_probe.py` samt Tests, `data/scan.json`, `data/probe.txt`, `data/bmo-attack.msheet`
 - Einordnung im Wiki: [04-03 Nachtrag 2026-09-13](../deepseek-math-notation/wiki/04-offene-probleme/04-03-rechenfragmente-daten.md), Kriterien aus [04-01](../deepseek-math-notation/wiki/04-offene-probleme/04-01-wahlkriterien.md)
+
+## 6. Review-Befunde und Auflösung
+
+Drei Abnahmen liefen nach der Fertigstellung (kalte Abnahme/5.2,
+Zweitfolgen+Intent/5.3, Security/5.4). Alle Befunde:
+
+| # | Quelle | Befund | Auflösung | Beleg |
+|---|---|---|---|---|
+| 1 | 5.2 [hoch] | Erdős–Straus existiert doch im Katalog (`erdos_242`); die Doku behauptete das Gegenteil | Behauptung in §1/§2.6 + Wiki korrigiert; Ursache der Fehlsuche dokumentiert | `ErdosProblems/242.lean:35-41`, `scan.json`-Eintrag `erdos_242` |
+| 2 | 5.2 [mittel] | 25 Deklarationen mit geteilten Attribut-Klammern (`@[simp, category API, …]`) fehlten | Parser erweitert (geteilte Klammern, Modifikatoren), Zahlen auf 5445/321 korrigiert; Fixture-Test | `deviation fixed: scan 5445 == 5446 roh − 1 Docstring` |
+| 3 | 5.2 [niedrig] | Unicode-Namen abgeschnitten (`not_lt₂_of`, `fixed_ε`) | Namens-Regex auf Delimiter-Klasse erweitert; Fixture-Test | `test_declaration_fields` (demo_unicode₂) |
+| 4 | 5.2/5.3 [niedrig] | Repro-Blöcke ohne Commit-Pin, `--json` überschrieb den Anker | `git checkout a2f4a1b` + `cmp`-Schritt in §1/§3 | §1/§3 Reproduktionsblöcke |
+| 5 | 5.2 [niedrig] | INDEX-Kopfzähler absolut nicht reproduzierbar (Alt-Konvention, schon an der Basis) | nicht stillschweigend umgeschrieben; Deltas exakt (+4 Quellen, +2 Zitate, +Wörter) | INDEX-Diff; 5.3-Zweitfolgenbericht |
+| 6 | 5.2 [niedrig] | „~11 min“ betraf nur den zweiten Build-Lauf | Build-Log-Kontext ergänzt (erster Lauf abgebrochen bei 9039/10180) | `.yesmem/tmp/formal-conjectures/build2.log` |
+| 7 | 5.2 [niedrig] | Probe-Robustheit: `iterations`-Zeile konnte überzeichnen, `not_found`-Kappung ohne Vermerk, Fehlerpfad KeyError | Ist-Iterationen ausgegeben; Kappungsvermerk „first 8 of N“; Fehlerzeile statt KeyError | `probe.txt`, `test_catalog_probe.py` |
+| 8 | 5.3 [niedrig] | INDEX-Link `../../../formal-conjectures/…` eine Ebene zu tief | auf `../../` korrigiert | `INDEX.md:212` |
+| 9 | 5.3 [niedrig] | Verifikationsbeleg stand auf `113a598`, Endstand war `34ace66` | Suite/Tool-Tests/`check --strict`/msheet am finalen Stand erneut ausgeführt (s. u.) | Phase-4-Block im Scratchpad |
+| 10 | 5.4 [L] | Quadratische Laufzeit in `_statement_text` auf präpariertem Text (20,8 s für 3,6 MB) | Zeilen-/`let`-Offsets einmal pro Datei vorberechnet, `bisect` statt Präfix-Rescan; adversarialer Repro: 0,17 s | Security-Repro nachgestellt |
+| 11 | 5.4 [L] | `_is_prime`-Docstring-Schranke falsch (12 Basen reichen nur bis 3,19·10^23; Zeuge 318665857834031151167461) | Basis 41 ergänzt, Schranke auf `< 3,317·10^24` korrigiert; Zeuge + Grenzfall als Tests | `test_known_strong_pseudoprime_is_detected` |
+
+Aus den Reviews zusätzlich übernommen (kein Befund, aber Chance): der
+Rule-30-Kandidat (§2.5, §3.4) und die Erdős–Straus-Einordnung (§2.6).
