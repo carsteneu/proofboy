@@ -116,8 +116,11 @@ def score(answer: str, record: dict, *, sandbox: str = DEFAULT_SANDBOX) -> dict:
     if any(claim["verdict"] == "REFUTED" for claim in claims):
         return {"reward": 0.0, "reason": "refuted", **detail}
     if expect.get("checkpoints_all_matched"):
-        checkpoints = gold.get("checkpoints_gold")
-        matched, total = checkpoint_score(answer, checkpoints)
+        try:
+            matched, total = checkpoint_score(answer, gold.get("checkpoints_gold"))
+        except Exception as exc:  # noqa: BLE001 -- defektes Gold ist 0 Reward, kein Absturz
+            return {"reward": 0.0, "reason": "unreadable_reference",
+                    "error": f"{type(exc).__name__}: {exc}", **detail}
         detail["checkpoints_matched"] = matched
         detail["checkpoints_total"] = total or expect.get("checkpoints_total", 0)
         reward = matched / detail["checkpoints_total"] if detail["checkpoints_total"] else 0.0
@@ -151,7 +154,10 @@ def reward(completions, prompts=None, record_id=None, records_by_id=None, **kwar
             scores.append(0.0)
             continue
         text = completion if isinstance(completion, str) else str(completion)
-        scores.append(score(text, record)["reward"])
+        try:
+            scores.append(score(text, record)["reward"])
+        except Exception:  # noqa: BLE001 -- ein defekter Datensatz ist 0 Reward, kein Trainer-Absturz
+            scores.append(0.0)
     return scores
 
 

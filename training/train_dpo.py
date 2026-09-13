@@ -62,6 +62,22 @@ def is_adapter(path: Path | str) -> bool:
     return (Path(path) / "adapter_config.json").exists()
 
 
+def with_max_prompt_length(kwargs: dict, config: dict, config_cls) -> dict:
+    """``max_prompt_length`` nur setzen, wenn die TRL-Version das Feld kennt.
+
+    TRL <= 0.24 kennt das Feld und kuerzt ohne es still auf den Default 512
+    Tokens -- vom Prompt-Anfang, was bei unseren Legenden den Kopf abschneidet.
+    Ab TRL 1.0 ist das Feld entfernt (unbekanntes Kwarg = TypeError), dort
+    kuerzt der Trainer gesamt auf ``max_length``.
+    """
+    import dataclasses
+
+    names = {field.name for field in dataclasses.fields(config_cls)}
+    if "max_prompt_length" in names:
+        kwargs["max_prompt_length"] = config["max_prompt_len"]
+    return kwargs
+
+
 def dry_run(args) -> int:
     records = read_jsonl(args.corpus)
     validate_pairs(records, path=str(args.corpus))
@@ -136,24 +152,28 @@ def train(args) -> int:
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
     model, tokenizer, lora = load_model(base_model, quantization, config)
-    # ``max_prompt_length`` wird bewusst nicht gesetzt: aeltere TRL-Versionen
-    # kennen es, ab 1.0 ist es entfernt -- ohne den Schluessel laeuft beides.
     dpo_config = DPOConfig(
-        output_dir=str(args.out),
-        beta=config["beta"],
-        max_length=config["max_seq_len"],
-        num_train_epochs=args.epochs or config["epochs"],
-        per_device_train_batch_size=config["per_device_train_batch_size"],
-        gradient_accumulation_steps=config["gradient_accumulation_steps"],
-        learning_rate=config["learning_rate"],
-        lr_scheduler_type=config["lr_scheduler"],
-        warmup_ratio=config["warmup_ratio"],
-        logging_steps=config["logging_steps"],
-        save_strategy=config["save_strategy"],
-        bf16=config["bf16"],
-        gradient_checkpointing=config["gradient_checkpointing"],
-        seed=args.seed or config["seed"],
-        report_to="none",
+        **with_max_prompt_length(
+            {
+                "output_dir": str(args.out),
+                "beta": config["beta"],
+                "max_length": config["max_seq_len"],
+                "num_train_epochs": args.epochs or config["epochs"],
+                "per_device_train_batch_size": config["per_device_train_batch_size"],
+                "gradient_accumulation_steps": config["gradient_accumulation_steps"],
+                "learning_rate": config["learning_rate"],
+                "lr_scheduler_type": config["lr_scheduler"],
+                "warmup_ratio": config["warmup_ratio"],
+                "logging_steps": config["logging_steps"],
+                "save_strategy": config["save_strategy"],
+                "bf16": config["bf16"],
+                "gradient_checkpointing": config["gradient_checkpointing"],
+                "seed": args.seed or config["seed"],
+                "report_to": "none",
+            },
+            config,
+            DPOConfig,
+        )
     )
     dataset = Dataset.from_list(build_dpo_rows(train_records))
     trainer = DPOTrainer(

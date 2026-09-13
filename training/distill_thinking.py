@@ -7,10 +7,11 @@ Denkzone. Fuer eine Denk-Trace-Destillation wird der Fragekopf (System-Legende
 Denkzone in der Notation schreibt.
 
 LECK-POLICY (getestet): Bei den Zyklus-Aufgaben ohne vorgegebenes Zertifikat
-(``certificate_given: false``) darf der Trace die eingefrorenen Gold-Werte
-nicht nennen -- die Aufgabe verlangt die Suche; Gold-Ziffern im Trace waeren
-ein Leck aus dem Set. ``find_gold_leaks`` prueft das mechanisch (ganze Zahlen
-im Text gegen die Gold-Werte).
+(``certificate_given`` nicht ``True``) darf der Trace die eingefrorenen
+Gold-Werte nicht nennen -- die Aufgabe verlangt die Suche; Gold-Ziffern im
+Trace waeren ein Leck aus dem Set. ``find_gold_leaks`` prueft beschriftete
+Zuweisungen (``t1=``/``t2=``/``d=``) und Zahlentripel ``(a, b, c)``, die die
+Zertifikatswerte vollstaendig enthalten.
 
     python3 training/distill_thinking.py --dry-run --id sft:v13:B3-0008:D
     BEMYSELF_DISTILL_KEY=… python3 training/distill_thinking.py --send \

@@ -196,10 +196,11 @@ Siehe `training/EVALPLAN.md`: Basis vs. LoRA auf denselben Leiter-Faellen
 * Der Trainingspfad ist **nicht ausgefuehrt** (keine GPU, kein Torch auf dieser
   Maschine). Geprueft sind: Kompilat aller Skripte, dry-run-Validierung,
   Runner-Reward in beiden Modi (echte Laeufe), Leck-Guard, ENV-Endpunkt,
-  Korpus-Rebuild (sha256-stabil) — 35 neue Tests insgesamt.
+  Korpus-Rebuild (sha256-stabil) — die Suite steht bei 856 Tests (818 Basis + 38 neue; Lauf: `python3 -m unittest discover -s tests`).
 * Der TRL-Aufruf ist gegen die deklarierte Spanne (`trl>=0.17` bis 1.x)
-  gebaut: `processing_class` ist immer gesetzt, `max_prompt_length` bewusst
-  nicht (ab TRL 1.0 entfernt), chosen/rejected sind Gespraechslisten. Auf einer
+  gebaut: `processing_class` ist immer gesetzt, `max_prompt_length` nur, wenn
+  die installierte Version das Feld kennt (Altversionen kuerzen sonst still auf
+  512 Tokens vom Prompt-Anfang), chosen/rejected sind Gespraechslisten. Auf einer
   konkreten Installation gehoert das trotzdem einmal mit `--dry-run` und einem
   Mini-Lauf geprueft -- auf einer CPU-Maschine ist keiner dieser Pfade
   ausfuehrbar.

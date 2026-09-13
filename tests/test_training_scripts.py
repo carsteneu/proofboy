@@ -165,6 +165,55 @@ class ScriptsTest(unittest.TestCase):
             self.assertTrue(dpo.is_adapter(adapter))
             self.assertFalse(dpo.is_adapter(Path(tmp)))
 
+    def test_dpo_max_prompt_length_only_when_the_trl_version_knows_it(self):
+        import dataclasses
+
+        @dataclasses.dataclass
+        class OldConfig:
+            max_prompt_length: int = 512
+            beta: float = 0.1
+
+        @dataclasses.dataclass
+        class NewConfig:
+            beta: float = 0.1
+
+        dpo = load_module("train_dpo")
+        config = {"max_prompt_len": 2048}
+        old = dpo.with_max_prompt_length({"beta": 0.1}, config, OldConfig)
+        self.assertEqual(old["max_prompt_length"], 2048)
+        new = dpo.with_max_prompt_length({"beta": 0.1}, config, NewConfig)
+        self.assertNotIn("max_prompt_length", new)
+
+    def test_rlvr_survives_defective_reference_material(self):
+        rlvr = load_module("rlvr")
+        record = {
+            "id": "rlvr:fx:broken",
+            "verifier": {"expect": {"checkpoints_all_matched": True, "checkpoints_total": 2}},
+            "gold": {"checkpoints_gold": [["a", "b"]]},
+        }
+        result = rlvr.score("S1: cp 1: (B,1,1)\n[HALT]\n", record)
+        self.assertEqual(result["reward"], 0.0, result)
+        self.assertEqual(result["reason"], "unreadable_reference")
+        self.assertEqual(rlvr.reward(completions=["x"], record_id=["rlvr:fx:broken"],
+                                     records_by_id={"rlvr:fx:broken": record}), [0.0])
+
+    def test_harness_reports_invalid_endpoint_as_transport_error(self):
+        spec = importlib.util.spec_from_file_location("harness_invalid_env", TOOLING / "harness.py")
+        harness = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = harness
+        spec.loader.exec_module(harness)
+        previous = os.environ.get("BEMYSELF_PROXY_URL")
+        os.environ["BEMYSELF_PROXY_URL"] = "not a url"
+        try:
+            content, raw, _duration, error = harness.call_model([{"role": "user", "content": "hi"}], timeout=1.0)
+            self.assertIsNone(content)
+            self.assertIn("ValueError", error or "")
+        finally:
+            if previous is None:
+                os.environ.pop("BEMYSELF_PROXY_URL", None)
+            else:
+                os.environ["BEMYSELF_PROXY_URL"] = previous
+
     def test_rlvr_reward_scores_confirmed_and_refuted(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = write_fixture_corpus(Path(tmp) / "corpus")

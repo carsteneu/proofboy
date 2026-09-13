@@ -148,20 +148,23 @@ def call_model(messages, timeout):
             "max_tokens": 8192,
         }
     ).encode("utf-8")
-    request = urllib.request.Request(
-        proxy_url(),
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {_api_key()}",
-        },
-    )
     start = time.monotonic()
     try:
+        # Der Request-Bau gehoert in den try: eine ungueltige
+        # BEMYSELF_PROXY_URL (z.B. Leerzeichen) muss als Transportfehler
+        # zurueckkommen, nicht als Traceback.
+        request = urllib.request.Request(
+            proxy_url(),
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {_api_key()}",
+            },
+        )
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = json.load(response)
         duration = time.monotonic() - start
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError) as exc:
         return None, None, time.monotonic() - start, f"{type(exc).__name__}: {exc}"
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return None, None, time.monotonic() - start, f"malformed response: {exc}"
