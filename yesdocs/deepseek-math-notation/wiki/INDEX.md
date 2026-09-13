@@ -20,14 +20,15 @@ Modells zugeschnittene Notation macht es bei Mathematik besser/schneller und ble
 prüfbare Mathematik rücküberführbar (Zeugen, nicht Glauben).
 
 Instanz unter Test: `deepseek/deepseek-flash` (Provider `deepseek`; Kontext 1.000.000, Output 8.192 Tokens;
-interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Stand 2026-09-12:
+interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Stand 2026-09-13:
 Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-08), die
-Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D) und die Härte-Runde (05-10: Sets v0.3,
-Zahlen-Regime, tiefe Läufe, Zyklus-Suche) sind erfolgt; die nächsten Runden
-sind in 05-10 §7 skizziert.
+Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D), die Härte-Runde (05-10: Sets v0.3,
+Zahlen-Regime, tiefe Läufe, Zyklus-Suche) und die Lokalisierungs-Runde (05-11: Feedback-Leiter
+G0/G1/G2, Bindungsschutz, Sets v0.4) sind erfolgt; die nächsten Runden
+sind in 05-11 §7 skizziert.
 
-**Umfang:** 34 Dateien in 5 Clustern · 77459 Wörter ·
-720 Quellenangaben (Datei-Summen) · 1086 Inline-Zitate · Visuals in `assets/` je Cluster.
+**Umfang:** 35 Dateien in 5 Clustern · 79472 Wörter ·
+728 Quellenangaben (Datei-Summen) · 1098 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 
@@ -211,6 +212,7 @@ Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/
 | [05-08-pilotbericht-v1.1.md](05-entwurf-testplan/05-08-pilotbericht-v1.1.md) | Pilotlauf V1.1: Werkzeuge, Arme K/B/C, erste Messung der Denk-Sprache | Verifiziert | 6 | 6 | 0 Img / 0 Diagr |
 | [05-09-rueckkanal-runde-v12.md](05-entwurf-testplan/05-09-rueckkanal-runde-v12.md) | Rückkanal-Runde V12: Reparatur-Loop, Arme K/B/C/D und die Messung des Rückkanals | Verifiziert | 7 | 7 | 0 Img / 0 Diagr |
 | [05-10-haerte-runde-v13.md](05-entwurf-testplan/05-10-haerte-runde-v13.md) | Härte-Runde V13: Zahlen-Regime, lange Läufe und die Zyklus-Suche — Sets v0.3 und die Protokoll-Fixes | Verifiziert | 8 | 8 | 0 Img / 0 Diagr |
+| [05-11-lokalisierung-v14.md](05-entwurf-testplan/05-11-lokalisierung-v14.md) | Lokalisierungs-Runde V14: Feedback-Leiter G0/G1/G2, Bindungsschutz und Sets v0.4 | Verifiziert | 8 | 12 | 0 Img / 0 Diagr |
 
 Querverweise: [01-modellprofil/01-03-tokenizer-zahlen.md](01-modellprofil/01-03-tokenizer-zahlen.md), [01-modellprofil/01-06-betrieb-umgebung.md](01-modellprofil/01-06-betrieb-umgebung.md), [02-wirksame-formate/02-01-tokenisierung-arithmetik.md](02-wirksame-formate/02-01-tokenisierung-arithmetik.md), [02-wirksame-formate/02-02-embedding-position.md](02-wirksame-formate/02-02-embedding-position.md), [02-wirksame-formate/02-03-format-sensitivitaet.md](02-wirksame-formate/02-03-format-sensitivitaet.md), [02-wirksame-formate/02-04-lokalitaet-struktur.md](02-wirksame-formate/02-04-lokalitaet-struktur.md), [02-wirksame-formate/02-05-latentes-denken.md](02-wirksame-formate/02-05-latentes-denken.md), [03-formale-bruecke/03-01-formale-systeme.md](03-formale-bruecke/03-01-formale-systeme.md), [03-formale-bruecke/03-04-zeugen-zertifikate.md](03-formale-bruecke/03-04-zeugen-zertifikate.md), [03-formale-bruecke/03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md), [04-offene-probleme/04-01-wahlkriterien.md](04-offene-probleme/04-01-wahlkriterien.md), [04-offene-probleme/04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md), [04-offene-probleme/04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md), [04-offene-probleme/04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md), [01-modellprofil/01-03b-tokenizer-v11-lexeme.md](01-modellprofil/01-03b-tokenizer-v11-lexeme.md)
 
