@@ -574,17 +574,25 @@ Deklaration, also inklusive Namensraum (`CycleBridge.cycle_never_halts`).
 Der Pruefer arbeitet in einem Wegwerf-Checkout des Commits in drei Stufen,
 alle im Sandkasten:
 
-1. **Bauen.** Die eigenen Build-Artefakte des Projekts werden verworfen, dann
+1. **Bauen.** Die eigenen Build-Artefakte des Projekts werden verworfen (ein
+   symlinktes Build-Verzeichnis wird entfernt, nicht nur geleert), dann
    wird das Modul aus dem gepinnten Quelltext gebaut (`lake build <modul>`
    fuer ein Lake-Projekt, `lean -o` fuer eine einzelne Datei). Diese Stufe
    fuehrt Repo-Code aus (Taktiken, `#eval`, Initializer) -- nichts, was sie
-   ausgibt, ist Evidenz. Ein Kompilierfehler der geprueften Datei widerlegt
-   die Behauptung (erste Fehlerzeile im Urteil).
+   ausgibt, ist Evidenz; ein erfolgreicher Build muss ein **frisch
+   geschriebenes** Artefakt hinterlassen, sonst ist die Behauptung
+   `unpruefbar`. Ein Kompilierfehler der geprueften Datei widerlegt die
+   Behauptung (erste Fehlerzeile im Urteil).
 2. **Kernel-Recheck.** `leanchecker <modul>` prueft die Deklarationen des
-   kompilierten Artefakts mit dem Lean-Kernel nach -- ohne Repo-Code.
+   kompilierten Artefakts mit dem Lean-Kernel nach. Recheck und Abfrage
+   rufen die Toolchain **direkt** auf, nie ueber `lake`: die lakefile ist
+   Repo-Code und wuerde denselben Ausgabekanal teilen. Der Suchpfad beginnt
+   mit dem Libverzeichnis der Toolchain, damit der gepruefte Baum die
+   Imports des Abfrageprogramms nicht verschatten kann.
 3. **Axiom-Abfrage.** Das eigene Abfrageprogramm
    (`bemyself/tools/lean_axioms.lean`) laedt das Artefakt als **Daten**
-   (`importModules`) und druckt die Axiomliste der Deklaration. In diesem
+   (`importModules`) und druckt die Axiomliste der Deklaration; eine
+   AXIOMS-Zeile gilt nur zusammen mit Exit 0. In diesem
    Prozess laeuft kein Repo-Code -- keine Taktik, kein Makro, kein
    Initializer -- darum kann das gepruefte Projekt die Antwort weder
    faelschen noch unterdruecken: einziger Schreiber ist das Abfrageprogramm,
@@ -596,14 +604,16 @@ $ python3 -m bemyself check --report lean-report.md --repo <repo>
 lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: the compiled artifact passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query -- no repository code executed -- read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
 ```
 
-Urteile: `bestaetigt` nur, wenn die Abfrage genau fuer diese Deklaration
-antwortet und die Liste kein `sorryAx` nennt; die Axiomzeile steht
-vollstaendig im Urteil (logische Grundaxiome wie `propext`, `Quot.sound`
-oder `Classical.choice` inklusive -- `bestaetigt` heisst nicht
+Urteile: `bestaetigt` nur, wenn die Abfrage mit Exit 0 genau fuer diese
+Deklaration antwortet und die Liste kein `sorryAx` nennt; die Axiomzeile
+steht vollstaendig im Urteil (logische Grundaxiome wie `propext`,
+`Quot.sound` oder `Classical.choice` inklusive -- `bestaetigt` heisst nicht
 "axiomfrei"). `widerlegt` bei `sorryAx`, bei `lcProof` (der Kernel hat den
-Rumpf nicht geprueft, etwa bei `unsafe`), bei fehlender Deklaration im
-Artefakt, bei fehlender Datei im Commit und bei einem Kompilierfehler der
-Datei. `unpruefbar` bleibt die Behauptung ohne `lean`/`lake`/`leanchecker`
+Rumpf nicht geprueft, etwa bei `unsafe`), bei einer Deklaration, die selbst
+ein Axiom ist (ihr Name steht in der eigenen Axiomliste -- da ist kein
+Beweis), bei fehlender Deklaration im Artefakt, bei fehlender Datei im
+Commit und bei einem Kompilierfehler der Datei. `unpruefbar` bleibt die
+Behauptung ohne `lean`/`lake`/`leanchecker`
 im `PATH`, ohne funktionierenden Sandkasten (auch bei `--sandbox=auto`),
 ohne Commit-Bindung, bei ungueltigem Pfad oder Satznamen, bei Timeout
 (600 s je Stufe), bei einem Artefakt, das den Kernel-Recheck nicht besteht,
@@ -621,17 +631,30 @@ das Urteil. Grenze der Aussage: die Abhaengigkeiten des Moduls stammen
 nicht aus dem Commit -- ihre Artefakte kommen aus dem read-only
 eingebundenen Arbeitsbaum-Cache (im Urteil benannt) oder liegen im Repo;
 der Kernel-Recheck deckt die Deklarationen des geprueften Moduls, nicht die
-seiner Abhaengigkeiten. Das Urteil belegt damit, dass die Deklaration vom
+seiner Abhaengigkeiten. Ebenso stammt das Artefakt aus der Build-Stufe, die
+Repo-Code ausfuehrt (siehe oben): sichtbare Codeausfuehrung wird verweigert,
+aber ein Repository, das die Herkunft des Artefakts verdeckt manipuliert,
+bleibt ausserhalb der Zusicherung. Das Urteil belegt damit, dass die
+Deklaration vom
 Lean-Kernel akzeptiert ist und an genau den genannten Axiomen haengt --
 nicht die Wahrheit der Axiome, nicht die Bedeutung des Satzes und nicht die
 Herkunft der Abhaengigkeits-Artefakte.
 
 Was eine feindselige Datei nicht kann: weil Evidenz nur aus dem Artefakt
 und der eigenen Abfrage kommt, kann Build-Ausgabe ein Urteil nur
-herabstufen (auf `unpruefbar`), niemals auf `bestaetigt` heben. Eine Datei,
-die in `#eval` oder Initializern gefaelschte Axiomzeilen druckt oder den
-Elaborationsprozess vorzeitig beendet, wird nicht bestaetigt; die
-Live-Tests in `tests/test_lean.py` pinnen genau diese Faelle.
+herabstufen (auf `unpruefbar`), niemals auf `bestaetigt` heben. Der
+Evidenzprozess selbst fuehrt keinen Repo-Code aus -- weder Taktiken noch
+Makros noch Initializer; die Live-Tests in `tests/test_lean.py` pinnen
+genau diese Faelle. Die **Build**-Stufe dagegen fuehrt Repo-Code aus, und
+das laesst sich nicht vermeiden: sie liefert das Artefakt, das geprueft
+wird. Darum gilt eine dokumentierte Politik: Dateien (und eine
+`lakefile.lean`), die zur Elaborationszeit sichtbar Code ausfuehren
+(`#eval`, `#exec`, `run_cmd`, `run_elab`), werden nicht geprueft und
+bleiben `unpruefbar` -- ihre Build-Kette ist nicht zu verbuergen.
+Verdeckte Formen der Codeausfuehrung (eigene Elaboratoren, `native_decide`,
+Code in Abhaengigkeitsmodulen) erkennt diese Politik nicht: wer sie
+einsetzt, kann die Herkunft des Artefakts von der geprueften Datei
+entkoppeln und liegt ausserhalb dessen, was dieses Werkzeug zusichert.
 
 Toolchain und Abhaengigkeiten: `lean`, `lake` (fuer Lake-Projekte) und
 `leanchecker` muessen im `PATH` liegen (eine elan-Installation erfuellt

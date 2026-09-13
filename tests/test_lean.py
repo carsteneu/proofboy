@@ -59,23 +59,18 @@ dir='{bin_dir}'
 mode=
 case "$1" in
   --version) mode=version ;;
+  --print-libdir) mode=libdir ;;
   build) mode=build ;;
   -o) mode=build ;;
-  env)
-    case "$2" in
-      lean)
-        case "$3" in
-          --run) mode=query ;;
-          *) mode=unknown ;;
-        esac ;;
-      leanchecker) mode=recheck ;;
-      *) mode=unknown ;;
-    esac ;;
   --run) mode=query ;;
   *) mode=recheck ;;
 esac
 if [ "$mode" = version ]; then
   printf '%s\\n' 'Lean (version 4.33.1, fake, Release)'
+  exit 0
+fi
+if [ "$mode" = libdir ]; then
+  printf '%s\\n' "$dir"
   exit 0
 fi
 printf '%s|%s\\n' "$mode" "$*" >> "$dir/calls.log"
@@ -93,6 +88,16 @@ if [ "$mode" = query ] && [ -f "$dir/dump.env" ]; then
 fi
 [ -f "$dir/$f.sleep" ] && sleep 30
 [ -f "$dir/$f.out" ] && cat "$dir/$f.out"
+if [ -f "$dir/$f.rc" ] && [ "$(cat "$dir/$f.rc")" != "0" ]; then
+  # A failing build compiles nothing; a failing run produces no artifact.
+  exit "$(cat "$dir/$f.rc")"
+fi
+if [ "$mode" = build ] && [ ! -f "$dir/build.skip-artifact" ]; then
+  case "$1" in
+    -o) mkdir -p "$(dirname "$2")"; : >> "$2" ;;
+    build) m="$2"; d=$(printf '%s' "$m" | tr '.' '/'); mkdir -p ".lake/build/lib/lean/$(dirname "$d")" && touch ".lake/build/lib/lean/$d.olean" ;;
+  esac
+fi
 if [ -f "$dir/$f.rc" ]; then exit "$(cat "$dir/$f.rc")"; fi
 exit 0
 """
@@ -307,7 +312,7 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         self.assertIn("does not depend on any axioms", result.reason)
         self.assertIn("passed Lean's kernel re-check", result.reason)
-        self.assertIn("no repository code executed", result.reason)
+        self.assertIn("no repository code in the query process", result.reason)
         self.assertIn("not sandboxed: --sandbox=off", result.reason)
         self.assertIn("git checkout", result.command)
         self.assertIs(result.sandboxed, False)
@@ -522,9 +527,125 @@ class LeanCheckTest(unittest.TestCase):
         with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
             calls = handle.read()
         self.assertIn("build|build Proofs", calls)
-        self.assertIn("recheck|env leanchecker Proofs", calls)
-        self.assertIn("query|env lean --run", calls)
+        self.assertIn("recheck|Proofs", calls)
+        self.assertIn("query|--run ", calls)
         self.assertIn("Proofs lake_proven", calls)
+
+    def test_the_lakefile_and_lake_stay_out_of_the_evidence_stages(self):
+        # `lake` evaluates the repository's lakefile; the re-check and the
+        # query run the toolchain directly (reviews 5.2/5.4 round 2, F1/N1).
+        repo, commit = self.lake_repo("lake-noenv")
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
+            calls = handle.read()
+        self.assertNotIn("env", calls)
+
+    def test_the_toolchain_library_dir_comes_first_in_the_search_path(self):
+        # A repository-planted `Lean.olean` must not shadow the query
+        # program's own imports (review 5.4 round 2, N2).
+        repo, commit = self.probe_repo("search-path", _PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", ""), "dump.env": "1\n"})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
+            line = handle.read().splitlines()[-1]
+        lean_path = line.split("|")[2]
+        self.assertEqual(lean_path.split(os.pathsep)[0], bin_dir)
+
+    def test_a_build_without_an_artifact_is_unverifiable(self):
+        # A build that ends early leaves nothing to re-check (review 5.2
+        # round 2, F2).
+        repo, commit = self.probe_repo("no-artifact", _PROOF)
+        bin_dir = self.fake(
+            **{"query.out": _answer("fixture_proven", ""), "build.skip-artifact": "1\n"}
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("no freshly compiled artifact", result.reason)
+
+    def test_an_answer_without_exit_zero_is_not_trusted(self):
+        repo, commit = self.probe_repo("rc-answer", _PROOF)
+        bin_dir = self.fake(
+            **{"query.out": _answer("fixture_proven", ""), "query.rc": "1\n"}
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("exited with status", result.reason)
+
+    def test_a_declared_axiom_refutes(self):
+        # `axiom foo : False` proves nothing (review 5.2 round 2, F3).
+        repo, commit = self.probe_repo("axiom-decl", "axiom fixture_axiom : False\n")
+        bin_dir = self.fake(**{"query.out": _answer("fixture_axiom", "fixture_axiom")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_axiom", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("is an axiom, not a proof", result.reason)
+
+    def test_a_file_executing_code_at_elaboration_time_is_unverifiable(self):
+        # The build is only controllable when the file does not run code
+        # (documented policy; review 5.2 round 2, F2).
+        repo, commit = self.probe_repo(
+            "eval-file", '#eval IO.println "hi"\n\n' + _PROOF
+        )
+        bin_dir = self.fake(**{"query.out": _answer("fixture_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("#eval", result.reason)
+        self.assertFalse(os.path.exists(os.path.join(bin_dir, "calls.log")))
+
+    def test_a_lakefile_executing_code_makes_the_claim_unverifiable(self):
+        repo = make_repo(os.path.join(self._tmp.name, "lakefile-exec"))
+        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
+        commit_probe(repo, "proofs/lakefile.lean", '#eval IO.println "hi"\n')
+        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("lakefile", result.reason)
+
+    def test_a_symlinked_build_directory_is_discarded(self):
+        # rmtree does not follow a symlink; the deletion must (review 5.4
+        # round 2, N3).
+        repo = make_repo(os.path.join(self._tmp.name, "lake-symlink"))
+        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
+        commit_probe(repo, "proofs/decoy/keep.txt", "decoy\n")
+        os.makedirs(os.path.join(repo.path, "proofs", ".lake"), exist_ok=True)
+        os.symlink(
+            os.path.join(repo.path, "proofs", "decoy"),
+            os.path.join(repo.path, "proofs", ".lake", "build"),
+        )
+        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
+            calls = handle.read()
+        self.assertNotIn("builddir-present", calls)
 
     def test_a_committed_build_artifact_is_discarded_before_the_build(self):
         repo = make_repo(os.path.join(self._tmp.name, "lake-stale"))
@@ -842,20 +963,22 @@ class LeanLiveTest(unittest.TestCase):
 
     # --- hostile modules: the evidence cannot be forged --------------------
     def test_a_module_forging_evidence_and_exiting_never_confirms(self):
+        # The primitive from review 5.4 round 1: print fake evidence, then end
+        # the process. The file drives its own build, which the policy refuses
+        # (documented boundary); in no case may the claim be confirmed.
         hostile = (
-            "def quit : IO Unit := IO.Process.exit 0\n"
             "#eval do\n"
-            "  let child <- IO.Process.spawn { cmd := \"sh\",\n"
-            "    args := #[\"-c\", \"echo \\\"'target_claim' does not depend on any axioms\\\"\"],\n"
-            "    stdout := .inherit, stderr := .inherit }\n"
-            "  let _ <- child.wait\n"
-            "  quit\n"
+            "  IO.println \"'target_claim' does not depend on any axioms\"\n"
+            "  IO.Process.exit 0\n"
+            "\n"
+            "theorem target_claim (n : Nat) : n + 0 = n := by sorry\n"
         )
         repo, commit = self.probe_repo("live-hostile-exit", hostile)
         result = self.check_report(
             "lean/Proof.lean", "target_claim", commit, self.ctx(repo.path)
         )
         self.assertNotEqual(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("#eval", result.reason)
 
     def test_a_module_initializer_forging_evidence_is_refuted_on_the_merits(self):
         hostile = (

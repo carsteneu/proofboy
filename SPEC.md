@@ -306,39 +306,62 @@ Lean-Identifier mit Unicode-Buchstaben/Ziffern/Unterstrich, Punkten und
 `!?`).
 
 1. Bauen: die eigenen Build-Artefakte des Projekts (`.lake/build` bzw. das
-   Ausgabeverzeichnis) werden verworfen, dann baut `lake build <modul>`
+   Ausgabeverzeichnis) werden verworfen -- ein symlinktes Build-Verzeichnis
+   wird entfernt, nicht geleert --, dann baut `lake build <modul>`
    (bzw. `lean -o <oleandatei> <datei>` fuer eine Datei ohne Lakefile) das
    Modul aus dem gepinnten Quelltext. Diese Stufe fuehrt Repo-Code aus;
-   ihre Ausgabe dient nur der Diagnose. Ein Kompilierfehler, dessen erste
+   ihre Ausgabe dient nur der Diagnose. Ein erfolgreicher Build muss ein
+   frisch geschriebenes Artefakt hinterlassen (Existenz und mtime nach
+   Build-Beginn), sonst `UNVERIFIABLE`. Ein Kompilierfehler, dessen erste
    Fehlerzeile genau die gepruefte Datei nennt, ist `REFUTED`; ein Fehler
    in einer anderen Datei, ein Dependency-Problem oder ein
    Sandkastenproblem bleibt `UNVERIFIABLE`.
-2. Kernel-Recheck: `leanchecker <modul>` (bzw. `lake env leanchecker`)
-   prueft die Deklarationen des Artefakts mit dem Lean-Kernel; ein
-   Fehlschlag ist `UNVERIFIABLE` ("did not pass Lean's kernel re-check").
+2. Kernel-Recheck: `leanchecker <modul>` prueft die Deklarationen des
+   Artefakts mit dem Lean-Kernel; ein Fehlschlag ist `UNVERIFIABLE`
+   ("did not pass Lean's kernel re-check"). Recheck und Abfrage rufen die
+   Toolchain direkt auf -- nie `lake`, dessen lakefile Repo-Code ist und
+   denselben Ausgabekanal teilen wuerde. Der Suchpfad (`LEAN_PATH`) beginnt
+   mit dem Libverzeichnis der Toolchain (`lean --print-libdir`), dann folgt
+   das frische Build-Ausgabeverzeichnis und danach die Build-Verzeichnisse
+   der Abhaengigkeiten; so kann der gepruefte Baum die Imports des
+   Abfrageprogramms nicht verschatten.
 3. Axiom-Abfrage: `bemyself/tools/lean_axioms.lean` wird als eigenes
-   Programm gestartet (`lean --run` bzw. `lake env lean --run <programm>
-   <modul> <name>`) und laedt das Modul zur Laufzeit als Daten
+   Programm gestartet (`lean --run <programm> <modul> <name>`) und laedt
+   das Modul zur Laufzeit als Daten
    (`importModules`); es wird nie zur Elaborationszeit importiert. In
    diesem Prozess laeuft kein Repo-Code (keine Taktik, kein Makro, kein
    `initialize`, kein `#eval`), darum ist der Ausgabekanal vertrauenswuerdig.
    Das Programm druckt genau eine Protokollzeile
    (`BEMYSELF-LEAN-AXIOMS <name> [<axiome>]`, `BEMYSELF-LEAN-UNKNOWN
    <name>` oder `BEMYSELF-LEAN-ERROR <detail>`); genau eine zur Behauptung
-   passende Zeile wird akzeptiert, keine oder mehrere sind `UNVERIFIABLE`.
+   passende Zeile wird akzeptiert, keine oder mehrere sind `UNVERIFIABLE`,
+   und eine AXIOMS-Zeile gilt nur zusammen mit Exit 0.
 
-Urteile: `CONFIRMED` nur bei einer AXIOMS-Zeile fuer genau diesen Namen
-ohne `sorryAx` (die kanonische Evidenzzeile `'<name>' does not depend on
-any axioms` bzw. `'<name>' depends on axioms: [..]` steht vollstaendig im
-Urteil; logische Grundaxiome inklusive -- `CONFIRMED` heisst nicht
+Ausfuehrungspolitik: die Build-Stufe fuehrt Repo-Code aus und laesst sich
+nicht vermeiden (sie liefert das Artefakt). Dateien und eine
+`lakefile.lean`, die zur Elaborationszeit sichtbar Code ausfuehren
+(`#eval`, `#exec`, `run_cmd`, `run_elab`), werden darum nicht geprueft und
+bleiben `UNVERIFIABLE`; verdeckte Formen (eigene Elaboratoren,
+`native_decide`, Code in Abhaengigkeitsmodulen) erkennt diese Politik
+nicht. Wer sie einsetzt, kann die Herkunft des Artefakts von der geprueften
+Datei entkoppeln und liegt ausserhalb der Zusicherung; Build-Ausgabe kann
+ein Urteil in jedem Fall nur herabstufen, nie zu `CONFIRMED` heben.
+
+Urteile: `CONFIRMED` nur bei einer AXIOMS-Zeile (Exit 0) fuer genau diesen
+Namen ohne `sorryAx` (die kanonische Evidenzzeile `'<name>' does not depend
+on any axioms` bzw. `'<name>' depends on axioms: [..]` steht vollstaendig
+im Urteil; logische Grundaxiome inklusive -- `CONFIRMED` heisst nicht
 "axiomfrei"). `REFUTED` bei `sorryAx`, bei `lcProof` (der Kernel hat den
-Rumpf nicht geprueft, z.B. `unsafe`), bei UNKNOWN (Deklaration fehlt im
+Rumpf nicht geprueft, z.B. `unsafe`), bei einer Deklaration, die selbst ein
+Axiom ist (ihr Name in der eigenen Axiomliste -- da ist kein Beweis), bei
+UNKNOWN (Deklaration fehlt im
 Artefakt), bei fehlender Datei im Commit, bei non-blob und bei
 Kompilierfehler der Datei. `UNVERIFIABLE` ohne lean/lake/leanchecker im
 PATH, ohne nutzbaren Sandkasten, bei unbekanntem Sandkasten-Modus, ohne
 Commit, bei ungueltigem Pfad/Namen, bei Timeout je Stufe (600 s), bei
 Ausgabe ueber dem Limit, bei fehlgeschlagenem Kernel-Recheck, bei
-unlesbarer Abfrage und bei Dependency-/Umgebungsfehlern -- ein
+unlesbarer Abfrage, bei fehlendem frischem Artefakt und bei
+Dependency-/Umgebungsfehlern -- ein
 Dependency-Fehler zaehlt nur, wenn der fehlende Modulname in den
 `import`-Zeilen der Datei steht (oder eine Netz-/Toolchain-Meldung
 vorliegt): repo-kontrollierter Build-Output darf ein Urteil nur herabstufen
@@ -353,7 +376,11 @@ aus der Axiomliste, die Kernel-Aussage aus `leanchecker`; das Urteil nennt
 beide. Grenze: der Kernel-Recheck deckt die Deklarationen des geprueften
 Moduls; die Artefakte der Abhaengigkeiten stammen nicht aus dem Commit
 (read-only eingebundener Arbeitsbaum-Cache, im Urteil benannt, oder im Repo
-liegend). Die Axiomliste macht sichtbar, worauf der Beweis beruht (auch
+liegend), und das Artefakt des Moduls selbst stammt aus der Build-Stufe,
+die Repo-Code ausfuehrt -- die Ausfuehrungspolitik verweigert die
+sichtbaren Formen, ein Repository mit verdeckter Codeausfuehrung liegt
+ausserhalb der Zusicherung. Die Axiomliste macht sichtbar, worauf der
+Beweis beruht (auch
 nicht-logische Axiome und `Lean.ofReduceBool` aus `native_decide`) -- der
 Pruefer beurteilt nicht deren Wahrheit, nicht die Bedeutung des Satzes und
 nicht die Herkunft der Abhaengigkeits-Artefakte.

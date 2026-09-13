@@ -5,44 +5,56 @@ A LEAN claim asserts that in the report's pinned commit the named Lean source
 file exists and the named declaration is proved there without ``sorry`` or
 ``admit``. The verifier re-derives the claim with the real toolchain in three
 stages, all inside the bwrap sandbox:
-
 1. **Build.** The pinned commit is checked out into a throwaway directory,
-   the project's own build artifacts are discarded, and the file's module is
-   built from the pinned source (``lake build <module>`` for a Lake project,
-   ``lean -o`` for a standalone file). The build executes repository code
-   (tactics, ``#eval``, initializers); nothing it prints is evidence.
+   the project's own build artifacts are discarded (a symlinked build
+   directory is unlinked, not emptied), and the file's module is built from
+   the pinned source (``lake build <module>`` for a Lake project, ``lean -o``
+   for a standalone file). The build executes repository code (tactics,
+   ``#eval``, initializers); nothing it prints is evidence, and a successful
+   build must leave a freshly written artifact behind (existence and mtime
+   after the build started) or the claim stays unverifiable.
 2. **Kernel re-check.** ``leanchecker <module>`` re-checks the compiled
-   artifact's declarations with Lean's kernel -- no repository code runs.
+   artifact's declarations with Lean's kernel. Re-check and query call the
+   toolchain directly -- never ``lake``, whose lakefile is repository code
+   that would share the evidence channel -- with a search path whose first
+   entry is the toolchain's own library directory (``lean --print-libdir``),
+   so the inspected tree cannot shadow the query program's imports.
 3. **Axiom query.** The checker's own program (``bemyself/tools/lean_axioms.lean``)
    loads the artifact as *data* at runtime (``importModules``, the module is
    never imported at elaboration time) and prints the declaration's axiom
-   list. No repository code executes in that process -- not a tactic, not a
-   macro, not an ``initialize`` block -- so the answer cannot be forged or
-   suppressed by the inspected project: the only writer is the query program,
-   and the axiom data comes from the artifact the kernel just re-checked.
+   list; an AXIOMS line only counts together with exit status 0. No
+   repository code executes in that process -- not a tactic, not a macro,
+   not an ``initialize`` block -- so the answer cannot be forged or
+   suppressed by the inspected project: the only writer is the query
+   program, and the axiom data comes from the artifact the kernel just
+   re-checked.
 
 Verdicts. CONFIRMED only when the query answers for exactly that declaration
-and the list names no ``sorryAx``; the canonical evidence line (``'name'
-depends on axioms: [...]`` or ``'name' does not depend on any axioms``) is
-quoted in the verdict, with every axiom named -- logical foundations such as
-``propext``, ``Quot.sound`` or ``Classical.choice`` included: CONFIRMED does
-not mean axiom-free. REFUTED on ``sorryAx`` (``depends on axioms: [sorryAx]``),
-on ``lcProof`` (the kernel did not check the body, e.g. an ``unsafe``
-declaration), on a declaration missing from the artifact, and on a build
-error that names the checked file. UNVERIFIABLE otherwise: no toolchain, no
-sandbox, no commit, invalid path or name, timeout, a failed kernel re-check,
-an unreadable answer, and any dependency problem -- a missing dependency is
-never evidence against the theorem, and a failed build that does not name
-the checked file is never a refutation.
+(with exit status 0) and the list names no ``sorryAx``; the canonical
+evidence line (``'name' depends on axioms: [...]`` or ``'name' does not
+depend on any axioms``) is quoted in the verdict, with every axiom named --
+logical foundations such as ``propext``, ``Quot.sound`` or
+``Classical.choice`` included: CONFIRMED does not mean axiom-free. REFUTED
+on ``sorryAx`` (``depends on axioms: [sorryAx]``), on ``lcProof`` (the
+kernel did not check the body, e.g. an ``unsafe`` declaration), on a
+declaration that is itself an axiom (its own name in its axiom list), on a
+declaration missing from the artifact, and on a build error that names the
+checked file. UNVERIFIABLE otherwise: no toolchain, no sandbox, no commit,
+invalid path or name, timeout, a failed kernel re-check, a missing fresh
+artifact, an unreadable answer, and any dependency problem -- a missing
+dependency is never evidence against the theorem, and a failed build that
+does not name the checked file is never a refutation.
 
-Trust boundary. The build runs repository code, so the *artifact* is the
-evidence, not the build's output: build output can only downgrade a verdict
-to UNVERIFIABLE, never upgrade it to CONFIRMED. The artifact's kernel
-re-check covers the declarations of the checked module; its dependencies are
-not part of the commit and are trusted as artifacts (from the bound working
-tree cache, named in the verdict, or vendored in the repository). The claim
-is exactly as strong as the toolchain's kernel and those artifacts -- the
-verdict says so, and never claims an independent re-derivation beyond them.
+Execution policy. The build runs repository code and cannot avoid it (it
+delivers the artifact the kernel re-checks). Files -- and a
+``lakefile.lean`` -- that visibly execute code at elaboration time
+(``#eval``, ``#exec``, ``run_cmd``, ``run_elab``) are therefore not checked
+and stay UNVERIFIABLE: their build chain cannot be vouched for. Hidden
+forms of execution (custom elaborators, ``native_decide``, code inside
+dependency modules) are not caught by that policy; a repository using them
+can decouple the artifact's provenance from the checked file and lies
+outside what this check guarantees. Build output can only downgrade a
+verdict, never lift one to CONFIRMED.
 
 Isolation. Elaboration and building execute code, and ``lake`` would fetch
 missing dependencies over the network, so a working bwrap sandbox is
@@ -74,6 +86,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from collections import namedtuple
 
 from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
@@ -126,6 +139,10 @@ _QUERY_ERROR_RE = re.compile(r"\ABEMYSELF-LEAN-ERROR (?P<detail>.*)\Z")
 # An axiom name that means "this proof was not kernel-checked": `lcProof` is
 # what an `unsafe` declaration's dependency list carries.
 _LC_PROOF = re.compile(r"(?:\A|\.)lcProof\Z")
+# Commands that execute code while the file is elaborated. A file containing
+# them cannot be vouched for: the build it drives may write artifacts or
+# terminate early, so the claim stays unverifiable (documented policy).
+_EXEC_RE = re.compile(r"(?m)(^|[^\w])#(?:eval|exec)\b|\brun_(?:cmd|elab)\b")
 _LAKEFILES = ("lakefile.toml", "lakefile.lean")
 # Where the standalone-file build puts its artifact, inside the checkout so
 # the sandbox keeps it writable.
@@ -603,6 +620,32 @@ def check(claim, ctx):
                     f"cannot create the build directory in the checkout: {exc}",
                 )
 
+        # Elaboration-time code execution makes the build uncontrollable: the
+        # executed code can write artifacts or end the build early, so a
+        # compiled artifact cannot be vouched for. The command spellings below
+        # are the cheap, visible forms; anything less obvious (custom
+        # elaborators, `native_decide`, code inside dependencies) is the
+        # documented trust boundary. The policy refuses, it does not refute.
+        texts = [("the file", source_text)]
+        if project is not None:
+            lakefile = os.path.join(project, "lakefile.lean")
+            if os.path.isfile(lakefile):
+                try:
+                    with open(lakefile, encoding="utf-8", errors="replace") as handle:
+                        texts.append(("the project's lakefile.lean", handle.read()))
+                except OSError:
+                    texts.append(("the project's lakefile.lean", "unreadable"))
+        for what, text in texts:
+            match = _EXEC_RE.search(text)
+            if match:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"{what} executes code at elaboration time ({match.group(0).strip()!r}); "
+                    f"a build of it cannot be vouched for, so the proof is not checked",
+                )
+
         # A working-tree dependency cache is bound read-only when the fresh
         # checkout has none: dependencies are not part of the commit and the
         # sandbox has no network, so without it an unresolvable dependency
@@ -643,7 +686,6 @@ def check(claim, ctx):
                     env["ELAN_TOOLCHAIN"] = sole
         if build_dir is not None:
             env["LEAN_PATH"] = build_dir
-
         cache_note = ""
         if extra_binds:
             cache_note = (
@@ -691,6 +733,25 @@ def check(claim, ctx):
                 f"the Lean toolchain could not run ({preflight[0]} --version): {detail}",
             )
         toolchain = _toolchain_name(run.head) or _toolchain_name(run.tail) or "Lean"
+        # The toolchain's own library directory is the first LEAN_PATH entry:
+        # the inspected tree must not be able to shadow the toolchain modules
+        # the query program imports.
+        libdir = None
+        print_libdir = [lean, "--print-libdir"]
+        run_argv, shown = wrapped(print_libdir, " ".join(print_libdir), checkout)
+        run = _run(run_argv, checkout, env, PREFLIGHT_TIMEOUT, ctx.tmp_dir, "lean-libdir-")
+        if run.error is None and run.returncode == 0:
+            answer = (run.head + "\n" + run.tail).strip().splitlines()
+            if answer and os.path.isdir(answer[-1].strip()):
+                libdir = answer[-1].strip()
+        if libdir is None:
+            return unverifiable(
+                run,
+                shown,
+                f"could not determine the Lean library directory ({print_libdir[0]} "
+                f"--print-libdir); the proof cannot be re-checked without a trusted "
+                f"search path",
+            )
         if lake is not None:
             lake_preflight = [lake, "--version"]
             run_argv, shown = wrapped(lake_preflight, " ".join(lake_preflight), project)
@@ -718,20 +779,38 @@ def check(claim, ctx):
         # --- stage 1: build the pinned source ---------------------------------
         # The build executes repository code: its output is diagnostic only,
         # never evidence. Discarding the project's own build artifacts first
-        # keeps a committed artifact from standing in for the build.
+        # keeps a committed artifact from standing in for the build (a symlink
+        # survives rmtree, so it is unlinked instead).
         if project is not None:
-            shutil.rmtree(os.path.join(project, ".lake", "build"), ignore_errors=True)
+            build_root = os.path.join(project, ".lake", "build")
+            if os.path.islink(build_root) or os.path.isfile(build_root):
+                try:
+                    os.unlink(build_root)
+                except OSError:
+                    pass
+            else:
+                shutil.rmtree(build_root, ignore_errors=True)
+            parts = module.split(".")
+            search_root = os.path.join(build_root, "lib", "lean")
+            artifact = os.path.join(search_root, *parts[:-1], f"{parts[-1]}.olean")
             build = [lake, "build", module]
             cwd = project
         else:
-            olean = os.path.join(build_dir, f"{module}.olean")
-            build = [lean, "-o", olean, real_file]
+            shutil.rmtree(build_dir, ignore_errors=True)
+            try:
+                os.makedirs(build_dir, exist_ok=True)
+            except OSError as exc:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"cannot recreate the build directory in the checkout: {exc}",
+                )
+            artifact = os.path.join(build_dir, f"{module}.olean")
+            search_root = build_dir
+            build = [lean, "-o", artifact, real_file]
             cwd = os.path.dirname(real_file)
-            if os.path.exists(olean) and not sandboxed:
-                try:
-                    os.unlink(olean)
-                except OSError:
-                    pass
+        started = time.time()
         run_argv, shown = wrapped(build, " ".join(build), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-build-")
         if run.error is not None:
@@ -779,13 +858,39 @@ def check(claim, ctx):
                 f"outside {path!r}: {first}",
             )
 
-        # --- stage 2: kernel re-check of the artifact -------------------------
+        # A successful build must have produced the module's own artifact,
+        # written after the build started: a build that ends early (or only
+        # appears to run) leaves nothing to re-check.
+        try:
+            fresh = os.path.isfile(artifact) and os.path.getmtime(artifact) >= started - 1.0
+        except OSError:
+            fresh = False
+        if not fresh:
+            return unverifiable(
+                run,
+                shown,
+                f"the build produced no freshly compiled artifact for module "
+                f"{module!r}; there is nothing to re-check",
+            )
+
+        # The evidence stages run the toolchain directly -- never `lake`, whose
+        # lakefile is repository code that would share the evidence channel.
+        # The search path starts with the toolchain's own library directory so
+        # the inspected tree cannot shadow the query program's imports, then
+        # the project's fresh build output, then the dependency artifacts.
+        search = [libdir, search_root]
         if project is not None:
-            recheck = [lake, "env", "leanchecker", module]
-            cwd = project
-        else:
-            recheck = [leanchecker, module]
-            cwd = os.path.dirname(real_file)
+            packages = os.path.join(project, ".lake", "packages")
+            if os.path.isdir(packages):
+                for name in sorted(os.listdir(packages)):
+                    candidate = os.path.join(packages, name, ".lake", "build", "lib", "lean")
+                    if os.path.isdir(candidate):
+                        search.append(candidate)
+        env["LEAN_PATH"] = os.pathsep.join(search)
+
+        # --- stage 2: kernel re-check of the artifact -------------------------
+        recheck = [leanchecker, module]
+        cwd = project if project is not None else os.path.dirname(real_file)
         run_argv, shown = wrapped(recheck, " ".join(recheck), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-recheck-")
         if run.error is not None:
@@ -809,12 +914,8 @@ def check(claim, ctx):
             )
 
         # --- stage 3: the axiom query (no repository code runs here) ----------
-        if project is not None:
-            query = [lake, "env", "lean", "--run", _QUERY_PROGRAM, module, theorem]
-            cwd = project
-        else:
-            query = [lean, "--run", _QUERY_PROGRAM, module, theorem]
-            cwd = os.path.dirname(real_file)
+        query = [lean, "--run", _QUERY_PROGRAM, module, theorem]
+        cwd = project if project is not None else os.path.dirname(real_file)
         run_argv, shown = wrapped(query, " ".join(query), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-query-")
         if run.error is not None:
@@ -860,6 +961,21 @@ def check(claim, ctx):
             )
         axioms = payload
         line = _evidence_line(theorem, axioms)
+        if status == "axioms" and run.returncode != 0:
+            return unverifiable(
+                run,
+                shown,
+                f"the axiom query printed an answer but exited with status "
+                f"{run.returncode}; the answer is not trusted",
+            )
+        if theorem in axioms:
+            return refuted(
+                run,
+                shown,
+                f"the declaration is an axiom, not a proof: the artifact's axiom list "
+                f"reports {line}",
+                output=checks._last_lines(combined),
+            )
         if "sorryAx" in axioms:
             return refuted(
                 run,
@@ -880,10 +996,10 @@ def check(claim, ctx):
             Verdict.CONFIRMED,
             command_desc + shown + cache_note,
             checks._last_lines(combined),
-            f"'{theorem}' is proved in {path} at {commit[:12]}: the compiled artifact "
-            f"passed Lean's kernel re-check (leanchecker, {toolchain}) and the checker's "
-            f"own query -- no repository code executed -- read its axiom list from the "
-            f"artifact: {line}{note_suffix}",
+            f"'{theorem}' is proved in {path} at {commit[:12]}: the artifact built from "
+            f"that commit passed Lean's kernel re-check (leanchecker, {toolchain}) and "
+            f"the checker's own query (no repository code in the query process) read "
+            f"its axiom list from the artifact: {line}{note_suffix}",
             sandboxed=sandboxed,
         )
     finally:
