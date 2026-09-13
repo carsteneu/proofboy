@@ -209,7 +209,7 @@ Querverweise: [05-entwurf-testplan/05-03-mapping-formal.md](05-entwurf-testplan/
 | [04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md) | Empfehlung — Shortlist und Testeignung für die Notations-Hypothese | Verifiziert | 12 | 10 | 0 Img / 1 Diagr |
 | [04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md) | Brücke zum Prüfer — [HALT]/[SCORE] und die Prüfer-Doktrin | Verifiziert | 15 | 6 | 0 Img / 1 Diagr |
 
-Querverweise: [lean/erdos-straus/README.md](../../../lean/erdos-straus/README.md) — Lean-4-Kernel-Beweise der sechs P12-Klassen und der finiten Brücke 2 ≤ n ≤ 1000 (04-03, Nachtrag 2026-09-13); [yesdocs/formal-conjectures/README.md](../../formal-conjectures/README.md) — E2: Katalog-Scan (1466 offene Statements; Erdős–Straus = `erdos_242`), Shortlist, erster umgrenzter Angriff (04-03/04-02, Nachtrag 2026-09-13)
+Querverweise: [lean/erdos-straus/README.md](../../../lean/erdos-straus/README.md) — Lean-4-Kernel-Beweise der sechs P12-Klassen und der finiten Brücke 2 ≤ n ≤ 1000 (04-03, Nachtrag 2026-09-13); [yesdocs/formal-conjectures/README.md](../../formal-conjectures/README.md) — E2: Katalog-Scan (1466 offene Statements; Erdős–Straus = `erdos_242`), Shortlist, erster umgrenzter Angriff (04-03/04-02, Nachtrag 2026-09-13); [yesdocs/formal-conjectures/attack-01.md](../../formal-conjectures/attack-01.md) — V17: BMO#1/Antihydra-Reduktionen beidseitig verifiziert (E2 §4.4 geschlossen), Antihydra 2^32 Schritte (D&C/GMP), Strukturjagd + V1.1-Evaluierung (2026-09-13)
 
 ## 05 — Entwurf & Testplan (Notation + Protokoll)
 

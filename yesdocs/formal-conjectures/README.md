@@ -425,6 +425,14 @@ unter der Repo-Wurzel und vergleicht die SHA-256:
 [ARTIFACT: yesdocs/formal-conjectures/data/probe.txt -> ca9f2943a1a5c6b6dd7b0fbd908107fb5e0c89cc5f28333312232a97e256f410]
 [ARTIFACT: yesdocs/formal-conjectures/data/bmo-attack.msheet -> 7d0b37d8da2ce589fef5a32498164fa8f75d6ab8aed1d4077a5ccd133f327bef]
 
+**Nachtrag 2026-09-13 (V17, `attack-01.md`).** Der vertiefte Angriff auf BMO#1 und
+Antihydra (Reduktionen beidseitig, Deep-Läufe, Strukturjagd) friert folgende
+Artefakte ein:
+
+[ARTIFACT: yesdocs/formal-conjectures/data/reductions.txt -> b5433ec3020c5d7ca9b5554f822fbfec6b0eff60eccceea5f803d39b60a7a455]
+[ARTIFACT: yesdocs/formal-conjectures/data/structure.txt -> 59c3aa9baedcd3309575266380bc645ce0dafa43842110ec2094b7467eac079e]
+[ARTIFACT: yesdocs/formal-conjectures/data/bmo-phase2.msheet -> ab27ea7f6e1f0bd063cf0a07cb79a6df45991369c0ac1f06fd4c115b47d83c10]
+
 ```bash
 python3 -m bemyself check --report yesdocs/formal-conjectures/README.md --repo . --strict
 ```
@@ -465,7 +473,12 @@ beschriftet.
 4. **Äquivalenzen nicht lokal nachgeprüft.** Die Maschine↔Reformulierung-
    Äquivalenzen stammen aus externer Dokumentation (Rocq für BMO#5, Lean für
    die BMO#1-Regeln, Wiki für die übrigen); lokal wurden nur beide Seiten
-   *einzeln* endlich reproduziert.
+   *einzeln* endlich reproduziert. — **Nachtrag 2026-09-13 (V17): für BMO#1 und
+   Antihydra geschlossen**, siehe `attack-01.md` §2: `tools/reductions.py`
+   prüft die dokumentierten Maps beidseitig gegen den Roh-TM-Simulator auf
+   exakt beschrifteten endlichen Fenstern (Trajektorie 12 Konfigurationen je
+   Maschine; Fenster a0..24 × b1..60 bzw. a0..20 × b1..40) und findet dabei
+   zwei Domänen-Korrekturen (Antihydra b=1, BMO#1 b=a+2).
 5. **Statement-Qualität nur stichprobenartig — mit einem belegten Fehler.**
    Der Docstring-Check (BMO#1-Erstwerte, A34693-Namen, BMO#4-Closed-Form gegen
    Wiki) lief für die Shortlist-Kandidaten; ein früherer Stand dieser Datei
@@ -489,6 +502,10 @@ beschriftet.
 - [OEIS A34693](https://oeis.org/A34693) — kleinste `k` mit `k·n+1` prim (Abruf 2026-09-13)
 - [OEIS A051023](https://oeis.org/A051023) — Zentralspalte von Rule 30 (Anker der Bits 0..101; Abruf 2026-09-13)
 - Lokal: `tools/scan_catalog.py`, `tools/catalog_probe.py` samt Tests, `data/scan.json`, `data/probe.txt`, `data/bmo-attack.msheet`
+- Nachtrag V17 (2026-09-13): [attack-01.md](attack-01.md) — Quellen, Reduktions-Verifikation
+  (beidseitig), Deep-Läufe (Antihydra über 2^31 hinaus, BMO#1-Grenze), Strukturjagd,
+  V1.1-Evaluierung; Werkzeuge `tools/reductions.py` (18 Tests), `bemyself/experiments/antihydra_deep.py`
+  (12 Tests), Blatt `data/bmo-phase2.msheet`, Anker `data/attack-01-check.txt`
 - Einordnung im Wiki: [04-03 Nachtrag 2026-09-13](../deepseek-math-notation/wiki/04-offene-probleme/04-03-rechenfragmente-daten.md), Kriterien aus [04-01](../deepseek-math-notation/wiki/04-offene-probleme/04-01-wahlkriterien.md)
 
 ## 6. Review-Befunde und Auflösung

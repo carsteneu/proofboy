@@ -172,5 +172,54 @@ class AntihydraTest(unittest.TestCase):
             self.assertEqual((3 * (n + 4)) // 2, (3 * n) // 2 + 6)
 
 
+class Bmo1RunTest(unittest.TestCase):
+    def test_small_runs_report_no_equality_and_the_expected_pairs(self):
+        self.assertEqual(R.bmo1_run(10)[0], None)
+        index, a, b = R.bmo1_run(9)
+        self.assertEqual((a, b), (17, 22))  # the tenth pair of the shortlist
+        index, a, b = R.bmo1_run(1)
+        self.assertEqual((a, b), (3, 1))
+
+    def test_the_run_line_is_deterministic(self):
+        first = R.report_bmo1_run(100)
+        second = R.report_bmo1_run(100)
+        # everything but the seconds field is deterministic
+        self.assertEqual(first.split(" seconds=")[0], second.split(" seconds=")[0])
+        self.assertIn("equality_index=none", first)
+
+
+class StructureTest(unittest.TestCase):
+    def test_random_walk_solution_is_exact_in_z_phi(self):
+        self.assertEqual(R.phi_identity_checks(50), [])
+
+    def test_phi_powers_satisfy_the_defining_relation(self):
+        powers = R.phi_powers(6)
+        # phi**2 = 1 - phi  ->  (a, b) pairs: phi**2 = (1, -1)
+        self.assertEqual(powers[2], (1, -1))
+        # phi**3 = 2*phi - 1
+        self.assertEqual(powers[3], (-1, 2))
+
+    def test_backward_tree_matches_the_wiki_and_never_hits_the_line(self):
+        tree = R.bmo1_backward_tree(10)
+        # levels 0..10: 2**10 nodes at the last level, no point on the line
+        # 2 = m + b, and the invariant m > b holds everywhere
+        self.assertEqual(tree["nodes"], 2 ** 10)
+        self.assertEqual(tree["hits"], [])
+        self.assertEqual(tree["invariant_violations"], [])
+        # Among the wiki's levels 5..10 every entry reproduces except the
+        # level-8 slope 669/401, which does not exist in the tree at all
+        # (the closest point there is 699/401 -- a digit transposition).
+        in_window = [f for f in tree["wiki_mismatches"] if "outside" not in f]
+        self.assertEqual(len(in_window), 1)
+        self.assertIn("level 8", in_window[0])
+
+    def test_backward_tree_reports_the_wiki_typo(self):
+        tree = R.bmo1_backward_tree(8)
+        mismatches = [f for f in tree["wiki_mismatches"] if "outside" not in f]
+        self.assertEqual(len(mismatches), 1)
+        self.assertIn("699/401", mismatches[0])
+        self.assertIn("669/401", mismatches[0])
+
+
 if __name__ == "__main__":
     unittest.main()

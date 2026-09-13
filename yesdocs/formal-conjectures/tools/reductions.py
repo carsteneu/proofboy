@@ -583,9 +583,201 @@ def report():
     return "\n".join(lines) + "\n"
 
 
+def phi_powers(count):
+    """phi**0 .. phi**count as exact pairs (a, b) over Z meaning a + b*phi.
+
+    Uses phi**2 = 1 - phi (the defining relation of the golden ratio
+    conjugate phi = (sqrt(5) - 1)/2), so every power is an integer pair and
+    every identity below is verified exactly, without floating point.
+    """
+    powers = [(1, 0)]
+    a, b = 0, 1  # phi
+    for _ in range(count):
+        powers.append((a, b))
+        # (a + b*phi) * phi = a*phi + b*(1 - phi) = b + (a - b)*phi
+        a, b = b, a - b
+    return powers
+
+
+def phi_identity_checks(n_max):
+    """Exact check of the wiki's random-walk solution P(n) = phi**(n+1).
+
+    The Antihydra page solves P(n) = 1/2*P(n-1) + 1/2*P(n+2) with P(-1) = 1
+    by P(n) = ((sqrt(5)-1)/2)**(n+1). With P(n) = phi**(n+1) the recurrence is
+    equivalent to 1 + phi**3 = 2*phi; both are checked exactly in Z[phi].
+    """
+    mismatches = []
+    powers = phi_powers(n_max + 3)
+    one_plus_cube = tuple(x + y for x, y in zip(powers[0], powers[3]))
+    twice_phi = tuple(2 * x for x in powers[1])
+    if one_plus_cube != twice_phi:
+        mismatches.append("1 + phi**3 != 2*phi")
+    for n in range(0, n_max + 1):
+        lhs = tuple(x + y for x, y in zip(powers[n], powers[n + 3]))
+        rhs = tuple(2 * x for x in powers[n + 1])
+        if lhs != rhs:
+            mismatches.append(f"n={n}: P(n-1) + P(n+2) != 2*P(n)")
+            break
+    return mismatches
+
+
+# The wiki's list of slopes of generated (m, b) points closest to the halting
+# line 2 = m + b: level -> (side, slope) with side 'above' (m + b > 2) or
+# 'below' (m + b < 2). Read from the BMO#1 page, "Location 3".
+BMO1_WIKI_CLOSEST = {
+    5: ("above", (13, 7)),
+    6: ("below", (119, 69)),
+    7: ("above", (223, 125)),
+    8: ("below", (669, 401)),
+    9: ("below", (1145, 651)),
+    10: ("above", (2037, 1151)),
+    15: ("above", (117575, 66741)),
+    17: ("above", (611281, 347027)),
+    19: ("below", (2115805, 1201207)),
+    20: ("below", (3338367, 1895261)),
+}
+
+
+def bmo1_backward_tree(levels):
+    """Exact preimage tree of the BMO#1 halting line up to ``levels``.
+
+    The halting line is (m, b) = (1, 0) (the line y = x); a point (m, b) has
+    the two preimages ``(m/(m+4), (b-2)/(m+4))`` and ``(2m+1, b+m)`` (wiki,
+    "A Backward Reasoning Approach"). The TM halts iff some generated point
+    satisfies 2 = m + b (the line y = m x + b then contains the start
+    (1, 2)). Reported exactly: occurrences of that condition, violations of
+    the invariant m > b, and the closest point per level per side, compared
+    with the wiki's list where that side is named.
+    """
+    from fractions import Fraction
+
+    nodes = [(Fraction(1), Fraction(0))]
+    hits = []
+    invariant_violations = []
+    closest = {}
+    best = {"above": None, "below": None}  # over the union of all levels so far
+    for level in range(0, levels + 1):
+        if level:
+            children = []
+            for m, b in nodes:
+                children.append((m / (m + 4), (b - 2) / (m + 4)))
+                children.append((2 * m + 1, b + m))
+            nodes = children
+        for m, b in nodes:
+            if m <= b:
+                invariant_violations.append((level, m, b))
+            distance = m + b - 2
+            if distance == 0:
+                hits.append((level, m, b))
+                continue
+            side = "above" if distance > 0 else "below"
+            magnitude = abs(distance)
+            if best[side] is None or magnitude < best[side][0]:
+                best[side] = (magnitude, m, b, level)
+        closest[level] = {
+            side: entry for side, entry in best.items() if entry is not None
+        }
+    mismatches = []
+    for level, (side, slope) in sorted(BMO1_WIKI_CLOSEST.items()):
+        if level > levels:
+            mismatches.append(f"level {level}: outside the checked window")
+            continue
+        entry = closest.get(level, {}).get(side)
+        if entry is None:
+            mismatches.append(f"level {level}: no point {side} the line")
+            continue
+        distance, m, b, found_at = entry
+        if (m.numerator, m.denominator) != slope:
+            mismatches.append(
+                f"level {level}: closest {side} slope {m} (generated at level "
+                f"{found_at}) != wiki {slope[0]}/{slope[1]}"
+            )
+    return {
+        "levels": levels,
+        "nodes": len(nodes),
+        "hits": hits,
+        "invariant_violations": invariant_violations,
+        "closest": closest,
+        "wiki_mismatches": mismatches,
+    }
+
+
+def report_structure():
+    """Deterministic structure-probe report lines (task: pattern hunt)."""
+    lines = ["# structure probes (exact finite checks; no proofs of the open statements)"]
+    mismatches = phi_identity_checks(200)
+    lines.append(
+        "antihydra.random_walk_solution=phi**(n+1) exact in Z[phi] "
+        f"n=0..200 mismatches={mismatches or 'none'} "
+        "(1 + phi**3 == 2*phi and P(n-1)+P(n+2) == 2*P(n), P(-1)=1)"
+    )
+    tree = bmo1_backward_tree(18)
+    distances = []
+    for level in sorted(tree["closest"]):
+        for side in ("above", "below"):
+            entry = tree["closest"][level].get(side)
+            if entry is not None:
+                magnitude = entry[0]
+                distances.append(f"{level}{'a' if side == 'above' else 'b'}:{float(magnitude):.3g}")
+    lines.append(
+        f"bmo1.backward_tree.levels={tree['levels']} nodes={tree['nodes']} "
+        f"hits_2_eq_m_plus_b={tree['hits'] or 'none'} "
+        f"invariant_m_gt_b_violations={len(tree['invariant_violations'])} "
+        f"wiki_closest_entries_checked={len(BMO1_WIKI_CLOSEST)} "
+        f"mismatches={tree['wiki_mismatches'] or 'none'}"
+    )
+    lines.append("bmo1.backward_tree.closest_distance_by_level=" + " ".join(distances))
+    return lines
+
+
+def bmo1_run(iterations):
+    """Run the BMO#1 (a, b) map for ``iterations`` applications.
+
+    Returns (equality_index, a, b): the 1-based index of the first pair with
+    a = b (None when the window has none) and the final pair. The map needs
+    Theta(iterations**2) bit operations (the values grow linearly in bits), so
+    the reachable depth is far below the raw-TM step depth.
+    """
+    a, b = 1, 2
+    for index in range(1, iterations + 1):
+        if a == b:
+            return index, a, b
+        if a > b:
+            a, b = a - b, 4 * b + 2
+        else:
+            a, b = 2 * a + 1, b - a
+    return None, a, b
+
+
+def report_bmo1_run(iterations):
+    """One deterministic line per BMO#1 map run (artifact input)."""
+    import hashlib
+    import time
+
+    started = time.monotonic()
+    index, a, b = bmo1_run(iterations)
+    elapsed = time.monotonic() - started
+    digest = hashlib.sha256(f"{a}:{b}".encode("ascii")).hexdigest()
+    return (
+        f"bmo1.map.iterations={iterations} equality_index={index if index else 'none'} "
+        f"final_a_bits={a.bit_length()} final_b_bits={b.bit_length()} "
+        f"sha256(final_a:final_b)={digest} seconds={elapsed:.1f}"
+    )
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.parse_args(argv)
+    parser.add_argument("--structure", action="store_true",
+                        help="print only the structure probes")
+    parser.add_argument("--bmo1-run", type=int, metavar="N", default=None,
+                        help="run the BMO#1 (a, b) map for N applications")
+    args = parser.parse_args(argv)
+    if args.structure:
+        sys.stdout.write("\n".join(report_structure()) + "\n")
+        return 0
+    if args.bmo1_run is not None:
+        sys.stdout.write(report_bmo1_run(args.bmo1_run) + "\n")
+        return 0
     sys.stdout.write(report())
     return 0
 
