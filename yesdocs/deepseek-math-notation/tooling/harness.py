@@ -209,8 +209,9 @@ _TIER_B_SET = "tier_b_v11-b-0.4.json"
 # eigenen maschinellen Verdikte (Appendix + Befunde). K erhaelt die neutrale
 # Selbstpruefung -- Verdikte, die es nicht gibt, werden nicht erfunden.
 # C0/C1/C2 (V15) sind C-Varianten der RC-Umstellung und erben den Rueckkanal;
-# H (V16) ist die Zwangsprompt-Variante und erbt ihn ebenfalls.
-MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2", "H")
+# H (V16) ist die Zwangsprompt-Variante und erbt ihn ebenfalls; L0/L1/L2
+# (V18, Lean-Taktik-Denkspur) sind C-Varianten und erben ihn ebenso.
+MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2", "H", "L0", "L1", "L2")
 
 # Der einzige Trigger der Rundenkette (Haerte-Runde V13): der typisierte
 # Endzustand der Runde ist nicht bestaetigt, es folgt die naechste Runde.

@@ -24,15 +24,17 @@ interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.
 Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-08), die
 Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D), die Härte-Runde (05-10: Sets v0.3,
 Zahlen-Regime, tiefe Läufe, Zyklus-Suche), die Lokalisierungs-Runde (05-11: Feedback-Leiter
-G0/G1/G2, Bindungsschutz, Sets v0.4) und die RC-Umstellung (05-12: RC-Fidelity-Metrik,
-Instruction-only-Arme C0/C1/C2, Prefill-Grenze) sind erfolgt; die nächsten Runden
+G0/G1/G2, Bindungsschutz, Sets v0.4), die RC-Umstellung (05-12: RC-Fidelity-Metrik,
+Instruction-only-Arme C0/C1/C2, Prefill-Grenze) und die Lean-Runde (05-14: leancheck-Elaborator,
+Latent-Lean-Smoke 16/16 valid, Taktik-Denkspur-Arme L0/L1/L2, Token-Kosten der Lean-Zeile)
+sind erfolgt; die nächsten Runden
 sind in 05-12 §7 skizziert. Seit 2026-09-13 ist zusätzlich der **Trainings-Pfad
 vorbereitet**: Korpus v0 aus den abgeschlossenen Läufen plus QLoRA-SFT/DPO/RLVR-Skripte
 und Leck-Guard in [`training/`](../../../training/README.md), eingeordnet in
 [05-07 §13](05-entwurf-testplan/05-07-denksprache-v1.1.md).
 
-**Umfang:** 36 Dateien in 5 Clustern · 82496 Wörter ·
-744 Quellenangaben (Datei-Summen) · 1112 Inline-Zitate · Visuals in `assets/` je Cluster.
+**Umfang:** 37 Dateien in 5 Clustern · 85001 Wörter ·
+753 Quellenangaben (Datei-Summen) · 1137 Inline-Zitate · Visuals in `assets/` je Cluster.
 
 ## Cluster-Karte
 
@@ -81,6 +83,7 @@ graph LR
     F0509[09-rueckkanal-runde-v12]
     F0510[10-haerte-runde-v13]
     F0512[12-rc-umstellung-v15]
+    F0514[14-lean-v18]
   end
   F0102 --> F0204
   F0103 --> F0201
@@ -146,6 +149,10 @@ graph LR
   F0512 --> F0505
   F0512 --> F0504
   F0512 --> F0103B
+  F0514 --> F0512
+  F0514 --> F0103B
+  F0514 --> F0505
+  F0514 --> F0504
   classDef C01 fill:#1f77b422,stroke:#1f77b4,stroke-width:1px
   classDef C02 fill:#2ca02c22,stroke:#2ca02c,stroke-width:1px
   classDef C03 fill:#d6272822,stroke:#d62728,stroke-width:1px
@@ -155,7 +162,7 @@ graph LR
   class F0201,F0202,F0203,F0204,F0205,F0206 C02
   class F0301,F0302,F0303,F0304,F0305 C03
   class F0401,F0402,F0403,F0404,F0405 C04
-  class F0501,F0502,F0503,F0504,F0505,F0506,F0507,F0508,F0509,F0510,F0512 C05
+  class F0501,F0502,F0503,F0504,F0505,F0506,F0507,F0508,F0509,F0510,F0512,F0514 C05
 ```
 *Eigene Darstellung: Kanten abgeleitet aus den `related:`-Feldern der Datei-Frontmatter (44 clustergrenzenüberschreitende Verweise).*
 
@@ -229,6 +236,7 @@ Querverweise: [lean/erdos-straus/README.md](../../../lean/erdos-straus/README.md
 | [05-11-lokalisierung-v14.md](05-entwurf-testplan/05-11-lokalisierung-v14.md) | Lokalisierungs-Runde V14: Feedback-Leiter G0/G1/G2, Bindungsschutz und Sets v0.4 | Verifiziert | 8 | 12 | 0 Img / 0 Diagr |
 | [05-12-rc-umstellung-v15.md](05-entwurf-testplan/05-12-rc-umstellung-v15.md) | RC-Umstellung V15: Die Denkspur in V1.1 — Fidelity-Metrik, Instruction-only-Arme C0/C1/C2 und die Prefill-Grenze | Verifiziert | 12 | 12 | 0 Img / 0 Diagr |
 | [05-13-sauberkeit-v16.md](05-entwurf-testplan/05-13-sauberkeit-v16.md) | Sauberkeits-Runde V16: Direkt-Transport, Proxy-Kontamination und der Zwangsprompt-Arm H | Verifiziert | 6 | 6 | 0 Img / 0 Diagr |
+| [05-14-v1-1-lean-v18.md](05-entwurf-testplan/05-14-v1-1-lean-v18.md) | Lean-Runde V18 (v1.1.lean): leancheck-Elaborator, Latent-Lean-Smoke (16/16 valid, 13/16 axiomfrei), Taktik-Denkspur-Arme L0/L1/L2 und Token-Kosten der Lean-Zeile | Verifiziert | 9 | 25 | 0 Img / 0 Diagr |
 
 Querverweise: [01-modellprofil/01-03-tokenizer-zahlen.md](01-modellprofil/01-03-tokenizer-zahlen.md), [01-modellprofil/01-06-betrieb-umgebung.md](01-modellprofil/01-06-betrieb-umgebung.md), [02-wirksame-formate/02-01-tokenisierung-arithmetik.md](02-wirksame-formate/02-01-tokenisierung-arithmetik.md), [02-wirksame-formate/02-02-embedding-position.md](02-wirksame-formate/02-02-embedding-position.md), [02-wirksame-formate/02-03-format-sensitivitaet.md](02-wirksame-formate/02-03-format-sensitivitaet.md), [02-wirksame-formate/02-04-lokalitaet-struktur.md](02-wirksame-formate/02-04-lokalitaet-struktur.md), [02-wirksame-formate/02-05-latentes-denken.md](02-wirksame-formate/02-05-latentes-denken.md), [03-formale-bruecke/03-01-formale-systeme.md](03-formale-bruecke/03-01-formale-systeme.md), [03-formale-bruecke/03-04-zeugen-zertifikate.md](03-formale-bruecke/03-04-zeugen-zertifikate.md), [03-formale-bruecke/03-05-roundtrip-anforderungen.md](03-formale-bruecke/03-05-roundtrip-anforderungen.md), [04-offene-probleme/04-01-wahlkriterien.md](04-offene-probleme/04-01-wahlkriterien.md), [04-offene-probleme/04-03-rechenfragmente-daten.md](04-offene-probleme/04-03-rechenfragmente-daten.md), [04-offene-probleme/04-04-empfehlung.md](04-offene-probleme/04-04-empfehlung.md), [04-offene-probleme/04-05-bruecke-pruefer.md](04-offene-probleme/04-05-bruecke-pruefer.md), [01-modellprofil/01-03b-tokenizer-v11-lexeme.md](01-modellprofil/01-03b-tokenizer-v11-lexeme.md)
 
