@@ -444,6 +444,17 @@ alle Artefakt-Digests) bündelt `data/attack-01-check.txt`; Verifikation mit
 python3 -m bemyself check --report yesdocs/formal-conjectures/README.md --repo . --strict
 ```
 
+**Nachtrag 2026-09-13 (V20, Astra-Lemma-Loop §(A)).** Der erste Satz des
+Astra-Lemma-Loops liegt jetzt kernel-geprüft vor: Für jedes `k ≥ 3` hält der
+Antihydra-Start `(k−1, 2^k − 3)` nach genau `k−1` legalen Übergängen; jeder
+`i`-te Zustand erfüllt `A_i = k−1−i`, `b_i + 3 = 3^i·2^{k−i}`, `b_i` ungerade;
+Endzustand `(0, 2·3^{k−1} − 3)` (`lean/antihydra-family`, Lean 4.33.1, Core/Std
+ohne mathlib, kein `sorry`/`admit`, Axiome nur `[propext, Quot.sound]`). Das
+ist **keine** Lösung einer offenen Frage, sondern eine vollständige
+Halt-Familie der reduzierten Regel. Artefakt gebunden:
+
+[ARTIFACT: lean/antihydra-family/Antihydra.lean -> 0ea9dba32b9e588e2dfcd24e988a5619ff9e72383317efb0460359173d3a985b]
+
 ### 3.3 Einordnung
 
 Der Angriff zeigt für die Shortlist, was im Testfeld **wirklich prüfbar**
