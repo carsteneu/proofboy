@@ -4,7 +4,7 @@ cluster: 04-offene-probleme
 title: Rechenfragmente, Datenquellen und Communities
 language: de
 status: Verifiziert
-last_updated: 2026-09-12
+last_updated: 2026-09-13
 created_at: 2026-09-12
 sources_count: 54
 citations_count: 65
@@ -126,6 +126,57 @@ Die **On-Line Encyclopedia of Integer Sequences** ist die maschinenlesbare Zahle
 
 **Einschätzung.** Communities sind die Prüfschicht außerhalb der Kernel: Dort werden Decider-Beweise, Graphdaten und Formalisierungen verhandelt, und dort findet man Gegenbeispiele, die kein automatischer Prüfer kennt. Verlinkbare Daten gibt es reichlich (DIMACS-Kantenlisten, Lean-Repos, Seed-DB); der Diskurs selbst ist nicht maschinell prüfbar.
 
+## Nachtrag 2026-09-13 — Lean-Kernel-Anschluss steht (E1: Erdős–Straus)
+
+Die in [04-05](04-05-bruecke-pruefer.md) als Lücke 7 geführte „fehlende formale Brücke“ und das
+entsprechende K4-Gate in [04-04](04-04-empfehlung.md) §1 sind für die Erdős–Straus-Kette nicht
+mehr nur Postulat, sondern lokal ausgeführt. Das neue Lean-4-Projekt `lean/erdos-straus/`
+(Lean 4.33.1, mathlib-Tag `v4.33.1`, gepinnt in `lake-manifest.json`) enthält (a) die
+parametrischen Klassen aus P12 als Theoreme über ℚ für alle `t ≥ 1` — generisches
+Skalierungs-Muster plus die sechs Klassen (m = 2, 3, 5, 7, 11, 13), exakt im Gültigkeitsbereich
+des IDENT-Checkers; (b) eine finite Brücke für `2 ≤ n ≤ 1000` mit expliziten Zeugen
+(Zeugentabelle aus dem P11-Modul, generiert und je Zeile exakt mit `Fraction` nachgerechnet,
+sha256 des P11-stdout im Dateikopf); (c) ein Axiom-Audit: nur `propext`,
+`Classical.choice`, `Quot.sound`, kein `sorryAx`, kein `native_decide` — die
+Tabellenprüfung `witnesses_all_ok` hängt von **keinem** Axiom ab. `lake build` ist grün
+(8710 Jobs, ~20 s mit mathlib-Cache).
+
+Was das **nicht** ist: ein Fortschritt an der Vermutung. Die Brücke deckt ein endliches Fenster
+und sechs Progressionen; der offene Kern bleibt `p ≡ 1 (mod 4)`;
+rechnerischer Weltstand 10^17 (Salez 2014) bzw. 10^18 (Preprint 2025) — in Python, nicht im
+Kernel. Gemessene Kernel-Grenze der Elaboration: N = 1000 baut in ~16 s, N = 2000
+überschreitet die Default-Heartbeats — größere Fenster brauchen eine andere Kodierung
+(`native_decide` mit Compiler-Vertrauen oder String-Tabelle mit geprüftem Parser) oder eine
+feinere Aufteilung.
+
+**Kurzrecon formal-conjectures (2026-09-13, ≤ 45 min).** Am Repo-README verifiziert: das
+Projekt ist ein Lake-Projekt mit mathlib-Require; der Einstieg ist `lake exe cache get` +
+`lake build` — derselbe Ablauf wie beim neuen Projekt dieser Maschine, der lokale Prüfpfad
+ist also reproduzierbar. Versionierung folgt den monatlichen mathlib-Tags (`v4.{X}.{Y}`),
+Benchmark-Snapshots heißen `bench-v{N}-lean4.{X}.{Y}`; Software Apache-2.0, Materialien
+CC-BY. Shortlist für diese Kette (Kriterien: endlich / prüfbar / Identitätsstruktur; **kein**
+Angriff in E1):
+
+1. **Erdős–Straus (Referenzfall).** Zeugen sind sofort kernel-prüfbar; die modularen
+   Gleichungen reduzieren auf endliche Kongruenzklassen; der offene Kern ist
+   `p ≡ 1 (mod 4)`. Feasibility: hoch für *Statement plus Teilresultate* als Beitrag.
+   Nächster Schritt: prüfen, ob eine Statement-Datei im ErdősProblems-Verzeichnis existiert,
+   sonst Beitrag nach Repo-Vorgaben (category-Attribut, Quellenangabe) — nicht in E1 geprüft.
+2. **Modulare Fragmente derselben Familie.** Genau die Form, die `[IDENT]` und das neue
+   Skalierungs-Muster formalisieren (Klasse `n = m·t` mit Zeugen, Gültigkeitsbereich
+   `t ≥ 1`). Feasibility: mittel — neue Klassen sind Forschung, das Formalisierungs-Muster steht.
+3. **Zeugen-Familien anderer Katalogprobleme** (Goldbach-Partitionen, Hadwiger–Nelson-Graphen,
+   drei Kuben): kernel-prüfbare Zeugen, aber mit SAT-/Graph-Zertifikaten statt
+   Identitätsstruktur — eigene Claim-Typen nötig. Feasibility für diese Kette: niedrig.
+
+Eine belastbare Auswahl aus den 1029 offenen Statements des Korpus braucht einen
+Katalog-Scan (Repo klonen, Statement-Köpfe und `@[category]`-Attribute sichten); die
+Kriterien dafür liefert [04-01](04-01-wahlkriterien.md), das Prüfmuster jetzt dieses Projekt.
+Das ist die nächste Phase, nicht E1. Präzedenz für den Weg „KI-gestützt, Lean-verifiziert,
+öffentlich nachvollzogen“ liefern #728 („PROVED (LEAN)“) und #871 („DISPROVED (LEAN)“) mit
+den Forum-Regeln (KI-Offenlegung, unabhängige Prüfung, möglichst fehlerfreie
+Lean-Formalisierung) ([Erdős Problem #728](https://erdosproblems.com/728, accessed 2026-09-13)).
+
 ## Quellen
 
 Alle Abrufe am 2026-09-12.
@@ -165,3 +216,10 @@ Alle Abrufe am 2026-09-12.
 **Communities**
 - [Erdős Problems](https://www.erdosproblems.com/), [Polymath16 (Dustin Mixon)](https://dustingmixon.wordpress.com/2018/04/14/polymath16-first-thread-simplifying-de-greys-graph/), [de Grey (arXiv:1804.02385)](https://arxiv.org/abs/1804.02385), [Lean Zulip](https://leanprover.zulipchat.com/), [FrontierMath](https://epoch.ai/frontiermath).
 - [The Church-Turing Thesis – SEP](https://plato.stanford.edu/entries/church-turing/) (Unentscheidbarkeit des Halteproblems/Entscheidungsproblems).
+
+**Nachtrag 2026-09-13 (E1, Erdős–Straus)**
+- [formal-conjectures (Repo-README)](https://github.com/google-deepmind/formal-conjectures) — Lake/mathlib-Einstieg (`lake exe cache get`, `lake build`), Versions-Tags `bench-v{N}-lean4.{X}.{Y}`, Apache-2.0 / CC-BY (Abruf 2026-09-13).
+- [Weitere Verifikation und empirische Evidenz zur Erdős–Straus-Vermutung (arXiv:2509.00128)](https://arxiv.org/abs/2509.00128) — Stand 10^18, offener Kern `p ≡ 1 (mod 4)`.
+- [Neue modulare Gleichungen, Prüfung bis N = 10^17 (arXiv:1406.6307)](https://arxiv.org/abs/1406.6307) — Salez 2014.
+- [Erdős Problem #728](https://erdosproblems.com/728) — Forum-Regeln: KI-Offenlegung, unabhängige Prüfung, möglichst fehlerfreie Lean-Formalisierung (Abruf 2026-09-13).
+- Lokal: `lean/erdos-straus/` (Lean 4.33.1 + mathlib `v4.33.1`) — Kernel-Beweise der sechs P12-Klassen und der finiten Brücke `2 ≤ n ≤ 1000`.

@@ -4,7 +4,7 @@ cluster: index
 title: "DeepSeek V4.1 Flash — Modell-native Mathematik-Notation (Research-Wiki)"
 language: de
 status: Verifiziert
-last_updated: 2026-09-12
+last_updated: 2026-09-13
 created_at: 2026-09-12
 sources_count: 692
 citations_count: 1061
