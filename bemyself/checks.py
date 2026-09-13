@@ -149,6 +149,11 @@ class Ctx:
     # The directory [ARTIFACT] paths resolve against; None falls back to the
     # repository (--artifact-root overrides it).
     artifact_root: str | None = None
+    # The --tools manifest: pins the [LEAN] tools by path, version and digest.
+    # None means the tools come from PATH (the conservative default); a
+    # manifest that does not allow a required tool leaves the claim
+    # unverifiable instead.
+    tools: dict | None = None
 
 
 def _repo_command(ctx, *args):

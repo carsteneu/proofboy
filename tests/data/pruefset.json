@@ -702,6 +702,20 @@
         "lean"
       ],
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 885805a50b19a409b55ebbde28cb365a63f5ad44]`\n[LEAN: lean/Sorry.lean -> fixture_sorry_proven]\n"
+    },
+    {
+      "name": "f27-lean-toolchain-path-request",
+      "group": "false",
+      "note": "Boesartig: das Repo committet lean-toolchain='./evil' samt Attrappe lean/evil/bin/lean -- elan wuerde den Pfad direkt ausfuehren. Der Pruefer lehnt die Anfrage vor jedem Werkzeuglauf ab (nur authority/name:version, nur installiert), das Urteil ist UNVERIFIABLE und nennt den Grund (den Wert selbst zitiert es nicht: die Datei kann ein Symlink sein) -- nie CONFIRMED, nie REFUTED.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "lean"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "lean": "UNVERIFIABLE"
+      },
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 0f690c9c3368018308f53fa48866f11564a41f59]`\n[LEAN: lean/Proof.lean -> fixture_proven]\n"
     }
   ]
 }

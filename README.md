@@ -17,8 +17,8 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 ```
 
@@ -608,7 +608,16 @@ alle im Sandkasten:
 
 ```
 $ python3 -m bemyself check --report lean-report.md --repo <repo>
-lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: the artifact built from that commit passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query (no repository code in the query process) read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
+lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 9ba28724475f: the artifact built from that commit passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query (no repository code in the query process) read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (tools: lean 4.33.1 sha256:e0f4b30b29c5, leanchecker 4.33.1 sha256:e0f4b30b29c5, lake 5.0.0-src+819816b sha256:e0f4b30b29c5 (toolchain leanprover/lean4:v4.33.1); sandboxed with bwrap)
+```
+
+Die sha256-Kurzformen sind die der gestarteten Dateien -- hier der
+elan-Shims, die dieselbe Datei sind; die Toolchain selbst steht daneben.
+Einen Digest der aufgeloesten Toolchain-Binaries gibt es nur, wenn das
+Manifest sie direkt pinnt. Ein abgelehnter Toolchain-Wert wird im Urteil
+**nicht zitiert** (nur seine Laenge): die committete Datei kann ein Symlink
+auf eine beliebige vom Pruefer lesbare Host-Datei sein, deren erste Zeile
+sonst im Urteil landen wuerde.
 ```
 
 Urteile: `bestaetigt` nur, wenn die Abfrage mit Exit 0 genau fuer diese
@@ -674,10 +683,11 @@ manipulieren und liegt ausserhalb dessen, was dieses Werkzeug zusichert.
 
 Toolchain und Abhaengigkeiten: `lean`, `lake` (fuer Lake-Projekte) und
 `leanchecker` muessen im `PATH` liegen (eine elan-Installation erfuellt
-das); das Werkzeug selbst braucht sie nicht. Fehlt eine
-`lean-toolchain`-Datei in Reichweite, pinnt der Pruefer die einzige
+das); das Werkzeug selbst braucht sie nicht. Ohne Toolchain-Anforderung
+pinnt der Pruefer die einzige
 installierte Toolchain als `ELAN_TOOLCHAIN` -- der elan-Shim fragt dann
-nicht im netzlosen Sandkasten nach der Standardversion. Ein frischer
+nicht im netzlosen Sandkasten nach der Standardversion (das
+Vertrauensmodell der Toolchain steht unten). Ein frischer
 Checkout bringt nur die getrackten Dateien mit -- Abhaengigkeiten wie
 Mathlib sind nicht Teil des Commits. Hat das gepruefte Repository neben dem
 Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der Checkout keinen,
@@ -694,6 +704,54 @@ Isolation: Bauen und Elaborieren fuehren Code aus (Taktiken, Metaprogramme,
 Rueckfall. Der Sandkasten bindet die Wurzel read-only (so bleibt die
 Toolchain unter `~/.elan` erreichbar), gibt dem Lauf eigenen Netz-, PID- und
 UTS-Namensraum und nur den Wegwerf-Checkout beschreibbar.
+
+Vertrauensmodell der Toolchain: die Werkzeuge gehoeren dem Host, nie dem
+geprueften Repository. Eine `lean-toolchain`-Datei ist **eine Bitte, keine
+Befugnis**: befolgt wird nur elans native Form `authority/name:version`
+(etwa `leanprover/lean4:v4.33.1`), und auch die nur, wenn genau diese
+Toolchain installiert ist. Ein pfadartiger Wert (`./evil`) wird in jedem Fall
+abgelehnt -- elan wuerde den Pfad direkt ausfuehren und damit Repo-Code zur
+Toolchain machen --, und eine angeforderte, aber nicht installierte Toolchain
+wird nicht durch eine andere ersetzt; beide Faelle bleiben `unpruefbar` (nie
+`widerlegt`: eine kaputte Umgebung ist kein Beweis gegen den Satz). Den
+Ausschlag gibt der Host: `ELAN_TOOLCHAIN` des Operators, sonst die einzige
+installierte Toolchain. Laesst sich beides nicht bestimmen, waehrend das
+Projekt eine Toolchain-Datei mitbringt, verweigert der Pruefer den Lauf --
+elan wuerde die Toolchain sonst aus dem geprueften Baum aufloesen. Laeuft
+ein Werkzeug nicht an, weil die Toolchain sich nicht aufloesen laesst
+(elans `no Lean toolchain found at ...`, `invalid toolchain name`,
+`no such release ...`), bleibt die Behauptung in jeder Stufe `unpruefbar`
+und nennt den Grund -- nie einen Kompilierfehler der Datei.
+
+Mit `--tools <manifest>` pinnt der Host die Werkzeuge selbst: eine TOML-Datei
+mit je einer `[tool.lean]`-, `[tool.leanchecker]`- und `[tool.lake]`-Tabelle,
+`path` (absolut, Pflicht), optional `version` und `digest`
+(`sha256:<hex>`). Ein Manifest-Eintrag gewinnt **immer** gegen eine
+Repo-Anforderung: nur die gepinnten Werkzeuge laufen, `PATH` wird fuer alle
+Kindprozesse auf sie umgebogen (auch `leanchecker` ruft `lean` ueber `PATH`
+auf), und ein Digest- oder Versionsbruch bleibt `unpruefbar`. Eine
+wohlgeformte Toolchain-Bitte wird mit Manifest-Pin nicht mehr befolgt, eine
+pfadartige wird unabhaengig davon immer abgelehnt. Ein Werkzeug,
+das das Manifest nicht nennt, laeuft mit `--tools` gar nicht -- es gibt
+keinen stillen `PATH`-Rueckfall. Ohne Manifest gilt der bisherige Weg
+(`lean`/`lake`/`leanchecker` aus dem `PATH`). Laesst sich host-seitig keine
+elan-Wurzel neben den Werkzeugen erkennen (eine Kopie oder ein Wrapper des
+elan-Binaries ist von einem gewoehnlichen nicht zu unterscheiden), bekommt
+der Lauf ein neutrales, leeres `ELAN_HOME` -- ein Shim kann dann nichts aus
+dem geprueften Baum aufloesen, ein echtes Werkzeug ignoriert die Variable;
+eine angeforderte oder gepinnte Toolchain ist in diesem Zustand nicht
+bestaetigbar und bleibt `unpruefbar` (Grenze: das trifft auch Hosts mit
+echten Werkzeugen ohne elan, wenn das Repo eine `lean-toolchain` mitbringt;
+Abhilfe ist ein `--tools`-Eintrag fuer `lean` oder ein gesetztes
+`ELAN_HOME`). Eine `lean-toolchain`-Datei, die erst waehrend des Builds
+auftaucht, wird vor jeder weiteren Stufe erneut geprueft: ein pfadartiger
+Wert verweigert den Lauf, denn elan fuehrt ihn ohne Umweg aus. Jedes Urteil nennt die
+Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
+Datei, `[pinned]` bei einem Manifest-Pin:
+
+```
+... 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (tools: lean 4.33.1 sha256:e0f4b30b29c5, leanchecker 4.33.1 sha256:e0f4b30b29c5 (toolchain leanprover/lean4:v4.33.1); sandboxed with bwrap)
+```
 
 **Grenzen:** `bestaetigt` heisst: die Datei steht so im gepinnten Commit,
 ihr Modul baute, das Artefakt bestand den Kernel-Recheck, und die
@@ -1006,8 +1064,8 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt dreiundfuenfzig Meldungen im Report-Format: siebenundzwanzig
-ehrliche und sechsundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt vierundfuenfzig Meldungen im Report-Format: siebenundzwanzig
+ehrliche und siebenundzwanzig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
@@ -1017,10 +1075,15 @@ CYCLE-Zertifikat mit falschem Versatz, ein CYCLE-Zertifikat fuer eine
 Maschine, die im Fenster haelt, eine parameterisierte Identitaet mit
 verfaelschtem Koeffizienten, ein ARTIFACT-Zertifikat mit falschem Digest, ein
 ARTIFACT-Pfad, der mit `..` aus der Wurzel herauszeigt, eine
-MERGE-Behauptung, die den Zielbranch statt des gemergten Branches nennt, und
-eine LEAN-Behauptung, deren Beweis auf `sorry` beruht -- die Axiomliste
+MERGE-Behauptung, die den Zielbranch statt des gemergten Branches nennt, eine
+LEAN-Behauptung, deren Beweis auf `sorry` beruht -- die Axiomliste
 nennt `sorryAx`, die Meldung wird `widerlegt`; auf einem Host ohne
 Lean-Toolchain bleibt sie ehrlich `unpruefbar`, nie bestaetigt). Dazu kommen
+eine LEAN-Behauptung, deren Projekt `lean-toolchain='./evil'` samt Attrappe
+`lean/evil/bin/lean` committet -- der Pruefer lehnt die Anfrage vor jedem
+Werkzeuglauf ab, das Urteil ist `unpruefbar` und nennt den Grund (den Wert
+selbst zitiert es nicht)
+(nie bestaetigt, nie widerlegt),
 zwei ehrliche HALT-Meldungen: eine bestaetigt den
 Drei-Schritt-Halter, eine bleibt mit dem BB(6)-Rekordhalter ehrlich
 `unpruefbar`, eine ehrliche SEARCHED-Meldung, die fuer denselben
@@ -1085,7 +1148,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus dreiundfuenfzig Meldungen (siebenundzwanzig ehrlich, sechsundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus vierundfuenfzig Meldungen (siebenundzwanzig ehrlich, siebenundzwanzig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

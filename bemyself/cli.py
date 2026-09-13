@@ -21,6 +21,7 @@ from bemyself.claimtypes.coloring import DEFAULT_COLORING_LIMIT
 from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
+from bemyself import toolmanifest
 from bemyself.model import Claim, Verdict
 from bemyself.report import parse_report
 from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
@@ -172,6 +173,16 @@ def build_parser():
             "how test commands run: auto sandboxes with bwrap when available "
             "(the default), require refuses to run without a working sandbox, "
             "off runs unsandboxed"
+        ),
+    )
+    check.add_argument(
+        "--tools",
+        metavar="MANIFEST",
+        help=(
+            "path to a TOML tool manifest pinning lean, leanchecker and lake "
+            "by path, version and sha256 digest; a pinned tool wins over a "
+            "repository's toolchain request, and a tool the manifest does not "
+            "name is not run (the [LEAN] claim stays unverifiable)"
         ),
     )
     check.add_argument(
@@ -469,6 +480,15 @@ def run_check(args, parser):
     else:
         repo = None
 
+    tools = None
+    if args.tools is not None:
+        # The manifest is host-side trust input: a defective one is a usage
+        # error before any claim runs, never a silently weaker pin.
+        try:
+            tools = toolmanifest.load(args.tools)
+        except toolmanifest.ToolManifestError as exc:
+            return _source_error(args.json, source, repo, str(exc))
+
     claims = _apply_files_override(parse_report(text), args.files)
 
     if repo is None:
@@ -513,6 +533,7 @@ def run_check(args, parser):
         coloring_limit=args.coloring_limit,
         compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST + tuple(args.allow),
         artifact_root=os.path.abspath(args.artifact_root) if args.artifact_root else None,
+        tools=tools,
     )
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 
