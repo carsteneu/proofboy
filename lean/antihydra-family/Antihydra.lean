@@ -134,4 +134,49 @@ theorem iterate_state (k : Nat) (hk : 3 ≤ k) :
       rw [stepN_succ, ih hi, Option.bind_some]
       simp [step, hodd, hpos, beta, U, harith]
 
+/-- `3 ≤ 2 · 3^{k−1}` for `k ≥ 3` (guards the endpoint subtraction). -/
+theorem three_le_two_mul_three_pow {k : Nat} (hk : 3 ≤ k) : 3 ≤ 2 * 3 ^ (k - 1) := by
+  have h2 : 2 ≤ k - 1 := by omega
+  have h' : 3 ^ 2 ≤ 3 ^ (k - 1) := Nat.pow_le_pow_right (by omega) h2
+  omega
+
+/-- **Main theorem (A).** For `k ≥ 3` the start `(k−1, 2^k − 3)` holds after
+exactly `k−1` legal transitions: every `i`-th state (`i ≤ k−1`) is `(k−1−i, β_i)`
+with `β_i + 3 = 3^i·2^{k−i}` and `β_i` odd; the endpoint is
+`(0, 2·3^{k−1} − 3)` with odd `b`; no earlier state is a halt state. -/
+theorem halt_family (k : Nat) (hk : 3 ≤ k) :
+    (∀ i, i ≤ k - 1 → stepN i (k - 1, 2 ^ k - 3) = some (k - 1 - i, beta k i)
+        ∧ beta k i + 3 = 3 ^ i * 2 ^ (k - i) ∧ beta k i % 2 = 1)
+    ∧ stepN (k - 1) (k - 1, 2 ^ k - 3) = some (0, 2 * 3 ^ (k - 1) - 3)
+    ∧ (2 * 3 ^ (k - 1) - 3) % 2 = 1
+    ∧ (∀ i, i < k - 1 → ¬ Halts (k - 1 - i, beta k i)) := by
+  have hend : beta k (k - 1) = 2 * 3 ^ (k - 1) - 3 := by
+    have hb := beta_invariant k hk (k - 1) (by omega)
+    have h1 : k - (k - 1) = 1 := by omega
+    simp [h1] at hb
+    omega
+  have hoddend : (2 * 3 ^ (k - 1) - 3) % 2 = 1 :=
+    odd_of_two_mul (Nat.sub_add_cancel (three_le_two_mul_three_pow hk))
+  refine ⟨?_, ?_, hoddend, ?_⟩
+  · intro i hi
+    exact ⟨iterate_state k hk i hi, beta_invariant k hk i hi, beta_odd k hk i hi⟩
+  · rw [iterate_state k hk (k - 1) (by omega)]
+    rw [show k - 1 - (k - 1) = 0 from by omega, hend]
+  · intro i hi hh
+    have hA : k - 1 - i = 0 := hh.2
+    exact absurd hA (by omega)
+
+/-- **Corollary (arbitrarily long odd runs).** For every `k ≥ 3`, each of the
+first `k−1` steps of the family run starts from odd `b` and positive `A` — so
+`k−1` consecutive steps use the odd rule. -/
+theorem odd_run (k : Nat) (hk : 3 ≤ k) (i : Nat) (hi : i < k - 1) :
+    ∃ A b, stepN i (k - 1, 2 ^ k - 3) = some (A, b) ∧ b % 2 = 1 ∧ 0 < A := by
+  obtain ⟨h1, _, h3⟩ := (halt_family k hk).1 i (by omega)
+  exact ⟨k - 1 - i, beta k i, h1, h3, by omega⟩
+
+-- Spot checks (finite, kernel-evaluated): k = 3 and k = 5.
+example : stepN 2 (2, 2 ^ 3 - 3) = some (0, 2 * 3 ^ 2 - 3) := by decide
+example : stepN 4 (4, 2 ^ 5 - 3) = some (0, 2 * 3 ^ 4 - 3) := by decide
+example : step (0, 15) = none := by decide
+
 end Antihydra
