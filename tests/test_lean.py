@@ -15,6 +15,7 @@ output, `public import`, same-named files elsewhere, `lcProof`/unsafe, and the
 hostile modules that try to forge their own evidence.
 """
 
+import hashlib
 import os
 import re
 import shutil
@@ -53,6 +54,11 @@ _LAKEFILE = (
 _LAKE_PROOF = "theorem lake_proven (n : Nat) : n + 0 = n := rfl\n"
 
 _COMMIT_40 = "a" * 40
+
+# A stand-in for a repository-authored toolchain binary -- the shape the P17
+# repro planted at ./evil/bin/lean. The hermetic tests only need a file that
+# exists; the live decoy writes a marker to prove it (never) ran.
+_DECOY_TOOL = "#!/bin/sh\nexit 0\n"
 
 _FAKE_TOOL = """#!/bin/sh
 dir='{bin_dir}'
@@ -901,6 +907,157 @@ class LeanCheckTest(unittest.TestCase):
         self.assertEqual(elan_home, elan)
         self.assertEqual(toolchain, "leanprover/lean4:v4.33.1")
         self.assertNotEqual(home, os.path.expanduser("~"))
+
+    # --- the toolchain trust boundary (P17) --------------------------------
+    def elan_with_fake_tools(self, toolchains=()):
+        """A fake elan root: bin/ with the fake tools, toolchains/ with dirs."""
+        root = os.path.join(self._tmp.name, "fake-elan", self._testMethodName)
+        bin_dir = os.path.join(root, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        for toolchain in toolchains:
+            os.makedirs(os.path.join(root, "toolchains", toolchain), exist_ok=True)
+        _write_fake_tools(bin_dir)
+        return bin_dir
+
+    def toolchain_repo(self, name, toolchain, decoy=False):
+        """A standalone proof whose project commits a ``lean-toolchain`` file."""
+        repo = make_repo(os.path.join(self._tmp.name, name))
+        if decoy:
+            commit_probe(repo, "evil/bin/lean", _DECOY_TOOL)
+        commit_probe(repo, "lean/Proof.lean", _PROOF)
+        commit = commit_probe(repo, "lean/lean-toolchain", toolchain + "\n")
+        return repo, commit
+
+    def answering(self, bin_dir, theorem="fixture_proven", axioms=""):
+        with open(os.path.join(bin_dir, "query.out"), "w", encoding="utf-8") as handle:
+            handle.write(_answer(theorem, axioms))
+        return bin_dir
+
+    def test_a_path_like_toolchain_request_is_refused(self):
+        # P17 (a): the repository asks for a toolchain, it does not choose
+        # one. A path-like value must never reach the toolchain environment.
+        repo, commit = self.toolchain_repo("tc-path", "./evil", decoy=True)
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("./evil", result.reason)
+        self.assertIn("is not a toolchain name", result.reason)
+
+    def test_a_toolchain_request_that_is_not_installed_is_refused(self):
+        # P17 (a): only a request that resolves to an installed toolchain is
+        # followed; the checker does not substitute a different toolchain.
+        repo, commit = self.toolchain_repo("tc-missing", "leanprover/lean4:v9.99.9")
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("leanprover/lean4:v9.99.9", result.reason)
+        self.assertIn("not installed", result.reason)
+
+    def test_an_installed_toolchain_request_is_followed(self):
+        # The positive control: an installed authority/name:version request
+        # still reaches the shim as ELAN_TOOLCHAIN (offline determinism).
+        repo, commit = self.toolchain_repo("tc-installed", "leanprover/lean4:v4.33.1")
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
+            handle.write("dump\n")
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
+            toolchain = handle.read().splitlines()[-1].split("|")[1]
+        self.assertEqual(toolchain, "leanprover/lean4:v4.33.1")
+
+    def test_a_toolchain_resolution_failure_at_the_compile_stage_is_unverifiable(self):
+        # P17 (b): a broken environment is no error of the claim -- the exact
+        # elan line from the repro must not be reported as a compile error.
+        # For a standalone file the fake tool's build mode IS the compile run.
+        repo, commit = self.toolchain_repo("tc-compile", "./evil")
+        elan_line = (
+            "error: no Lean toolchain found at '././evil': "
+            "expected '././evil/bin/lean' to exist\n"
+        )
+        bin_dir = self.fake(**{"build.out": elan_line, "build.rc": "1\n"})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("no Lean toolchain found", result.reason)
+        self.assertNotIn("does not compile", result.reason)
+
+    def test_a_toolchain_resolution_failure_at_the_build_stage_is_unverifiable(self):
+        # P17 (b) at stage 1: the lake build fails because the toolchain
+        # cannot be resolved; the verdict names that reason.
+        repo, commit = self.lake_repo("tc-build")
+        elan_line = "error: no such release: 'v9.99.9'\n"
+        bin_dir = self.fake(
+            **{
+                "build.out": elan_line,
+                "build.rc": "1\n",
+                "query.out": _answer("lake_proven", ""),
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("no such release", result.reason)
+        self.assertIn("toolchain", result.reason.lower())
+
+    def test_a_confirmation_names_the_tool_identity(self):
+        # P17 (c): every verdict names the tools that judged -- name, version
+        # and the digest short form of the file that ran.
+        repo, commit = self.probe_repo("identity", _PROOF)
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
+        )
+        with open(os.path.join(bin_dir, "leanchecker"), "a", encoding="utf-8") as handle:
+            handle.write("# a different leanchecker build\n")
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        lean_digest = hashlib.sha256(
+            open(os.path.join(bin_dir, "lean"), "rb").read()
+        ).hexdigest()[:12]
+        checker_digest = hashlib.sha256(
+            open(os.path.join(bin_dir, "leanchecker"), "rb").read()
+        ).hexdigest()[:12]
+        self.assertIn(f"lean 4.33.1 sha256:{lean_digest}", result.reason)
+        self.assertIn(f"leanchecker 4.33.1 sha256:{checker_digest}", result.reason)
+        self.assertIn("(toolchain leanprover/lean4:v4.33.1)", result.reason)
+
+    def test_a_refutation_names_the_tool_identity_too(self):
+        repo, commit = self.probe_repo("identity-refuted", _SORRY)
+        bin_dir = self.answering(
+            self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",)),
+            "fixture_sorry",
+            "sorryAx",
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_sorry", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("lean 4.33.1 sha256:", result.reason)
+        self.assertIn("leanchecker 4.33.1 sha256:", result.reason)
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox boundary tests")
     def test_the_working_tree_cache_is_bound_read_only_when_present(self):
