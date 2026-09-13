@@ -458,9 +458,11 @@ wenn der Checkout keinen Cache hat; das Kommando im Urteil nennt den Pfad.
 Jedes Urteil ab der Werkzeug-Identifikation nennt die Werkzeug-Identitaet
 (Name, Version, sha256-Kurzform der gestarteten Datei, `[pinned]` bei
 Manifest-Pin) und den Sandkasten-Zustand; die Version von `leanchecker`
-stammt aus dem Manifest oder aus der Toolchain neben `lean`
-(`leanchecker --version` liefert keine Version: der Aufruf laeuft ohne
-Antwort in einen Timeout, verifiziert mit 4.33.1).
+wird gegen ein Manifest-Pin geprueft und sonst aus der Toolchain neben
+`lean` abgeleitet -- laesst sie sich nicht ableiten, bleibt sie leer und
+ein Versions-Pin macht die Behauptung `UNVERIFIABLE` (`leanchecker
+--version` liefert keine Version: der Aufruf laeuft ohne Antwort in einen
+Timeout, verifiziert mit 4.33.1).
 
 ## Merges (`MERGE`)
 
