@@ -310,7 +310,10 @@ Lake-Projekt (lakefile in ihrem Verzeichnis oder darueber), baut
 Kopie der Datei mit angehaengtem `#print axioms <satz>` mit `lean` bzw.
 `lake env lean` re-elaboriert (beides aus dem `PATH`; `ELAN_HOME` wird aus
 dem elan-Installationspfad abgeleitet, weil der Lauf mit `HOME=<checkout>`
-isoliert ist). Kein `#print axioms`-Ergebnis fuer genau diesen Satz macht
+isoliert ist; ohne `lean-toolchain`-Datei in Reichweite wird die einzige
+installierte Toolchain als `ELAN_TOOLCHAIN` gepinnt, damit der Shim im
+netzlosen Sandkasten nicht nach der Standardversion fragt). Kein `#print
+axioms`-Ergebnis fuer genau diesen Satz macht
 die Behauptung `UNVERIFIABLE` -- es gibt keine Bestaetigung durch Auslassung.
 
 Urteile: `CONFIRMED` nur mit einer `#print axioms`-Zeile fuer genau diesen
@@ -357,9 +360,11 @@ bwrap-Semantik (Wurzel read-only -- die Toolchain unter `~/.elan` bleibt
 dadurch lesbar --, nur der Checkout beschreibbar, eigener Netz-/PID-/UTS-
 Namensraum, `/run` als leeres tmpfs). Hat das gepruefte Repository neben dem
 Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der Checkout keinen,
-wird dieser Cache read-only in denselben Pfad gebunden; das Kommando im
+wird dessen `packages`-Verzeichnis read-only in denselben Pfad gebunden (der
+Checkout baut in sein eigenes, beschreibbares `.lake`); das Kommando im
 Urteil nennt den Pfad. Die `.lake`-Wahl ist eine Naeherung, die das Urteil
-benennt: Abhaengigkeiten sind nicht Teil des Commits, und ohne Cache plus
+benennt: Abhaengigkeiten sind nicht Teil des Commits, ein Cache ohne
+kompilierte Artefakte kann den Build nicht tragen, und ohne Cache plus
 ausgeschaltetem Netz (Sandkasten) bleibt eine fehlende Abhaengigkeit
 `UNVERIFIABLE` statt erfunden zu werden.
 

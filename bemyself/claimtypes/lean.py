@@ -32,13 +32,17 @@ claim UNVERIFIABLE when bwrap cannot start; only an explicit
 binds the filesystem root read-only (which keeps the toolchain under
 ``~/.elan`` reachable), gives the run its own network/PID/UTS namespaces and
 writable space only in the throwaway checkout. ``ELAN_HOME`` points at the
-toolchain root so the elan shim works with ``HOME=<checkout>``. When the
-checked repository has a working-tree ``.lake`` cache next to the project
-and the fresh checkout has none, the cache is bound read-only into the same
-path -- named in the verdict. Dependencies are not part of the commit and
-the sandbox has no network: an unresolvable dependency leaves the claim
-UNVERIFIABLE (never REFUTED, never CONFIRMED), and a dependency error only
-counts when the missing module is one the file itself imports.
+toolchain root so the elan shim works with ``HOME=<checkout>``; when no
+``lean-toolchain`` file is in reach, the sole installed toolchain is pinned
+as ``ELAN_TOOLCHAIN`` so the shim does not query its release server (no
+network in the sandbox). When the checked repository has a working-tree
+``.lake`` cache next to the project and the fresh checkout has none, its
+``packages`` directory is bound read-only into the same path -- named in the
+verdict. Dependencies are not part of the commit and the sandbox has no
+network: an unresolvable dependency (or a cache without compiled artifacts)
+leaves the claim UNVERIFIABLE (never REFUTED, never CONFIRMED), and a
+dependency error only counts when the missing module is one the file itself
+imports.
 
 Limits: ``LEAN_TIMEOUT`` bounds one build/elaboration run. Path and theorem
 come from an untrusted report and are validated before any argv is built:
@@ -86,6 +90,7 @@ _ERROR_RE = re.compile(r"\berror\b")
 _UNKNOWN_MODULE_RE = re.compile(r"unknown module prefix '([^']+)'")
 _UNKNOWN_IDENTIFIER_RE = re.compile(r"unknownIdentifier|Unknown constant|unknown identifier")
 _SANDBOX_FAILURE_RE = re.compile(r"\bbwrap\b")
+_READONLY_CACHE_RE = re.compile(r"(?i)read-?only file system")
 _ENV_FAILURE_RE = re.compile(
     r"(?i)(could not resolve host|unable to access|failed to fetch|"
     r"network is unreachable|connection refused|no default toolchain|"
@@ -144,14 +149,21 @@ def _first_error_line(text):
 
 
 def _toolchain_name(text):
-    """A short toolchain name from a ``--version`` answer, else ""."""
+    """A short toolchain name from a ``lean --version`` answer, else "".
+
+    Elan prints a ``warning: failed to query latest release, using existing
+    version ...`` line before the answer when the sandbox has no network;
+    that warning is not the toolchain name.
+    """
     for line in text.splitlines():
-        if "version" not in line.lower():
+        line = line.strip()
+        if not line or line.lower().startswith("warning"):
             continue
         match = re.search(r"version\s+([0-9][^\s,)]*)", line)
         if match:
             return f"Lean {match.group(1)}"
-        return line.strip()
+        if "version" in line.lower():
+            return line
     return ""
 
 
@@ -193,6 +205,40 @@ def _elan_home(lean_path):
     if os.path.basename(bin_dir) == "bin" and os.path.isdir(os.path.join(root, "toolchains")):
         return root
     return None
+
+
+def _sole_toolchain(elan_home):
+    """The one installed elan toolchain as ``authority/name:version``, or None.
+
+    Without a ``lean-toolchain`` file elan asks its release server for the
+    default toolchain; in the sandbox (no network) that query burns seconds
+    and falls back to the installed version anyway. When exactly one
+    toolchain is installed, its directory name is unambiguous, so it is
+    passed as ``ELAN_TOOLCHAIN`` and the fallback stays deterministic and
+    offline.
+    """
+    toolchains = os.path.join(elan_home, "toolchains")
+    try:
+        names = sorted(os.listdir(toolchains))
+    except OSError:
+        return None
+    names = [name for name in names if os.path.isdir(os.path.join(toolchains, name))]
+    if len(names) != 1:
+        return None
+    return names[0].replace("---", ":").replace("--", "/")
+
+
+def _project_toolchain_file(start_dir):
+    """The ``lean-toolchain`` file elan would find from ``start_dir``, or None."""
+    current = os.path.realpath(start_dir)
+    while True:
+        candidate = os.path.join(current, "lean-toolchain")
+        if os.path.isfile(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
 
 
 def _find_tool(name):
@@ -441,18 +487,20 @@ def check(claim, ctx):
                 )
             module = _module_name(project, real_file)
 
-        # A working-tree .lake cache is bound read-only when the fresh
+        # A working-tree dependency cache is bound read-only when the fresh
         # checkout has none: dependencies are not part of the commit and the
         # sandbox has no network, so without it an unresolvable dependency
-        # ends UNVERIFIABLE. The bind is named in the verdict command.
+        # ends UNVERIFIABLE. Only the packages directory is bound -- the
+        # checkout keeps its own writable .lake for the project's build -- and
+        # the bind is named in the verdict command.
         extra_binds = []
         if bwrap is not None and project is not None:
-            cache_source = os.path.join(
-                ctx.repo or "", os.path.relpath(project, checkout), ".lake"
+            packages = os.path.join(
+                ctx.repo or "", os.path.relpath(project, checkout), ".lake", "packages"
             )
-            cache_dest = os.path.join(project, ".lake")
-            if os.path.isdir(cache_source) and not os.path.exists(cache_dest):
-                extra_binds.append((cache_source, cache_dest))
+            packages_dest = os.path.join(project, ".lake", "packages")
+            if os.path.isdir(packages) and not os.path.exists(packages_dest):
+                extra_binds.append((packages, packages_dest))
 
         sandboxed = bwrap is not None
 
@@ -467,6 +515,16 @@ def check(claim, ctx):
         elan_home = _elan_home(lean)
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
+            # The operator's explicit choice wins; otherwise pin the sole
+            # installed toolchain when no lean-toolchain file is in reach, so
+            # the shim does not query its release server (no network here).
+            operator_choice = os.environ.get("ELAN_TOOLCHAIN")
+            if operator_choice:
+                env["ELAN_TOOLCHAIN"] = operator_choice
+            elif _project_toolchain_file(project or os.path.dirname(real_file)) is None:
+                sole = _sole_toolchain(elan_home)
+                if sole is not None:
+                    env["ELAN_TOOLCHAIN"] = sole
 
         cache_note = ""
         if extra_binds:
@@ -485,8 +543,9 @@ def check(claim, ctx):
             )
 
         # Preflight: separate "the toolchain cannot run here" from "the file
-        # failed". The version print also names the toolchain in the verdict.
-        preflight = [lake if lake is not None else lean, "--version"]
+        # failed". The version print also names the toolchain in the verdict
+        # (the elaborator is Lean; lake is only the environment wrapper).
+        preflight = [lean, "--version"]
         run_argv, shown = wrapped(preflight, " ".join(preflight), project or checkout)
         run = _run(run_argv, checkout, env, PREFLIGHT_TIMEOUT, ctx.tmp_dir, "lean-preflight-")
         if run.error is not None:
@@ -499,6 +558,21 @@ def check(claim, ctx):
                 f"the Lean toolchain could not run ({preflight[0]} --version): {detail}",
             )
         toolchain = _toolchain_name(run.head) or _toolchain_name(run.tail) or "Lean"
+        if lake is not None:
+            lake_preflight = [lake, "--version"]
+            run_argv, shown = wrapped(lake_preflight, " ".join(lake_preflight), project)
+            run = _run(
+                run_argv, project, env, PREFLIGHT_TIMEOUT, ctx.tmp_dir, "lake-preflight-"
+            )
+            if run.error is not None:
+                return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+            if run.returncode != 0:
+                detail = _first_error_line(run.head or run.tail) or f"exit status {run.returncode}"
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the Lake toolchain could not run ({lake_preflight[0]} --version): {detail}",
+                )
 
         def failed(run, shown, what):
             """Classify a non-zero run: environment gap or real failure."""
@@ -506,6 +580,14 @@ def check(claim, ctx):
             first = _first_error_line(combined)
             if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
                 return unverifiable(run, shown, f"the sandbox could not run the command: {first}")
+            if extra_binds and _READONLY_CACHE_RE.search(combined):
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the dependency packages bound read-only from {extra_binds[0][0]} "
+                    f"cannot serve this run (a write into the read-only cache was "
+                    f"refused); the proof was not checked: {first}",
+                )
             if _missing_dependency(combined, imports) is not None:
                 return unverifiable(
                     run,
@@ -550,6 +632,14 @@ def check(claim, ctx):
                 if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
                     return unverifiable(
                         run, shown, f"the sandbox could not run the command: {first}"
+                    )
+                if extra_binds and _READONLY_CACHE_RE.search(combined):
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"the dependency packages bound read-only from {extra_binds[0][0]} "
+                        f"carry no compiled artifacts for this build; the project cannot "
+                        f"be built offline: {first}",
                     )
                 if _missing_dependency(combined, imports) is not None:
                     return unverifiable(

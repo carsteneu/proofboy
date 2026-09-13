@@ -83,6 +83,7 @@ def _fake_tool(bin_dir, name):
             "    ;;",
             "esac",
             '[ -f "$dir/run.sleep" ] && sleep 30',
+            'if [ -f "$dir/dump.env" ]; then printf \'%s|%s|%s\\n\' "$ELAN_HOME" "$ELAN_TOOLCHAIN" "$HOME" >> "$dir/env.copy"; fi',
             'if [ -n "$drv" ] && [ -f "$drv" ]; then cat "$drv" >> "$dir/driver.copy"; fi',
             '[ -f "$dir/run.out" ] && cat "$dir/run.out"',
             'if [ -f "$dir/run.rc" ]; then exit "$(cat "$dir/run.rc")"; fi',
@@ -145,6 +146,44 @@ class LeanRegistryTest(unittest.TestCase):
 
     def test_the_checker_is_the_registered_callable(self):
         self.assertIs(claimtypes.checker_for("lean"), lean.check)
+
+
+class LeanToolchainTest(unittest.TestCase):
+    """The elan fallback pinning (offline toolchain resolution)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def elan_root(self, name, toolchains=()):
+        root = os.path.join(self._tmp.name, name)
+        os.makedirs(os.path.join(root, "toolchains"), exist_ok=True)
+        for toolchain in toolchains:
+            os.makedirs(os.path.join(root, "toolchains", toolchain), exist_ok=True)
+        return root
+
+    def test_a_sole_toolchain_directory_name_is_mapped_back(self):
+        root = self.elan_root("one", ("leanprover--lean4---v4.33.1",))
+        self.assertEqual(lean._sole_toolchain(root), "leanprover/lean4:v4.33.1")
+
+    def test_without_exactly_one_toolchain_nothing_is_pinned(self):
+        self.assertIsNone(lean._sole_toolchain(self.elan_root("none")))
+        two = self.elan_root("two", ("leanprover--lean4---v4.33.1", "leanprover--lean4---v4.34.0"))
+        self.assertIsNone(lean._sole_toolchain(two))
+
+    def test_a_project_toolchain_file_is_found_upwards(self):
+        root = os.path.join(self._tmp.name, "proj")
+        nested = os.path.join(root, "a", "b")
+        os.makedirs(nested, exist_ok=True)
+        with open(os.path.join(root, "lean-toolchain"), "w", encoding="utf-8") as handle:
+            handle.write("leanprover/lean4:v4.33.1\n")
+        self.assertEqual(
+            lean._project_toolchain_file(nested), os.path.join(root, "lean-toolchain")
+        )
 
 
 class LeanCheckTest(unittest.TestCase):
@@ -330,6 +369,33 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
         self.assertIn("timed out", result.reason)
 
+    def test_a_sole_installed_toolchain_is_pinned_for_offline_runs(self):
+        repo, commit = self.probe_repo("elan-pin", _PROOF)
+        elan = os.path.join(self._tmp.name, "fake-elan", self._testMethodName)
+        bin_dir = os.path.join(elan, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        os.makedirs(
+            os.path.join(elan, "toolchains", "leanprover--lean4---v4.33.1"), exist_ok=True
+        )
+        _fake_tool(bin_dir, "lean")
+        with open(os.path.join(bin_dir, "run.out"), "w", encoding="utf-8") as handle:
+            handle.write("'fixture_proven' does not depend on any axioms\n")
+        with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
+            handle.write("dump\n")
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+        self.assertTrue(lines)
+        elan_home, toolchain, home = lines[-1].split("|")
+        self.assertEqual(elan_home, elan)
+        self.assertEqual(toolchain, "leanprover/lean4:v4.33.1")
+        self.assertNotEqual(home, os.path.expanduser("~"))
+
     # --- the guards --------------------------------------------------------
     def test_a_broken_file_outside_any_lake_project_needs_no_lake(self):
         repo, commit = self.probe_repo("nolake", _PROOF, filename="Proof.lean")
@@ -486,9 +552,9 @@ class LeanCheckTest(unittest.TestCase):
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox boundary tests")
     def test_the_working_tree_cache_is_bound_read_only_when_present(self):
         repo, commit = self.lake_repo("lake-cache")
-        cache = os.path.join(repo.path, "proofs", ".lake")
-        os.makedirs(cache, exist_ok=True)
-        with open(os.path.join(cache, "marker"), "w", encoding="utf-8") as handle:
+        packages = os.path.join(repo.path, "proofs", ".lake", "packages")
+        os.makedirs(packages, exist_ok=True)
+        with open(os.path.join(packages, "marker"), "w", encoding="utf-8") as handle:
             handle.write("cache\n")
         bin_dir = self.fake(**{"run.out": "'lake_proven' does not depend on any axioms\n"})
         with self.patched_path(bin_dir):
@@ -497,9 +563,29 @@ class LeanCheckTest(unittest.TestCase):
             )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         self.assertIn("read-only", result.command)
-        self.assertIn(cache, result.command)
+        self.assertIn(packages, result.command)
         self.assertIn("sandboxed with bwrap", result.reason)
         self.assertIs(result.sandboxed, True)
+
+    @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox boundary tests")
+    def test_a_read_only_cache_build_failure_is_unverifiable(self):
+        repo, commit = self.lake_repo("lake-cache-ro")
+        packages = os.path.join(repo.path, "proofs", ".lake", "packages")
+        os.makedirs(packages, exist_ok=True)
+        bin_dir = self.fake(
+            **{
+                "build.out": "error: read-only file system (error code: 30)\n",
+                "build.rc": "1\n",
+                "run.out": "should not run\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path, sandbox="auto")
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("read-only", result.reason)
+        self.assertNotIn("does not compile", result.reason)
 
 
 @unittest.skipUnless(_LEAN and _BWRAP, "lean and bwrap are required for the live tests")

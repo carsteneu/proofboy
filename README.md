@@ -622,11 +622,16 @@ der Report meint.
 
 Toolchain und Abhaengigkeiten: `lean` (und `lake`) muessen im `PATH` liegen
 (eine elan-Installation erfuellt das); das Werkzeug selbst braucht sie nicht.
-Ein frischer Checkout bringt nur die getrackten Dateien mit --
+Fehlt eine `lean-toolchain`-Datei in Reichweite, pinnt der Pruefer die
+einzige installierte Toolchain als `ELAN_TOOLCHAIN` -- der elan-Shim fragt
+dann nicht im netzlosen Sandkasten nach der Standardversion. Ein frischer
+Checkout bringt nur die getrackten Dateien mit --
 Abhaengigkeiten wie Mathlib sind nicht Teil des Commits. Hat das gepruefte
 Repository neben dem Lake-Projekt einen `.lake`-Cache im Arbeitsbaum und der
-Checkout keinen, wird dieser Cache read-only in denselben Pfad gebunden; das
-Urteil nennt den Pfad im Kommando. Fehlt der Cache und laesst sich die
+Checkout keinen, wird dessen `packages`-Verzeichnis read-only in denselben
+Pfad gebunden (der Checkout baut in sein eigenes, beschreibbares `.lake`);
+das Urteil nennt den Pfad im Kommando. Fehlt
+der Cache, traegt er keine kompilierten Artefakte, oder laesst sich die
 Abhaengigkeit nicht aufloesen, bleibt die Behauptung `unpruefbar` (nie
 `widerlegt`): das Netz ist im Sandkasten aus, und `lake` wuerde fehlende
 Abhaengigkeiten sonst per `git clone` nachladen.
