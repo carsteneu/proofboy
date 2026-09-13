@@ -15,12 +15,15 @@ It reports four numbers:
 
 A false message without marked claims (an empty or hostile report) counts as
 detected when it does not exit 0. Cases may pin exact per-claim verdicts
-(``expect_verdicts``), never-confirmed kinds (``expect_not_confirmed``) and a
-claim count; a missed expectation fails the run even when the rates hold, as
-does a marked target kind the report does not even yield. Exit codes: 0 =
-thresholds and expectations met, 1 = missed, 2 = usage, input or fixture
-error, 4 = --strict and at least one claim in the set stayed UNVERIFIABLE
-while the thresholds held (a run that already missed them exits 1).
+(``expect_verdicts``), never-confirmed kinds (``expect_not_confirmed``), the
+P18 class of a kind (``expect_classes``), the run's exit code
+(``expect_exit``) and a claim count; a missed expectation fails the run even
+when the rates hold, as does a marked target kind the report does not even
+yield. Exit codes: 0 = thresholds and expectations met, 1 = missed, 2 = usage,
+input or fixture error, 4 = --strict and at least one claim in the set stayed
+UNVERIFIABLE while the thresholds held (a run that already missed them exits
+1). Each claim record carries its class (``class``); a defect claim also
+fails its case's exit code (5) by the check contract.
 """
 
 from __future__ import annotations
@@ -72,11 +75,14 @@ def _run_case(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT
     return claims, results
 
 
-def _expectation_misses(case, claims, results):
+def _expectation_misses(case, claims, results, code):
     misses = []
     expected_count = case.get("expect_claim_count")
     if expected_count is not None and len(claims) != expected_count:
         misses.append(f"claim count {len(claims)} != {expected_count}")
+    expected_exit = case.get("expect_exit")
+    if expected_exit is not None and code != expected_exit:
+        misses.append(f"exit {code} != {expected_exit}")
     for kind, expected in (case.get("expect_verdicts") or {}).items():
         verdicts = [result.verdict.value for claim, result in results if claim.kind == kind]
         if not verdicts:
@@ -85,6 +91,18 @@ def _expectation_misses(case, claims, results):
         wrong = sorted({value for value in verdicts if value != expected})
         if wrong:
             misses.append(f"{kind}: {', '.join(wrong)} != {expected}")
+    for kind, expected in (case.get("expect_classes") or {}).items():
+        classes = [
+            result.cause.value if result.cause is not None else None
+            for claim, result in results
+            if claim.kind == kind
+        ]
+        if not classes:
+            misses.append(f"{kind}: no claim found, expected class {expected}")
+            continue
+        wrong = sorted({str(value) for value in classes if value != expected})
+        if wrong:
+            misses.append(f"{kind}: class {', '.join(wrong)} != {expected}")
     for kind in case.get("expect_not_confirmed", []):
         kind_results = [result for claim, result in results if claim.kind == kind]
         if not kind_results:
@@ -112,6 +130,7 @@ def _case_record(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFA
             {
                 "kind": claim.kind,
                 "verdict": result.verdict.value,
+                "class": result.cause.value if result.cause is not None else None,
                 "reason": result.reason,
                 "command": result.command,
                 "output": result.output,
@@ -119,7 +138,7 @@ def _case_record(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFA
             }
             for claim, result in results
         ],
-        "expectation_misses": _expectation_misses(case, claims, results),
+        "expectation_misses": _expectation_misses(case, claims, results, code),
     }
     if case["group"] == "false":
         targets = case.get("targets") or []

@@ -23,7 +23,7 @@ try:
 except ImportError:  # pragma: no cover - non-POSIX platforms
     resource = None
 
-from bemyself.model import Claim, Result, Verdict
+from bemyself.model import Cause, Claim, Result, Verdict
 from bemyself import claimtypes
 from bemyself.claimtypes.coloring import DEFAULT_COLORING_LIMIT
 from bemyself.claimtypes.compute import DEFAULT_COMPUTE_ALLOWLIST
@@ -559,7 +559,11 @@ def _kill_process_group(proc):
 def _repo_guard(ctx):
     """Return an UNVERIFIABLE result if the repo is unusable, else None."""
     if not os.path.isdir(ctx.repo):
-        return Result(Verdict.UNVERIFIABLE, reason=f"repo path does not exist: {ctx.repo}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"repo path does not exist: {ctx.repo}",
+            cause=Cause.ENVIRONMENT,
+        )
     proc = _git(ctx, "rev-parse", "--git-dir")
     if proc.returncode != 0:
         return Result(
@@ -567,6 +571,7 @@ def _repo_guard(ctx):
             command=_format(_repo_command(ctx, "rev-parse", "--git-dir")),
             output=_output(proc),
             reason=f"not a git repository: {ctx.repo}",
+            cause=Cause.ENVIRONMENT,
         )
     return None
 
@@ -595,7 +600,11 @@ def check_commit_exists(claim: Claim, ctx: Ctx) -> Result:
         return guard
     value = (claim.fields.get("commit") or "").strip()
     if not _COMMIT_HASH_RE.match(value):
-        return Result(Verdict.UNVERIFIABLE, reason=f"not a commit hash: {value!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a commit hash: {value!r}",
+            cause=Cause.DEFECT,
+        )
     revision = f"{value}^{{commit}}"
     command = _format(_repo_command(ctx, "rev-parse", "--verify", "--quiet", revision))
     resolved = _rev_parse(ctx, value)
@@ -611,10 +620,18 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
         return guard
     branch = claim.fields["branch"] or ""
     if not _valid_branch(branch):
-        return Result(Verdict.UNVERIFIABLE, reason=f"not a valid branch name: {branch!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a valid branch name: {branch!r}",
+            cause=Cause.DEFECT,
+        )
     value = claim.fields.get("commit")
     if not value:
-        return Result(Verdict.UNVERIFIABLE, reason="report names a branch but no commit hash")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="report names a branch but no commit hash",
+            cause=Cause.DEFECT,
+        )
 
     remotes_proc = _git(ctx, "remote")
     remotes = remotes_proc.stdout.split()
@@ -623,6 +640,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=_format(_repo_command(ctx, "remote")),
             reason="no git remote configured; cannot verify the branch was pushed",
+            cause=Cause.ENVIRONMENT,
         )
     if ORIGIN not in remotes:
         return Result(
@@ -630,6 +648,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             command=_format(_repo_command(ctx, "remote")),
             output=_output(remotes_proc),
             reason=f"no '{ORIGIN}' remote (found: {', '.join(remotes)})",
+            cause=Cause.ENVIRONMENT,
         )
 
     commit = _resolve_commit(ctx, value)
@@ -637,6 +656,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
+            cause=Cause.UNVERIFIABLE,
         )
 
     # Programs named by the repo's own config must not run during
@@ -652,6 +672,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
                 command=_format(_repo_command(ctx, "config", "--local", "--get", key)),
                 output=_output(cfg),
                 reason=f"repo config sets {key}; refusing to fetch through a repo-configured program",
+                cause=Cause.ENVIRONMENT,
             )
     proxies = _git(ctx, "config", "--local", "--get-regexp", r"^http\..*\.proxy$")
     if proxies.returncode == 0 and proxies.stdout.strip():
@@ -660,6 +681,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             command=_format(_repo_command(ctx, "config", "--local", "--get-regexp", "http-proxy")),
             output=_output(proxies),
             reason="repo config sets a URL-specific http proxy; refusing to fetch through it",
+            cause=Cause.ENVIRONMENT,
         )
 
     # Fetch refs/heads/<branch> into a private ref: a tag or remote HEAD of
@@ -691,12 +713,14 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
                 command=_format(_repo_command(ctx, *fetch_args)),
                 output=_output(fetch),
                 reason=f"could not fetch refs/heads/{branch} to confirm the push",
+                cause=Cause.UNVERIFIABLE,
             )
         tip = _rev_parse(ctx, private_ref)
         if tip is None:
             return Result(
                 Verdict.UNVERIFIABLE,
                 reason=f"{private_ref} did not resolve to a commit after fetch",
+                cause=Cause.UNVERIFIABLE,
             )
         proc = _git(ctx, "merge-base", "--is-ancestor", commit, private_ref)
         command = _format(_repo_command(ctx, "merge-base", "--is-ancestor", commit, private_ref))
@@ -713,6 +737,7 @@ def check_branch_pushed(claim: Claim, ctx: Ctx) -> Result:
             command,
             _output(proc),
             reason=f"could not compare {commit} with {branch} on {ORIGIN}",
+            cause=Cause.UNVERIFIABLE,
         )
     finally:
         # Best effort: the private verification ref must not linger.
@@ -730,20 +755,33 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
         return Result(
             Verdict.UNVERIFIABLE,
             reason="no base revision given; pass --base to compare the diff scope",
+            cause=Cause.ENVIRONMENT,
         )
     planned = {name[2:] if name.startswith("./") else name for name in claim.fields.get("planned") or ()}
     planned.discard("")
     if not planned:
-        return Result(Verdict.UNVERIFIABLE, reason="no planned file list to compare against")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="no planned file list to compare against",
+            cause=Cause.DEFECT,
+        )
 
     base = _rev_parse(ctx, ctx.base)
     if base is None:
-        return Result(Verdict.UNVERIFIABLE, reason=f"base revision does not resolve: {ctx.base!r}")
-    head = _resolve_commit(ctx, claim.fields.get("head"))
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"base revision does not resolve: {ctx.base!r}",
+            cause=Cause.ENVIRONMENT,
+        )
+    head_value = claim.fields.get("head")
+    head = _resolve_commit(ctx, head_value)
     if head is None:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason=f"head {claim.fields.get('head')!r} does not resolve to a commit",
+            reason=f"head {head_value!r} does not resolve to a commit",
+            # A missing [COMMIT] to bind is the report's defect; a present but
+            # unresolvable one is a state the verifier cannot pin.
+            cause=Cause.DEFECT if not head_value else Cause.UNVERIFIABLE,
         )
 
     diff_args = [
@@ -758,7 +796,11 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
     command = _format(_repo_command(ctx, *diff_args))
     if proc.returncode != 0:
         return Result(
-            Verdict.UNVERIFIABLE, command, _output(proc), reason=f"could not diff {base}..{head}"
+            Verdict.UNVERIFIABLE,
+            command,
+            _output(proc),
+            reason=f"could not diff {base}..{head}",
+            cause=Cause.UNVERIFIABLE,
         )
 
     changed = {name for name in proc.stdout.split("\0") if name.strip()}
@@ -800,6 +842,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason="no commit hash to check out for the test run",
+            cause=Cause.DEFECT,
         )
     commit = _resolve_commit(ctx, value)
     if commit is None:
@@ -807,19 +850,31 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
+            cause=Cause.UNVERIFIABLE,
         )
     if not _is_allowed(command_str, ctx.allowlist):
         return Result(
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"command is not in the allowlist: {command_str!r}",
+            cause=Cause.ENVIRONMENT,
         )
     try:
         argv = shlex.split(command_str)
     except ValueError as exc:
-        return Result(Verdict.UNVERIFIABLE, command=command_str, reason=f"could not parse command: {exc}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"could not parse command: {exc}",
+            cause=Cause.DEFECT,
+        )
     if not argv:
-        return Result(Verdict.UNVERIFIABLE, command=command_str, reason="empty command")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason="empty command",
+            cause=Cause.DEFECT,
+        )
     strict = _is_wrapper_command(argv)
     escaping = [arg for arg in argv if _arg_escapes_checkout(arg, strict=strict)]
     if escaping:
@@ -829,6 +884,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"unsafe command argument: {escaping[0]!r}",
+            cause=Cause.DEFECT,
         )
 
     # require is a hard gate: when no bwrap is on PATH the command is never
@@ -840,6 +896,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"unknown sandbox mode: {mode!r}",
+            cause=Cause.ENVIRONMENT,
         )
     bwrap = None if mode == "off" else find_bwrap()
     if mode == "require" and bwrap is None:
@@ -848,6 +905,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             command=command_str,
             reason="sandbox required (--sandbox=require) but bwrap is not available in PATH; "
             "refusing to run the command unsandboxed",
+            cause=Cause.ENVIRONMENT,
         )
 
     try:
@@ -858,6 +916,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}",
+            cause=Cause.ENVIRONMENT,
         )
     try:
         log_fd, log_path = tempfile.mkstemp(prefix="run-", suffix=".log", dir=ctx.tmp_dir)
@@ -867,6 +926,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"cannot create a log file under {ctx.tmp_dir}: {exc}",
+            cause=Cause.ENVIRONMENT,
         )
     command_desc = f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && {command_str}"
     log = None
@@ -880,6 +940,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 _output(clone),
                 reason="could not create a clean checkout",
+                cause=Cause.UNVERIFIABLE,
             )
         co = _run_git(["git", "-C", checkout, "checkout", "--quiet", commit], GIT_TIMEOUT)
         if co.returncode != 0:
@@ -888,6 +949,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 _output(co),
                 reason=f"could not check out {commit}",
+                cause=Cause.UNVERIFIABLE,
             )
         shadow = _shadowed_module(checkout, argv)
         if shadow is not None:
@@ -896,6 +958,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 "",
                 f"the checkout shadows the {shadow!r} module; the runner would not be the real one",
+                cause=Cause.ENVIRONMENT,
             )
         escape = _symlink_escape(argv, checkout, strict=strict)
         if escape is not None:
@@ -904,6 +967,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 "",
                 f"command argument resolves outside the checkout: {escape!r}",
+                cause=Cause.DEFECT,
             )
         # A bwrap that exists but cannot start a sandbox is not usable; the
         # probe must pass before the command runs, or require stays hard and
@@ -917,6 +981,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 "",
                 "sandbox required (--sandbox=require) but bwrap could not start a sandbox: "
                 f"{sandbox_error}; refusing to run the command unsandboxed",
+                cause=Cause.ENVIRONMENT,
             )
         sandboxed = bwrap is not None and sandbox_error is None
         if sandboxed:
@@ -959,6 +1024,7 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 command_desc,
                 "",
                 f"command not found: {exc}" + note_suffix,
+                cause=Cause.ENVIRONMENT,
             )
         try:
             returncode = proc.wait(timeout=TEST_TIMEOUT)
@@ -969,7 +1035,9 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 _last_lines(_tail_open(log)[0]),
-                f"command timed out after {TEST_TIMEOUT}s" + note_suffix, sandboxed=sandboxed,
+                f"command timed out after {TEST_TIMEOUT}s (built-in time limit)" + note_suffix,
+                sandboxed=sandboxed,
+                cause=Cause.LIMIT,
             )
         raw_output, log_size = _tail_open(log)
         output = _last_lines(raw_output)
@@ -982,7 +1050,10 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes" + note_suffix, sandboxed=sandboxed,
+                f"command output exceeded the per-file limit of {MAX_LOG_BYTES} bytes "
+                "(built-in output limit)" + note_suffix,
+                sandboxed=sandboxed,
+                cause=Cause.LIMIT,
             )
         # CPython ignores SIGXFSZ and dies with another code once the write
         # limit is hit, so the capped file is the reliable signal.
@@ -991,8 +1062,11 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes; "
-                "the run cannot be verified from truncated output" + note_suffix, sandboxed=sandboxed,
+                f"command output reached the per-file limit of {MAX_LOG_BYTES} bytes "
+                "(built-in output limit); "
+                "the run cannot be verified from truncated output" + note_suffix,
+                sandboxed=sandboxed,
+                cause=Cause.LIMIT,
             )
         if returncode == claimed_exit:
             if claim.kind == "tests_green":
@@ -1005,14 +1079,18 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         output,
-                        "the command exited 0 but reported that no tests were executed" + note_suffix, sandboxed=sandboxed,
+                        "the command exited 0 but reported that no tests were executed" + note_suffix,
+                        sandboxed=sandboxed,
+                        cause=Cause.UNVERIFIABLE,
                     )
                 else:
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         output,
-                        "the command exited 0 but its output shows no evidence that tests ran" + note_suffix, sandboxed=sandboxed,
+                        "the command exited 0 but its output shows no evidence that tests ran" + note_suffix,
+                        sandboxed=sandboxed,
+                        cause=Cause.UNVERIFIABLE,
                     )
             return Result(
                 Verdict.CONFIRMED,
@@ -1037,14 +1115,19 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     output,
-                    f"the runner module {missing!r} is not available in this environment" + note_suffix, sandboxed=sandboxed,
+                    f"the runner module {missing!r} is not available in this environment" + note_suffix,
+                    sandboxed=sandboxed,
+                    cause=Cause.ENVIRONMENT,
                 )
         if _WRITE_LIMIT_RE.search(raw_output):
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 output,
-                "the run hit the per-file write limit; its outcome cannot be verified" + note_suffix, sandboxed=sandboxed,
+                f"the run hit the per-file write limit of {MAX_LOG_BYTES} bytes "
+                "(built-in limit); its outcome cannot be verified" + note_suffix,
+                sandboxed=sandboxed,
+                cause=Cause.LIMIT,
             )
         return Result(
             Verdict.REFUTED,
@@ -1122,24 +1205,38 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
         return Result(
             Verdict.UNVERIFIABLE,
             reason="no repository given; a [MERGE] claim needs --repo to compare the merge parents",
+            cause=Cause.ENVIRONMENT,
         )
     guard = _repo_guard(ctx)
     if guard is not None:
         return guard
     branch = (claim.fields.get("value") or "").strip()
-    if branch.lower() in _MERGE_STATUS_VALUES or not _valid_branch(branch):
+    if branch.lower() in _MERGE_STATUS_VALUES:
+        # A status token ("no", "pending-PR") names no branch: that is not a
+        # defective claim, it simply carries nothing to check.
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the claim names no branch to check: {branch!r}",
+        )
+    if not _valid_branch(branch):
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a valid branch name: {branch!r}",
+            cause=Cause.DEFECT,
         )
     value = (claim.fields.get("commit") or "").strip()
     if not value:
         return Result(
             Verdict.UNVERIFIABLE,
             reason="no commit hash to bind the merge claim; the report needs one hash-shaped [COMMIT] marker",
+            cause=Cause.DEFECT,
         )
     if not _COMMIT_HASH_RE.match(value):
-        return Result(Verdict.UNVERIFIABLE, reason=f"not a commit hash: {value!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a commit hash: {value!r}",
+            cause=Cause.DEFECT,
+        )
     resolution = _format(
         _repo_command(ctx, "rev-parse", "--verify", "--quiet", f"{value}^{{commit}}")
     )
@@ -1157,6 +1254,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
             command,
             _output(parents_proc),
             reason=f"could not read the parents of {commit[:12]}",
+            cause=Cause.UNVERIFIABLE,
         )
     parents = parents_proc.stdout.split()[1:]
     actual = ", ".join(parent[:12] for parent in parents) or "none"
@@ -1176,6 +1274,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
             command,
             parents_proc.stdout.strip(),
             f"branch {branch!r} does not resolve in {ctx.repo} (neither locally nor on origin)",
+            cause=Cause.UNVERIFIABLE,
         )
     if tip not in parents:
         # The named branch is not a merge parent. Two findings are provable
@@ -1203,6 +1302,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
                     parents_proc.stdout.strip(),
                     f"the tip of {branch!r} moved on ({tip[:12]}); parent {parent[:12]} "
                     f"lies in its history, so {commit[:12]} cannot be pinned as its merge",
+                    cause=Cause.UNVERIFIABLE,
                 )
         return Result(
             Verdict.REFUTED,
@@ -1220,6 +1320,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
             parents_proc.stdout.strip(),
             reason="cannot determine the target branch (no origin/HEAD, no local main or master, "
             "no current branch); the other parent cannot be compared",
+            cause=Cause.ENVIRONMENT,
         )
     target_name, target_commit = target
     ancestor_args = ("merge-base", "--is-ancestor", other, target_commit)
@@ -1246,6 +1347,7 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
         ancestor_command,
         _output(ancestor),
         reason=f"could not compare {other[:12]} with {target_name}",
+        cause=Cause.UNVERIFIABLE,
     )
 
 
@@ -1286,7 +1388,9 @@ def run_claim(claim: Claim, ctx: Ctx, registry: dict | None = None) -> Result:
     for value in claim.fields.values():
         if isinstance(value, str) and "\x00" in value:
             return Result(
-                Verdict.UNVERIFIABLE, reason="claim field contains an embedded NUL byte"
+                Verdict.UNVERIFIABLE,
+                reason="claim field contains an embedded NUL byte",
+                cause=Cause.DEFECT,
             )
     checker = registry.get(claim.kind)
     if checker is None:

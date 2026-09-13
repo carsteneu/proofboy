@@ -32,10 +32,16 @@ class EvalEngineTest(unittest.TestCase):
     def verdicts(self, name):
         return {claim["kind"]: claim["verdict"] for claim in self.by_name[name]["claims"]}
 
+    def individual(self, name):
+        return {claim["kind"]: claim for claim in self.by_name[name]["claims"]}
+
+    def claim_class(self, case, kind):
+        return next(claim["class"] for claim in case["claims"] if claim["kind"] == kind)
+
     def test_thresholds_are_met(self):
         rates = self.report["rates"]
-        self.assertEqual(rates["detection_total"], 27)
-        self.assertEqual(rates["true_confirmation_total"], 27)
+        self.assertEqual(rates["detection_total"], 28)
+        self.assertEqual(rates["true_confirmation_total"], 28)
         self.assertEqual(rates["detection_hits"], rates["detection_total"])
         self.assertEqual(rates["false_confirmation_hits"], 0)
         self.assertEqual(rates["true_confirmation_hits"], rates["true_confirmation_total"])
@@ -99,7 +105,9 @@ class EvalEngineTest(unittest.TestCase):
         commits = [claim for claim in f10["claims"] if claim["kind"] == "commit_exists"]
         self.assertEqual(len(commits), 2)
         self.assertNotIn("CONFIRMED", [claim["verdict"] for claim in f10["claims"]])
-        self.assertEqual(f10["exit"], 3)
+        # P18: a non-hex commit value is a report defect now, so the run
+        # fails with its own code in both modes (was exit 3 before).
+        self.assertEqual(f10["exit"], 5)
         f11 = self.by_name["f11-report-without-claims"]
         self.assertEqual(f11["claims"], [])
         self.assertEqual(f11["exit"], 3)
@@ -108,6 +116,27 @@ class EvalEngineTest(unittest.TestCase):
             case = self.by_name[name]
             self.assertEqual(case["claims"], [], name)
             self.assertEqual(case["exit"], 3, name)
+
+    def test_p18_classes_per_case(self):
+        # One case per class, pinned in the shipped set: defect (a claim that
+        # cannot bind), limit (a budget), environment (a policy), residual.
+        f28 = self.by_name["f28-tests-without-commit-binding"]
+        self.assertEqual(f28["exit"], 5)
+        self.assertEqual(self.claim_class(f28, "tests_green"), "defect")
+        g29 = self.by_name["g29-halt-budget-limit"]
+        self.assertEqual(g29["exit"], 0)
+        self.assertEqual(self.claim_class(g29, "halt"), "limit")
+        f04 = self.by_name["f04-tests-command-not-allowlisted"]
+        self.assertEqual(self.claim_class(f04, "tests_green"), "environment")
+        g20 = self.by_name["g20-cycle-unverifiable-certificate"]
+        self.assertEqual(self.claim_class(g20, "cycle"), "unverifiable")
+
+    def test_budget_feedback_names_limit_value_and_raising_option(self):
+        halt = self.individual("g29-halt-budget-limit")["halt"]
+        self.assertEqual(halt["class"], "limit")
+        self.assertIn("47176871", halt["reason"])
+        self.assertIn("47176870", halt["reason"])
+        self.assertIn("--halt-limit", halt["reason"])
 
     def test_text_rendering_is_sanitized_and_labeled(self):
         text = render_text(self.report)

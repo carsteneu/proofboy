@@ -23,7 +23,10 @@ section bases are the regression baselines the sections themselves document
 its worker actually used; ``p1`` and ``p3`` document no usable base and run
 without one. The exit-code matrix at the end pins that reports with real
 values keep their exit codes; its last row shows the deliberate exception
-(a placeholder line no longer turns a strict run into exit 4).
+(a placeholder line no longer turns a strict run into exit 4). Since P18 the
+two HALT rows also move under ``--strict``: a claim whose step count exceeds
+the budget is the class ``limit`` and exits 6 (see the note in README.md of
+this directory).
 """
 
 from __future__ import annotations

@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import re
 
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # The largest N a [COLORING] claim may ask the checker to enumerate.
 # Deliberately bounded: N numbers give about N^2/4 triples, so 4096 keeps a
@@ -88,17 +88,22 @@ def check(claim, ctx):
     body = claim.fields.get("body") or ""
     sections = [part.strip() for part in body.split(";")]
     if len(sections) != 2:
-        return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+        return Result(
+            Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+        )
 
     k_match = _K_RE.match(sections[0])
     if k_match is None:
-        return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+        return Result(
+            Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+        )
     k_text = k_match.group("k")
     if len(k_text) != 1 or k_text == "0":
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the color count is not a single digit 1..9: {k_text!r} "
             "(the colors are encoded as the digits 1..9)",
+            cause=Cause.DEFECT,
         )
     k = int(k_text)
 
@@ -107,6 +112,7 @@ def check(claim, ctx):
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"{_SHAPE}: {body!r}",
+            cause=Cause.DEFECT,
         )
     digits_text = digits_match.group("digits")
 
@@ -115,12 +121,14 @@ def check(claim, ctx):
             return Result(
                 Verdict.UNVERIFIABLE,
                 reason="0 is not a color digit; the colors are numbered 1..k",
+                cause=Cause.DEFECT,
             )
         if int(digit) > k:
             return Result(
                 Verdict.UNVERIFIABLE,
                 reason=f"the coloring uses color {digit} but the claim declares "
                 f"only {k} color{'s' if k != 1 else ''}",
+                cause=Cause.DEFECT,
             )
 
     n = len(digits_text)
@@ -128,7 +136,8 @@ def check(claim, ctx):
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the coloring of {n} numbers exceeds the executable limit "
-            f"of {ctx.coloring_limit}",
+            f"of {ctx.coloring_limit}; raise the limit with --coloring-limit",
+            cause=Cause.LIMIT,
         )
 
     colors = [0] + [int(digit) for digit in digits_text]

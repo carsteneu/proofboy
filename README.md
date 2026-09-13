@@ -54,21 +54,29 @@ Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
 | 1 | Mindestens eine Behauptung `widerlegt` |
 | 2 | Fehler (Report fehlt oder zu gross, benoetigtes `--repo` fehlt oder ist ungueltig, Section unbekannt oder nicht lesbar) |
 | 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
-| 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar`, nichts `widerlegt` |
+| 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar` (Klasse `environment` oder `unverifiable`), nichts `widerlegt` |
+| 5 | Mindestens eine Behauptung ist ein Defekt (Klasse `defect`, der Bericht ist schuld) -- scheitert mit und ohne `--strict` |
+| 6 | Nur mit `--strict`: nichts `widerlegt`, und mindestens eine Behauptung wurde wegen eines Budgets nicht ausgefuehrt (Klasse `limit`) |
 
 Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
 Fehler, aber auch kein Beweis. Die Zusammenfassung (oder `--json`) zeigt jede
-Behauptung einzeln mit Kommando und roher Ausgabe.
+Behauptung einzeln mit Kommando und roher Ausgabe und am Ende die Klassen.
 
 `--strict` schliesst genau diese Luecke: ohne Flag kann eine Meldung Exit 0
 liefern, deren Testbehauptung nie geprueft wurde, solange nur eine andere
 Behauptung bestaetigt ist (etwa ein existierender Commit). Mit `--strict` ist
 Exit 0 die Zusage: mindestens eine Behauptung bestaetigt, keine widerlegt,
-keine unpruefbar. Widerlegte Behauptungen bleiben Exit 1, ein Bericht ohne
-bestaetigte Behauptung bleibt Exit 3; die Codes 0-3 behalten in beiden Modi
-ihre Bedeutung. Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei
-Exit 0 mergen, also `python3 -m bemyself check --strict --report <datei>
---repo <pfad>`.
+keine `unpruefbar`. Widerlegte Behauptungen bleiben Exit 1, ein Bericht ohne
+bestaetigte Behauptung bleibt Exit 3 -- es sei denn, eine Behauptung ist ein
+Defekt (dann 5, in beiden Modi) oder, mit `--strict`, ein ausgeschoepftes
+Budget (dann 6). Die Codes 0-4 behalten sonst in beiden Modi ihre Bedeutung.
+Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei Exit 0 mergen,
+also `python3 -m bemyself check --strict --report <datei> --repo <pfad>`.
+
+Widerlegt dominiert: hat eine Meldung eine widerlegte Behauptung, bleibt es
+bei Exit 1, auch wenn daneben ein Defekt steht. Die Klassen selbst und die
+Budget-Rueckmeldung stehen im Abschnitt "Klassen nicht bestaetigter
+Behauptungen".
 
 Die Zusage gilt den Behauptungen, die die Meldung aufstellt: eine Zeile, die
 als Vorlage gelesen wird (siehe "Grenzen"), stellt keine auf und erscheint in
@@ -77,6 +85,38 @@ fehlte oder als Platzhalter dastand. Ein Gate darf das Fehlen einer Zeile
 deshalb nicht als Nachweis lesen; wo eine Zeile Pflicht ist, muss das Gate sie
 fordern (etwa als Pflichtzeile im Report-Template), nicht ihre Abwesenheit
 messen.
+
+## Klassen nicht bestaetigter Behauptungen
+
+Jede Behauptung, die nicht `bestaetigt` endet, traegt genau eine
+maschinenlesbare Klasse. Sie steht im JSON je Behauptung (`class`), als
+Zaehlung im JSON (`classes`) und in der Schlusszeile des Urteilstexts:
+
+| Klasse | Bedeutung | Scheitert |
+|---|---|---|
+| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte. | immer, auch ohne `--strict` (Exit 5) |
+| `environment` | Es fehlt eine Faehigkeit der Umgebung: kein Remote, kein `bwrap`, kein Werkzeug oder Modul, kein `--repo`/`--artifact-root`/`--base`, das Kommando steht nicht auf der Allowlist. | nur mit `--strict` (Exit 4) |
+| `limit` | Ein Budget war ausgeschoepft, bevor die Behauptung laufen konnte: Schritt-/Suchzahl, Zeit, Ausgabe- und Tape-Grenzen, Artefaktgroesse. | nur mit `--strict` (Exit 6) |
+| `unverifiable` | Der Rest (echte Unwissenheit): der Versuch lief und konnte nicht entscheiden (Fetch, Clone oder Diff schlugen fehl, der Branch-Tip wanderte weiter, eine Prosa-Zahl wie `2^^^5`, kein Checker fuer `[DEPLOY]`). Die Klasse ist der Default. | nur mit `--strict` (Exit 4) |
+
+Ein Wert, den das Werkzeug nicht interpretieren kann -- eine Prosa-Zahl, eine
+Maschine ausserhalb der Notation --, ist kein Defekt: der Bericht kann ehrlich
+sein, die Behauptung bleibt unpruefbar. `defect` ist enger gefasst: die
+Behauptung kann so, wie sie dasteht, nicht einmal gebunden werden. Die
+bisherigen Widerlegungs- und Bestaetigungscodes bleiben davon unberuehrt.
+
+Je nicht ausgefuehrtem Claim nennt der Urteilstext das Limit, den behaupteten
+Wert und die Option, die es anhebt (`--halt-limit`, `--search-limit`,
+`--cycle-limit`, `--coloring-limit`); wo die Grenze eingebaut ist (Zeit,
+Ausgabe, Tapes, Artefaktgroesse), sagt er das statt eine Option zu erfinden.
+Jeder Lauf endet mit einer Schlusszeile ueber alle Kategorien, zum Beispiel:
+
+    summary: CONFIRMED: 1, REFUTED: 0, UNVERIFIABLE: 2 (defect: 1, environment: 0, limit: 1, unverifiable: 0); executed: 1, not executed: 2
+
+`executed` zaehlt jede Behauptung, die das Werkzeug verfolgt hat (bestaetigt,
+widerlegt, `environment`, `unverifiable` -- auch eine Behauptung ohne Checker
+wie `[DEPLOY]`), `not executed` die beiden Faelle, in denen kein Urteil
+moeglich war: Defekt und ausgeschoepftes Budget.
 
 ## Grenzen
 

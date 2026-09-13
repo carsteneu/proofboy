@@ -43,7 +43,7 @@ import re
 import stat
 
 from bemyself.claimtypes.halt import _split_body
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # The largest file the verifier will hash. Beyond it the claim stays
 # UNVERIFIABLE: the digest streams, so memory stays constant, but the limit
@@ -95,23 +95,37 @@ def check(claim, ctx):
     path_text = (claim.fields.get("path") or "").strip().strip("`")
     claimed = (claim.fields.get("sha256") or "").strip().strip("`")
     if not _SHA256_RE.match(claimed):
-        return Result(Verdict.UNVERIFIABLE, reason=f"not a sha256 digest: {claimed!r}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a sha256 digest: {claimed!r}",
+            cause=Cause.DEFECT,
+        )
     if not path_text:
-        return Result(Verdict.UNVERIFIABLE, reason="the claim names no file")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="the claim names no file",
+            cause=Cause.DEFECT,
+        )
     root = ctx.artifact_root or ctx.repo
     if not root:
         return Result(
             Verdict.UNVERIFIABLE,
             reason="no artifact root: pass --repo or --artifact-root to say where the path resolves",
+            cause=Cause.ENVIRONMENT,
         )
     root_real = os.path.realpath(root)
     if not os.path.isdir(root_real):
-        return Result(Verdict.UNVERIFIABLE, reason=f"artifact root is not a directory: {root}")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"artifact root is not a directory: {root}",
+            cause=Cause.ENVIRONMENT,
+        )
     resolved = _resolved_under_root(root_real, path_text)
     if resolved is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the path escapes the artifact root (or is absolute outside it): {path_text!r}",
+            cause=Cause.DEFECT,
         )
     command = f"sha256 of {path_text} under {root}"
     # O_NONBLOCK: a named pipe must not block the read; regular files ignore
@@ -139,7 +153,8 @@ def check(claim, ctx):
                 command,
                 "",
                 reason=f"{path_text} is {info.st_size} bytes, beyond the limit of "
-                f"{MAX_ARTIFACT_BYTES} bytes",
+                f"{MAX_ARTIFACT_BYTES} bytes (built-in limit)",
+                cause=Cause.LIMIT,
             )
         digest = hashlib.sha256()
         total = 0
@@ -156,7 +171,8 @@ def check(claim, ctx):
                     command,
                     "",
                     reason=f"{path_text} grew beyond the limit of {MAX_ARTIFACT_BYTES} bytes "
-                    "while it was hashed",
+                    "while it was hashed (built-in limit)",
+                    cause=Cause.LIMIT,
                 )
             digest.update(chunk)
     finally:

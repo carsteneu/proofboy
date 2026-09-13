@@ -26,7 +26,7 @@ import re
 from typing import TYPE_CHECKING
 
 from bemyself import turing
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 if TYPE_CHECKING:
     from bemyself.checks import Ctx
@@ -99,30 +99,44 @@ def parse(match, raw):
 def check(claim, ctx):
     machine_text = (claim.fields.get("machine") or "").strip()
     if not machine_text:
-        return Result(Verdict.UNVERIFIABLE, reason="the claim names no machine")
+        return Result(
+            Verdict.UNVERIFIABLE, reason="the claim names no machine", cause=Cause.DEFECT
+        )
     try:
         machine = turing.parse(machine_text)
     except turing.MachineError as exc:
+        # A machine the simulator cannot read is payload the tool cannot
+        # interpret -- not a defective claim (the report may be honest).
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"not a machine of the bbchallenge notation: {exc}",
+            cause=Cause.UNVERIFIABLE,
         )
     claimed = _count(claim.fields.get("steps") or "")
     if claimed is None:
+        # A prose number ("2^^^5") is uninterpretable, not a defect: the
+        # claim stays unverifiable, it is not accused of lying.
         return Result(
             Verdict.UNVERIFIABLE,
             reason="the claimed step count is not a non-negative integer: "
             f"{claim.fields.get('steps')!r}",
+            cause=Cause.UNVERIFIABLE,
         )
     if claim.fields.get("score_conflict"):
+        # Two [SCORE] markers that disagree make the claim ambiguous, not
+        # defective: the report may be honest and the tool cannot decide
+        # which value to check (same residual rule as a prose number).
         return Result(
             Verdict.UNVERIFIABLE,
             reason="conflicting [SCORE] markers for this machine; the claim is ambiguous",
+            cause=Cause.UNVERIFIABLE,
         )
     if claimed > ctx.halt_limit:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason=f"the claimed {claimed} steps exceed the executable limit of {ctx.halt_limit}",
+            reason=f"the claimed {claimed} steps exceed the executable limit of "
+            f"{ctx.halt_limit}; raise the limit with --halt-limit",
+            cause=Cause.LIMIT,
         )
     result = turing.run(machine, claimed)
     command = f"simulate {machine_text} for at most {claimed} steps"
@@ -151,6 +165,7 @@ def check(claim, ctx):
                 command,
                 output,
                 f"the claimed score is not a non-negative integer: {score_text!r}",
+                cause=Cause.UNVERIFIABLE,
             )
         if claimed_score != result.score:
             return Result(

@@ -41,7 +41,7 @@ from __future__ import annotations
 import re
 from fractions import Fraction
 
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # The lower bound of the parameter range without a "t >= <bound>" clause.
 DEFAULT_BOUND = 1
@@ -218,35 +218,47 @@ def check(claim, ctx):
     body = claim.fields.get("body") or ""
     sections = [part.strip() for part in body.split(";")]
     if len(sections) not in (2, 3):
-        return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+        return Result(
+            Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+        )
 
     n_parts = sections[0].split("=")
     if len(n_parts) != 2 or n_parts[0].strip() != "n":
-        return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+        return Result(
+            Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+        )
     n = _affine(n_parts[1])
     if n is None:
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"the claimed n is not affine in t: {n_parts[1].strip()!r}",
+            cause=Cause.UNVERIFIABLE,
         )
 
     pieces = {}
     for item in sections[1].split(","):
         key_parts = item.split("=")
         if len(key_parts) != 2:
-            return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+            return Result(
+                Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+            )
         key = key_parts[0].strip()
         if key not in ("a", "b", "c") or key in pieces:
-            return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+            return Result(
+                Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+            )
         value = _affine(key_parts[1])
         if value is None:
             return Result(
                 Verdict.UNVERIFIABLE,
                 reason=f"the claimed {key} is not affine in t: {key_parts[1].strip()!r}",
+                cause=Cause.UNVERIFIABLE,
             )
         pieces[key] = value
     if set(pieces) != {"a", "b", "c"}:
-        return Result(Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}")
+        return Result(
+            Verdict.UNVERIFIABLE, reason=f"{_SHAPE}: {body!r}", cause=Cause.DEFECT
+        )
 
     bound = DEFAULT_BOUND
     if len(sections) == 3:
@@ -256,12 +268,14 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 reason="the range clause needs the shape t >= <non-negative integer>: "
                 f"{sections[2]!r}",
+                cause=Cause.DEFECT,
             )
         bound = _int_or_none(range_match.group("bound"))
         if bound is None:
             return Result(
                 Verdict.UNVERIFIABLE,
                 reason=f"the range bound is not usable: {sections[2]!r}",
+                cause=Cause.UNVERIFIABLE,
             )
 
     a_text = _format_affine(*pieces["a"])
@@ -299,6 +313,9 @@ def check(claim, ctx):
                 f"the identity holds, but {key}(t) = {_format_affine(*pieces[key])} is not "
                 f"positive for every t >= {bound}: at t = {t} it is {value}; the declared "
                 "range is not soundly covered",
+                # An unsound range is a boundary of what the checker can show,
+                # not a defective report ("P12" design).
+                cause=Cause.UNVERIFIABLE,
             )
     violation = _first_violation(n[0], n[1], bound, 1)
     if violation is not None:
@@ -314,6 +331,7 @@ def check(claim, ctx):
             "numerator=0",
             f"the identity holds, but n(t) = {n_text} is below 2 for t = {t} "
             f"(it is {value}); the declared range is not soundly covered",
+            cause=Cause.UNVERIFIABLE,
         )
 
     return Result(

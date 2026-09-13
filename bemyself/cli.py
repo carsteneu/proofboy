@@ -22,7 +22,7 @@ from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
 from bemyself import toolmanifest
-from bemyself.model import Claim, Verdict
+from bemyself.model import Cause, Claim, Verdict
 from bemyself.report import parse_report
 from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
 
@@ -31,6 +31,12 @@ EXIT_REFUTED = 1
 EXIT_ERROR = 2
 EXIT_NOTHING = 3
 EXIT_STRICT = 4
+# A defective claim (the report's own fault) fails in both modes: the gate
+# must see "the report is broken", not a boundary of the run.
+EXIT_DEFECT = 5
+# A claim a budget kept from being executed fails only under --strict, but
+# with its own code: "could not check" is not "checked and failed".
+EXIT_LIMIT = 6
 MAX_REPORT_BYTES = 1 << 20
 _CONTROL_CHARS = {code: "?" for code in range(0x20) if code != 0x0A}
 _CONTROL_CHARS[0x09] = " "
@@ -89,6 +95,7 @@ def _json_error(source, repo, message):
         "repo": repo,
         "claims": [],
         "summary": summarize([]),
+        "classes": class_summary([]),
         "error": message,
     }
 
@@ -108,10 +115,13 @@ def build_parser():
             "exit codes: 0 = at least one claim CONFIRMED and none REFUTED; "
             "1 = at least one REFUTED; 2 = error; 3 = nothing CONFIRMED; "
             "4 = --strict, nothing REFUTED, at least one CONFIRMED and at "
-            "least one UNVERIFIABLE. "
+            "least one UNVERIFIABLE; 5 = at least one defective claim (the "
+            "report is at fault; fails with and without --strict); "
+            "6 = --strict, nothing REFUTED and at least one claim a budget "
+            "kept from being executed. "
             "Exit 0 does not mean every claim was proven - read the summary "
-            "or --json to see the UNVERIFIABLE claims, or pass --strict to "
-            "make an unchecked claim fail the run."
+            "or --json to see the UNVERIFIABLE claims and their class, or "
+            "pass --strict to make an unchecked claim fail the run."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -144,7 +154,9 @@ def build_parser():
         help=(
             "fail unless every claim was proven: with something CONFIRMED "
             "and nothing REFUTED, a single UNVERIFIABLE claim becomes exit 4 "
-            "(without the flag exit codes are unchanged)"
+            "and a claim a budget kept from execution exit 6; a defective "
+            "claim fails with exit 5 in both modes (without the flag the "
+            "other exit codes are unchanged)"
         ),
     )
     check.add_argument("--json", action="store_true", help="emit machine-readable JSON")
@@ -332,10 +344,38 @@ def summarize(results):
     return summary
 
 
+def class_summary(results):
+    """The unconfirmed claims counted per class, every class present."""
+    counts = {cause.value: 0 for cause in Cause}
+    for _, result in results:
+        if result.cause is not None:
+            counts[result.cause.value] += 1
+    return counts
+
+
+def executed_count(results):
+    """Claims whose check ran: everything but defects and exhausted budgets.
+
+    A defect names nothing to execute and a limit stopped the execution; the
+    environment and residual classes had their check attempted.
+    """
+    return sum(
+        1 for _, result in results if result.cause not in (Cause.DEFECT, Cause.LIMIT)
+    )
+
+
 def exit_code(results, strict=False):
     verdicts = [result.verdict for _, result in results]
     if Verdict.REFUTED in verdicts:
         return EXIT_REFUTED
+    if any(result.cause is Cause.DEFECT for _, result in results):
+        # A defective report fails in both modes; the defect is the report's
+        # own fault, not a boundary of the run.
+        return EXIT_DEFECT
+    if strict and any(result.cause is Cause.LIMIT for _, result in results):
+        # "Could not check because of a budget" is not "checked and could not
+        # decide" -- the gate gets the distinct code.
+        return EXIT_LIMIT
     if Verdict.CONFIRMED not in verdicts:
         # Nothing was refuted, but nothing was proven either (all UNVERIFIABLE
         # or no claims at all): this must not read as success.
@@ -357,6 +397,7 @@ def _json_payload(source, repo, results):
                 "line": claim.line,
                 "raw": claim.raw,
                 "verdict": result.verdict.value,
+                "class": result.cause.value if result.cause is not None else None,
                 "reason": result.reason,
                 "command": result.command,
                 "output": result.output,
@@ -365,6 +406,7 @@ def _json_payload(source, repo, results):
             for claim, result in results
         ],
         "summary": summarize(results),
+        "classes": class_summary(results),
     }
 
 
@@ -379,8 +421,17 @@ def render_text(results):
             for output_line in result.output.splitlines():
                 lines.append(f"    out: {output_line}")
     summary = summarize(results)
+    classes = class_summary(results)
+    executed = executed_count(results)
     lines.append("")
-    lines.append("summary: " + ", ".join(f"{v.value}: {summary[v.value]}" for v in Verdict))
+    lines.append(
+        "summary: "
+        + ", ".join(f"{v.value}: {summary[v.value]}" for v in Verdict)
+        + " ("
+        + ", ".join(f"{cause.value}: {classes[cause.value]}" for cause in Cause)
+        + ")"
+        + f"; executed: {executed}, not executed: {len(results) - executed}"
+    )
     return "\n".join(lines)
 
 

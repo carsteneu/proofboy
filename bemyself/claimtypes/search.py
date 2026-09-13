@@ -25,7 +25,7 @@ import re
 
 from bemyself import turing
 from bemyself.claimtypes.halt import _count, _split_body
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # The largest step count a [SEARCHED] claim may ask the simulator to execute.
 # Deliberately bounded and separate from the [HALT] limit: a search claim is
@@ -52,13 +52,18 @@ def parse(match, raw):
 def check(claim, ctx):
     machine_text = (claim.fields.get("machine") or "").strip()
     if not machine_text:
-        return Result(Verdict.UNVERIFIABLE, reason="the claim names no machine")
+        return Result(
+            Verdict.UNVERIFIABLE, reason="the claim names no machine", cause=Cause.DEFECT
+        )
     try:
         machine = turing.parse(machine_text)
     except turing.MachineError as exc:
+        # An unreadable machine is payload the tool cannot interpret, not a
+        # defective claim.
         return Result(
             Verdict.UNVERIFIABLE,
             reason=f"not a machine of the bbchallenge notation: {exc}",
+            cause=Cause.UNVERIFIABLE,
         )
     claimed = _count(claim.fields.get("steps") or "")
     if claimed is None:
@@ -66,17 +71,21 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             reason="the claimed step count is not a non-negative integer: "
             f"{claim.fields.get('steps')!r}",
+            cause=Cause.UNVERIFIABLE,
         )
     if claimed == 0:
         # A zero-step run observes nothing, so it certifies nothing.
         return Result(
             Verdict.UNVERIFIABLE,
             reason="a search of 0 steps observes nothing; the claim needs at least one step",
+            cause=Cause.UNVERIFIABLE,
         )
     if claimed > ctx.search_limit:
         return Result(
             Verdict.UNVERIFIABLE,
-            reason=f"the claimed {claimed} steps exceed the executable limit of {ctx.search_limit}",
+            reason=f"the claimed {claimed} steps exceed the executable limit of "
+            f"{ctx.search_limit}; raise the limit with --search-limit",
+            cause=Cause.LIMIT,
         )
     result = turing.run(machine, claimed)
     command = f"simulate {machine_text} for at most {claimed} steps"

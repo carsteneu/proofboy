@@ -46,7 +46,7 @@ import tempfile
 import time
 
 from bemyself.claimtypes.halt import _ARROW, _UNICODE_ARROW
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.model import Cause, ClaimType, Result, Verdict
 
 # Command prefixes a [COMPUTE] claim may run. Deliberately minimal: by default
 # only repository-owned modules as literal entries -- the simulator, the
@@ -169,13 +169,16 @@ def check(claim, ctx):
         return guard
     command_text = (claim.fields.get("command") or "").strip()
     if not command_text:
-        return Result(Verdict.UNVERIFIABLE, reason="the claim names no command")
+        return Result(
+            Verdict.UNVERIFIABLE, reason="the claim names no command", cause=Cause.DEFECT
+        )
     claimed = (claim.fields.get("sha256") or "").strip()
     if not _SHA256_RE.match(claimed):
         return Result(
             Verdict.UNVERIFIABLE,
             command=command_text,
             reason=f"not a sha256 digest: {claimed!r}",
+            cause=Cause.DEFECT,
         )
     value = (claim.fields.get("commit") or "").strip()
     if not value:
@@ -183,6 +186,7 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             command=command_text,
             reason="no commit hash to pin the compute run",
+            cause=Cause.DEFECT,
         )
     commit = checks._resolve_commit(ctx, value)
     if commit is None:
@@ -190,20 +194,30 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             command=command_text,
             reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
+            cause=Cause.UNVERIFIABLE,
         )
     try:
         argv = shlex.split(command_text)
     except ValueError as exc:
         return Result(
-            Verdict.UNVERIFIABLE, command=command_text, reason=f"could not parse command: {exc}"
+            Verdict.UNVERIFIABLE,
+            command=command_text,
+            reason=f"could not parse command: {exc}",
+            cause=Cause.DEFECT,
         )
     if not argv:
-        return Result(Verdict.UNVERIFIABLE, command=command_text, reason="empty command")
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_text,
+            reason="empty command",
+            cause=Cause.DEFECT,
+        )
     if not _allowed_by_tokens(argv, ctx.compute_allowlist):
         return Result(
             Verdict.UNVERIFIABLE,
             command=command_text,
             reason=f"command is not in the compute allowlist: {command_text!r}",
+            cause=Cause.ENVIRONMENT,
         )
     strict = checks._is_wrapper_command(argv)
     escaping = [arg for arg in argv if checks._arg_escapes_checkout(arg, strict=strict)]
@@ -214,6 +228,7 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             command=command_text,
             reason=f"unsafe command argument: {escaping[0]!r}",
+            cause=Cause.DEFECT,
         )
 
     # require is a hard gate, exactly like the test-run checker: without a
@@ -221,7 +236,10 @@ def check(claim, ctx):
     mode = ctx.sandbox
     if mode not in checks.SANDBOX_MODES:
         return Result(
-            Verdict.UNVERIFIABLE, command=command_text, reason=f"unknown sandbox mode: {mode!r}"
+            Verdict.UNVERIFIABLE,
+            command=command_text,
+            reason=f"unknown sandbox mode: {mode!r}",
+            cause=Cause.ENVIRONMENT,
         )
     bwrap = None if mode == "off" else checks.find_bwrap()
     if mode == "require" and bwrap is None:
@@ -230,6 +248,7 @@ def check(claim, ctx):
             command=command_text,
             reason="sandbox required (--sandbox=require) but bwrap is not available in PATH; "
             "refusing to run the command unsandboxed",
+            cause=Cause.ENVIRONMENT,
         )
 
     try:
@@ -240,6 +259,7 @@ def check(claim, ctx):
             Verdict.UNVERIFIABLE,
             command=command_text,
             reason=f"cannot create a throwaway checkout under {ctx.tmp_dir}: {exc}",
+            cause=Cause.ENVIRONMENT,
         )
     command_desc = (
         f"git clone --no-hardlinks <repo> <checkout> && git checkout {commit} && {command_text}"
@@ -258,6 +278,7 @@ def check(claim, ctx):
                 command_desc,
                 checks._output(clone),
                 reason="could not create a clean checkout",
+                cause=Cause.UNVERIFIABLE,
             )
         co = checks._run_git(
             ["git", "-C", checkout, "checkout", "--quiet", commit], checks.GIT_TIMEOUT
@@ -268,6 +289,7 @@ def check(claim, ctx):
                 command_desc,
                 checks._output(co),
                 reason=f"could not check out {commit}",
+                cause=Cause.UNVERIFIABLE,
             )
         escape = checks._symlink_escape(argv, checkout, strict=strict)
         if escape is not None:
@@ -276,6 +298,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 reason=f"command argument resolves outside the checkout: {escape!r}",
+                cause=Cause.DEFECT,
             )
         missing = _missing_program(argv[0], checkout)
         if missing is not None:
@@ -284,6 +307,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 reason=f"command not found: {missing!r}",
+                cause=Cause.ENVIRONMENT,
             )
         # A bwrap that exists but cannot start a sandbox is not usable; the
         # probe separates that from a failing command (see checks.py).
@@ -295,6 +319,7 @@ def check(claim, ctx):
                 "",
                 "sandbox required (--sandbox=require) but bwrap could not start a sandbox: "
                 f"{sandbox_error}; refusing to run the command unsandboxed",
+                cause=Cause.ENVIRONMENT,
             )
         sandboxed = bwrap is not None and sandbox_error is None
         if sandboxed:
@@ -325,6 +350,7 @@ def check(claim, ctx):
                 command_desc,
                 "",
                 f"cannot create a log file under {ctx.tmp_dir}: {exc}",
+                cause=Cause.ENVIRONMENT,
             )
         try:
             proc = subprocess.Popen(
@@ -340,7 +366,11 @@ def check(claim, ctx):
             # Only bwrap itself can be missing here (the probe ran the same
             # binary path moments ago); the command never executed.
             return Result(
-                Verdict.UNVERIFIABLE, command_desc, "", f"command not found: {exc}" + note_suffix
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command not found: {exc}" + note_suffix,
+                cause=Cause.ENVIRONMENT,
             )
         deadline = time.monotonic() + COMPUTE_TIMEOUT
         digest, total, status = _stream_stdout(proc, MAX_COMPUTE_BYTES, deadline)
@@ -352,15 +382,19 @@ def check(claim, ctx):
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"command timed out after {COMPUTE_TIMEOUT}s" + note_suffix,
+                    f"command timed out after {COMPUTE_TIMEOUT}s (built-in time limit)"
+                    + note_suffix,
                     sandboxed=sandboxed,
+                    cause=Cause.LIMIT,
                 )
             return Result(
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
-                f"command stdout exceeded the limit of {MAX_COMPUTE_BYTES} bytes" + note_suffix,
+                f"command stdout exceeded the limit of {MAX_COMPUTE_BYTES} bytes "
+                "(built-in output limit)" + note_suffix,
                 sandboxed=sandboxed,
+                cause=Cause.LIMIT,
             )
         try:
             returncode = proc.wait(timeout=max(0.0, deadline - time.monotonic()))
@@ -371,8 +405,10 @@ def check(claim, ctx):
                 Verdict.UNVERIFIABLE,
                 command_desc,
                 "",
-                f"command timed out after {COMPUTE_TIMEOUT}s" + note_suffix,
+                f"command timed out after {COMPUTE_TIMEOUT}s (built-in time limit)"
+                + note_suffix,
                 sandboxed=sandboxed,
+                cause=Cause.LIMIT,
             )
         actual = digest.hexdigest()
         output = f"sha256={actual} bytes={total} exit={returncode}"

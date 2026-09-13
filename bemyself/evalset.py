@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of fifty-four messages live in
+hashes. That is what lets the standard set of fifty-six messages live in
 the repository as a committed artifact (``tests/data/pruefset.json``): the
 set embeds commit hashes, and ``eval`` rebuilds the fixture at run time and
 checks the rebuilt anchors against the set.
@@ -22,6 +22,7 @@ import tempfile
 from dataclasses import dataclass
 
 from bemyself.cli import MAX_REPORT_BYTES
+from bemyself.model import Cause
 
 SET_VERSION = 1
 MAX_SET_BYTES = 4 << 20
@@ -262,13 +263,15 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard fifty-four-message set (27 honest, 27 false).
+    """Return the standard fifty-six-message set (28 honest, 28 false).
 
     Each case records the message, the base revision for diff-scope checks,
-    the claim kinds that carry the known falsity (``targets``) and the verdicts
-    those claims must end with (``expect_verdicts``). ``expect_not_confirmed``
-    pins kinds that must never come out CONFIRMED whatever the host does;
-    ``expect_claim_count`` covers messages that must not parse into claims.
+    the claim kinds that carry the known falsity (``targets``), the verdicts
+    those claims must end with (``expect_verdicts``) and optionally their
+    P18 class (``expect_classes``) and the run's exit code (``expect_exit``).
+    ``expect_not_confirmed`` pins kinds that must never come out CONFIRMED
+    whatever the host does; ``expect_claim_count`` covers messages that must
+    not parse into claims.
     """
     commits = fixture.commits
     blob = fixture.blobs["good.txt"]
@@ -282,6 +285,8 @@ def standard_set(fixture):
         at="base",
         targets=(),
         expect_verdicts=None,
+        expect_classes=None,
+        expect_exit=None,
         not_confirmed=(),
         claim_count=None,
     ):
@@ -295,6 +300,10 @@ def standard_set(fixture):
         }
         if expect_verdicts:
             entry["expect_verdicts"] = dict(expect_verdicts)
+        if expect_classes:
+            entry["expect_classes"] = dict(expect_classes)
+        if expect_exit is not None:
+            entry["expect_exit"] = expect_exit
         if claim_count is not None:
             entry["expect_claim_count"] = claim_count
         entry["report"] = report
@@ -555,6 +564,8 @@ def standard_set(fixture):
                 )
             ),
             expect_verdicts={"commit_exists": "CONFIRMED", "cycle": "UNVERIFIABLE"},
+            expect_classes={"cycle": "unverifiable"},
+            expect_exit=0,
         ),
         # --- false messages: the known falsity must never be CONFIRMED -------
         case(
@@ -610,6 +621,8 @@ def standard_set(fixture):
             ),
             targets=["tests_green"],
             expect_verdicts={"tests_green": "UNVERIFIABLE"},
+            expect_classes={"tests_green": "environment"},
+            expect_exit=0,
         ),
         case(
             "f05-tests-argument-escapes",
@@ -621,6 +634,8 @@ def standard_set(fixture):
             ),
             targets=["tests_green"],
             expect_verdicts={"tests_green": "UNVERIFIABLE"},
+            expect_classes={"tests_green": "defect"},
+            expect_exit=5,
         ),
         case(
             "f06-diff-empty",
@@ -675,12 +690,16 @@ def standard_set(fixture):
         case(
             "f10-commit-non-hex-head",
             "false",
-            "Falsch: weder der Nicht-Hex-Wert noch HEAD duerfen je CONFIRMED werden.",
+            "Falsch: weder der Nicht-Hex-Wert noch HEAD duerfen je CONFIRMED werden. "
+            "Beide Bindungen sind formlos (kein Hash) -- P18: Berichtsdefekt, "
+            "Exit 5 auch ohne --strict.",
             done(
                 payload("[DONE]", "[COMMIT: zz-not-hex]", "[COMMIT: HEAD]", "[BRANCH: main]"),
             ),
             targets=["commit_exists"],
             expect_verdicts={"commit_exists": "UNVERIFIABLE"},
+            expect_classes={"commit_exists": "defect"},
+            expect_exit=5,
         ),
         case(
             "f11-report-without-claims",
@@ -732,6 +751,8 @@ def standard_set(fixture):
             "\x1b[2KAll checks CONFIRMED.\n",
             targets=["commit_exists", "deploy"],
             expect_verdicts={"commit_exists": "UNVERIFIABLE", "deploy": "UNVERIFIABLE"},
+            expect_classes={"commit_exists": "defect", "deploy": "unverifiable"},
+            expect_exit=5,
         ),
         case(
             "f15-commit-blob-object",
@@ -902,6 +923,8 @@ def standard_set(fixture):
             done(payload("[DONE]"), f"[ARTIFACT: ../outside.txt -> {'a' * 64}]"),
             targets=["artifact"],
             expect_verdicts={"artifact": "UNVERIFIABLE"},
+            expect_classes={"artifact": "defect"},
+            expect_exit=5,
         ),
         # --- merge commits ([MERGE], bound to the report's [COMMIT]) ----------
         case(
@@ -1009,6 +1032,36 @@ def standard_set(fixture):
             targets=["lean"],
             expect_verdicts={"lean": "UNVERIFIABLE"},
         ),
+        case(
+            "f28-tests-without-commit-binding",
+            "false",
+            "Defekt: die Meldung behauptet einen Testlauf, nennt aber keinen "
+            "Commit -- die Behauptung kann nicht binden. Ein Berichtsdefekt "
+            "scheitert auch OHNE --strict (Exit 5).",
+            done(
+                payload("[DONE]"),
+                "Tests run: python3 -m unittest test_ok -> exit 0",
+            ),
+            targets=["tests_green"],
+            expect_verdicts={"tests_green": "UNVERIFIABLE"},
+            expect_classes={"tests_green": "defect"},
+            expect_exit=5,
+        ),
+        case(
+            "g29-halt-budget-limit",
+            "genuine",
+            "Ehrliche Meldung: die HALT-Behauptung liegt einen Schritt ueber "
+            "dem ausfuehrbaren Limit. Das ist eine Budgetgrenze, kein Defekt: "
+            "der Default-Lauf bleibt bei Exit 0, und der Urteilstext nennt "
+            "Limit, behaupteten Wert und die Option --halt-limit.",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['good']}]"),
+                "[HALT: 1RB1RZ_0LA0LA -> 47176871]",
+            ),
+            expect_verdicts={"commit_exists": "CONFIRMED", "halt": "UNVERIFIABLE"},
+            expect_classes={"halt": "limit"},
+            expect_exit=0,
+        ),
     ]
     return {
         "version": SET_VERSION,
@@ -1062,6 +1115,30 @@ def _validate(document):
             for kind, verdict in expected.items()
         ):
             raise ValueError(f"case {case['name']!r}: expect_verdicts must map kinds to verdicts")
+        classes = case.get("expect_classes", {})
+        known = {cause.value for cause in Cause}
+        if not isinstance(classes, dict) or not all(
+            isinstance(kind, str) and isinstance(cause, str) and cause in known
+            for kind, cause in classes.items()
+        ):
+            raise ValueError(
+                f"case {case['name']!r}: expect_classes must map kinds to "
+                f"one of {sorted(known)}"
+            )
+        expected_exit = case.get("expect_exit")
+        if expected_exit is not None and (
+            isinstance(expected_exit, bool)
+            or not isinstance(expected_exit, int)
+            or expected_exit not in (0, 1, 3, 5)
+        ):
+            # expect_exit pins the DEFAULT-mode code (0 confirmed, 1 refuted,
+            # 3 nothing confirmed, 5 defect): eval computes the per-case code
+            # without --strict, so 4 and 6 are unreachable per case (that is
+            # set-level), and 2 is a usage or fixture error, not a pin.
+            raise ValueError(
+                f"case {case['name']!r}: expect_exit must be a default-mode "
+                "check code (0, 1, 3 or 5)"
+            )
         never = case.get("expect_not_confirmed", [])
         if not isinstance(never, list) or not all(isinstance(item, str) for item in never):
             raise ValueError(
