@@ -176,6 +176,13 @@ class PrefillTest(unittest.TestCase):
         self.assertFalse(echoed)
         self.assertEqual(text, "import Std\n")
 
+    def test_strip_prefill_tolerates_whitespace_normalized_echo(self):
+        prefill = lean_mandat.build_prefill(lean_mandat.TASKS[0])
+        normalized = prefill.rstrip() + "decide"
+        continuation, echoed = lean_mandat.strip_prefill(normalized, prefill)
+        self.assertTrue(echoed)
+        self.assertEqual(continuation, "decide")
+
     def test_statement_echo_normalizes_whitespace(self):
         self.assertTrue(lean_mandat.statement_echo("theorem main_thm : 2+3=5 := by decide", "2 + 3 = 5"))
         self.assertTrue(lean_mandat.statement_echo("theorem main_thm : 2 + 3 = 5 := by decide", "2 + 3 = 5"))

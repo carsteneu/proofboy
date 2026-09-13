@@ -173,9 +173,15 @@ def extract_code(answer):
 
 
 def strip_prefill(text, prefill):
-    """``(eigener_text, echo)`` — entfernt einen wiederholten Prefill-Rumpf."""
-    if prefill and text.startswith(prefill):
-        return text[len(prefill):].lstrip("\n"), True
+    """``(eigener_text, echo)`` — entfernt einen wiederholten Prefill-Rumpf.
+
+    Geprueft wird zuerst der exakte Prefill, dann die um trailing whitespace
+    bereinigte Form (ein Serving-Weg kann den Echo-Rumpf normalisieren, ohne
+    dass der eigene Text davon beruehrt wird).
+    """
+    for candidate in (prefill, (prefill or "").rstrip()):
+        if candidate and text.startswith(candidate):
+            return text[len(candidate):].lstrip("\n"), True
     return text, False
 
 
