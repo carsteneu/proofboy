@@ -1,0 +1,27 @@
+# GPU-Training/Inferenz fuer den bemyself-Trainingspfad.
+# Auf dieser CPU-Maschine NICHT installieren -- das ist die Liste fuer die
+# gemietete CUDA-Maschine (Runbook: training/README.md).
+#
+# Zielumgebung: Python 3.11/3.12, CUDA 12.x, eine 24-GB-GPU (RTX 4090/L4) fuer
+# QLoRA-8B, bequemer mit 40-80 GB (A100/H100) fuer laengere Sequenzen/DPO.
+
+torch>=2.6,<3
+transformers>=4.51,<5
+datasets>=3.2
+accelerate>=1.2
+peft>=0.14
+# Der Aufruf in train_dpo.py ist gegen trl 0.17 bis 1.x gebaut
+# (processing_class immer gesetzt; max_prompt_length nur, wenn die installierte
+# Version das Feld kennt). Nach einem
+# pip install einmal `python3 training/train_dpo.py --dry-run` und einen
+# Mini-Lauf fahren -- auf der CPU-Maschine ist keiner dieser Pfade testbar.
+trl>=0.17
+bitsandbytes>=0.45
+
+# Inferenz/Serving des trainierten Adapters (eigene Venv empfohlen, vLLM pinnt
+# eigene torch-Versionen):
+#   vllm>=0.8.5
+
+# Alternativer Beschleunigungspfad (eigene Wheels, pinnt torch):
+#   unsloth
+#   unsloth_zoo

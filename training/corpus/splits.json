@@ -1,0 +1,38 @@
+{
+  "seed": 20260912,
+  "ratios": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "families": {
+    "B:0005": "train",
+    "A:0013": "train",
+    "A:0011": "train",
+    "B:0008": "train",
+    "A:0005": "train",
+    "B:0010": "train",
+    "B:0001": "train",
+    "A:0006": "train",
+    "B:0012": "train",
+    "B:0007": "train",
+    "A:0010": "train",
+    "A:0012": "train",
+    "A:0009": "train",
+    "A:0015": "train",
+    "A:0008": "train",
+    "B:0002": "train",
+    "B:0009": "train",
+    "A:0003": "train",
+    "A:0016": "train",
+    "B:0011": "train",
+    "B:0003": "val",
+    "B:0004": "val",
+    "A:0001": "val",
+    "A:0004": "val",
+    "A:0007": "test",
+    "A:0014": "test",
+    "B:0006": "test",
+    "A:0002": "test"
+  }
+}

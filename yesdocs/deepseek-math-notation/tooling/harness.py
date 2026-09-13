@@ -84,7 +84,23 @@ from bemyself.msheet.sheet import parse_sheet  # noqa: E402
 from bemyself.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
 from prompts import build_messages, build_repair_message  # noqa: E402
 
-PROXY_URL = "http://localhost:9099/v1/chat/completions"
+DEFAULT_PROXY_URL = "http://localhost:9099/v1/chat/completions"
+
+
+def proxy_url():
+    """Der OpenAI-kompatible Endpunkt; per ENV umstellbar (Default: lokaler Proxy).
+
+    Auf einer gemieteten GPU zeigt ``BEMYSELF_PROXY_URL`` auf die eigene
+    vLLM-/SGLang-Instanz, damit dieselben Arme/Sets gegen das trainierte
+    Modell laufen (Runbook: training/README.md). Ein leerer/whitespace-Wert
+    zaehlt als "nicht gesetzt" -- so bricht ein versehentlich leeres ENV den
+    Lauf nicht mit einem ValueError, sondern nutzt den Default.
+    """
+    value = os.environ.get("BEMYSELF_PROXY_URL", "").strip()
+    return value or DEFAULT_PROXY_URL
+
+
+PROXY_URL = proxy_url()  # Kompatibilitaets-Konstante (Anzeige/Altcode)
 MODEL = "deepseek-flash"
 AUTH_PATH = os.path.expanduser("~/.local/share/opencode/auth.json")
 SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
@@ -132,20 +148,23 @@ def call_model(messages, timeout):
             "max_tokens": 8192,
         }
     ).encode("utf-8")
-    request = urllib.request.Request(
-        PROXY_URL,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {_api_key()}",
-        },
-    )
     start = time.monotonic()
     try:
+        # Der Request-Bau gehoert in den try: eine ungueltige
+        # BEMYSELF_PROXY_URL (z.B. Leerzeichen) muss als Transportfehler
+        # zurueckkommen, nicht als Traceback.
+        request = urllib.request.Request(
+            proxy_url(),
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {_api_key()}",
+            },
+        )
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = json.load(response)
         duration = time.monotonic() - start
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError) as exc:
         return None, None, time.monotonic() - start, f"{type(exc).__name__}: {exc}"
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return None, None, time.monotonic() - start, f"malformed response: {exc}"
@@ -637,7 +656,7 @@ def cmd_batch(args):
         "model": MODEL,
         "mode": "repair",
         "max_repairs": args.max_repairs,
-        "transport": "proxy-9099",
+        "transport": "custom-endpoint" if os.environ.get("BEMYSELF_PROXY_URL", "").strip() else "proxy-9099",
         "reasoning_history": "strip",
         "arms": arms,
         "reps": args.reps,
