@@ -1,0 +1,109 @@
+# Lean-Mandat-Roh-Tabelle V19 (je Aufruf)
+
+| # | Variante | Aufgabe | Grad | rep | Status | Echo | Fence | Statement-Echo | RC-Zeilen | RC-Lean | RC-Taktik | Reasoning-Tok | Completion-Tok | Dauer s | Diagnose (Auszug) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | V-A | t1 | trivial | 1 | valid | None | False | True | 12 | 0.5 | 0.1667 | 295 | 318 | 2.04 |  |
+| 2 | V-A | t1 | trivial | 2 | valid | None | True | True | 16 | 0.5 | 0.0625 | 426 | 454 | 2.91 |  |
+| 3 | V-A | t1 | trivial | 3 | valid | None | True | True | 68 | 0.4265 | 0.1471 | 1067 | 1096 | 5.59 |  |
+| 4 | V-A | t2 | trivial | 1 | valid | None | False | True | 17 | 0.5882 | 0.1765 | 364 | 387 | 2.63 |  |
+| 5 | V-A | t2 | trivial | 2 | valid | None | False | True | 21 | 0.7143 | 0.1905 | 879 | 902 | 5.29 |  |
+| 6 | V-A | t2 | trivial | 3 | valid | None | False | True | 11 | 0.3636 | 0.0 | 316 | 337 | 2.66 |  |
+| 7 | V-A | m1 | mechanical | 1 | valid | None | False | True | 5 | 0.2 | 0.0 | 288 | 315 | 2.3 |  |
+| 8 | V-A | m1 | mechanical | 2 | valid | None | False | True | 12 | 0.4167 | 0.0833 | 605 | 632 | 3.74 |  |
+| 9 | V-A | m1 | mechanical | 3 | valid | None | False | True | 14 | 0.6429 | 0.1429 | 586 | 613 | 3.62 |  |
+| 10 | V-A | m2 | mechanical | 1 | valid | None | False | True | 56 | 0.2321 | 0.0357 | 3095 | 3128 | 14.8 |  |
+| 11 | V-A | m2 | mechanical | 2 | no_code | None | False | False | 77 | 0.2468 | 0.039 | 4096 | 4096 | 19.89 |  |
+| 12 | V-A | m2 | mechanical | 3 | no_code | None | False | False | 66 | 0.2424 | 0.0303 | 4096 | 4096 | 18.92 |  |
+| 13 | V-A | l1 | lemma | 1 | valid | None | False | True | 23 | 0.5652 | 0.2609 | 530 | 564 | 2.79 |  |
+| 14 | V-A | l1 | lemma | 2 | valid | None | False | True | 96 | 0.4479 | 0.1458 | 2084 | 2115 | 9.58 |  |
+| 15 | V-A | l1 | lemma | 3 | valid | None | False | True | 18 | 0.5 | 0.2222 | 411 | 442 | 2.74 |  |
+| 16 | V-A | l2 | lemma | 1 | valid | None | False | True | 28 | 0.3929 | 0.1071 | 1116 | 1144 | 5.98 |  |
+| 17 | V-A | l2 | lemma | 2 | valid | None | False | True | 19 | 0.4737 | 0.1053 | 1176 | 1204 | 7.26 |  |
+| 18 | V-A | l2 | lemma | 3 | valid | None | False | True | 12 | 0.5 | 0.1667 | 312 | 341 | 2.28 |  |
+| 19 | V-A | l3 | lemma | 1 | valid | None | False | True | 53 | 0.4717 | 0.3019 | 1178 | 1242 | 5.64 |  |
+| 20 | V-A | l3 | lemma | 2 | no_code | None | False | False | 91 | 0.3077 | 0.1209 | 4096 | 4096 | 18.71 |  |
+| 21 | V-A | l3 | lemma | 3 | valid | None | True | True | 75 | 0.5333 | 0.2667 | 1671 | 1715 | 8.06 |  |
+| 22 | V-B | t1 | trivial | 1 | valid | None | True | True | 51 | 0.4706 | 0.1765 | 1298 | 1326 | 7.39 |  |
+| 23 | V-B | t1 | trivial | 2 | valid | None | False | True | 22 | 0.5 | 0.0909 | 946 | 967 | 5.12 |  |
+| 24 | V-B | t1 | trivial | 3 | valid | None | False | True | 39 | 0.6667 | 0.2308 | 1030 | 1053 | 5.72 |  |
+| 25 | V-B | t2 | trivial | 1 | valid | None | True | True | 45 | 0.4 | 0.0889 | 905 | 931 | 5.09 |  |
+| 26 | V-B | t2 | trivial | 2 | valid | None | True | True | 21 | 0.3333 | 0.0 | 708 | 734 | 4.71 |  |
+| 27 | V-B | t2 | trivial | 3 | valid | None | False | True | 11 | 0.5455 | 0.0 | 473 | 496 | 2.92 |  |
+| 28 | V-B | m1 | mechanical | 1 | valid | None | False | True | 12 | 0.5833 | 0.1667 | 396 | 423 | 2.49 |  |
+| 29 | V-B | m1 | mechanical | 2 | valid | None | False | True | 13 | 0.5385 | 0.1538 | 664 | 691 | 4.28 |  |
+| 30 | V-B | m1 | mechanical | 3 | valid | None | False | True | 13 | 0.3846 | 0.0769 | 525 | 552 | 3.7 |  |
+| 31 | V-B | m2 | mechanical | 1 | valid | None | False | True | 29 | 0.5517 | 0.1724 | 1228 | 1261 | 6.49 |  |
+| 32 | V-B | m2 | mechanical | 2 | valid | None | True | True | 50 | 0.38 | 0.18 | 1250 | 1288 | 6.72 |  |
+| 33 | V-B | m2 | mechanical | 3 | valid | None | False | True | 62 | 0.6129 | 0.2097 | 2758 | 2791 | 14.32 |  |
+| 34 | V-B | l1 | lemma | 1 | valid | None | True | True | 11 | 0.3636 | 0.1818 | 172 | 211 | 1.71 |  |
+| 35 | V-B | l1 | lemma | 2 | valid | None | False | True | 106 | 0.7075 | 0.4151 | 2011 | 2045 | 9.74 |  |
+| 36 | V-B | l1 | lemma | 3 | valid | None | True | True | 96 | 0.4583 | 0.25 | 1288 | 1324 | 6.57 |  |
+| 37 | V-B | l2 | lemma | 1 | valid | None | False | True | 23 | 0.3913 | 0.087 | 1462 | 1491 | 7.88 |  |
+| 38 | V-B | l2 | lemma | 2 | valid | None | True | True | 14 | 0.2143 | 0.0 | 208 | 242 | 1.69 |  |
+| 39 | V-B | l2 | lemma | 3 | valid | None | False | True | 14 | 0.5714 | 0.1429 | 538 | 567 | 3.24 |  |
+| 40 | V-B | l3 | lemma | 1 | valid | None | False | True | 21 | 0.4762 | 0.1905 | 559 | 598 | 3.39 |  |
+| 41 | V-B | l3 | lemma | 2 | valid | None | True | True | 80 | 0.6375 | 0.3125 | 2418 | 2455 | 11.84 |  |
+| 42 | V-B | l3 | lemma | 3 | valid | None | True | True | 66 | 0.4697 | 0.2121 | 946 | 988 | 4.99 |  |
+| 43 | V-C | t1 | trivial | 1 | valid | None | False | True | 30 | 0.4333 | 0.1333 | 514 | 535 | 3.29 |  |
+| 44 | V-C | t1 | trivial | 2 | valid | None | False | True | 34 | 0.7059 | 0.2353 | 1019 | 1040 | 6.31 |  |
+| 45 | V-C | t1 | trivial | 3 | valid | None | True | True | 15 | 0.1333 | 0.0 | 211 | 235 | 1.5 |  |
+| 46 | V-C | t2 | trivial | 1 | valid | None | False | True | 11 | 0.4545 | 0.0909 | 542 | 565 | 3.1 |  |
+| 47 | V-C | t2 | trivial | 2 | valid | None | False | True | 9 | 0.4444 | 0.1111 | 302 | 325 | 2.33 |  |
+| 48 | V-C | t2 | trivial | 3 | valid | None | False | True | 12 | 0.3333 | 0.0833 | 519 | 542 | 3.59 |  |
+| 49 | V-C | m1 | mechanical | 1 | valid | None | False | True | 9 | 0.4444 | 0.1111 | 442 | 469 | 2.89 |  |
+| 50 | V-C | m1 | mechanical | 2 | valid | None | False | True | 19 | 0.5789 | 0.1579 | 910 | 937 | 5.02 |  |
+| 51 | V-C | m1 | mechanical | 3 | valid | None | False | True | 25 | 0.48 | 0.12 | 1081 | 1108 | 7.25 |  |
+| 52 | V-C | m2 | mechanical | 1 | invalid | None | False | True | 17 | 0.5294 | 0.1176 | 690 | 724 | 3.84 | unknown tactic |
+| 53 | V-C | m2 | mechanical | 2 | no_code | None | False | False | 110 | 0.2364 | 0.0364 | 4096 | 4096 | 20.41 |  |
+| 54 | V-C | m2 | mechanical | 3 | valid | None | False | True | 78 | 0.1923 | 0.0 | 2889 | 2920 | 13.35 |  |
+| 55 | V-C | l1 | lemma | 1 | valid | None | True | True | 65 | 0.6 | 0.1538 | 1542 | 1609 | 7.71 |  |
+| 56 | V-C | l1 | lemma | 2 | valid | None | True | True | 88 | 0.4545 | 0.2841 | 1410 | 1446 | 7.63 |  |
+| 57 | V-C | l1 | lemma | 3 | valid | None | False | True | 45 | 0.6889 | 0.4 | 1429 | 1460 | 7.39 |  |
+| 58 | V-C | l2 | lemma | 1 | invalid | None | True | True | 2 | 0.5 | 0.0 | 96 | 180 | 1.84 | unexpected token 'have'; expected command |
+| 59 | V-C | l2 | lemma | 2 | valid | None | True | True | 87 | 0.2529 | 0.069 | 2750 | 2782 | 12.28 |  |
+| 60 | V-C | l2 | lemma | 3 | valid | None | False | True | 48 | 0.3958 | 0.125 | 2063 | 2092 | 10.26 |  |
+| 61 | V-C | l3 | lemma | 1 | no_code | None | False | False | 69 | 0.4493 | 0.2319 | 4094 | 4094 | 16.82 |  |
+| 62 | V-C | l3 | lemma | 2 | valid | None | True | True | 69 | 0.5217 | 0.3188 | 966 | 1010 | 4.73 |  |
+| 63 | V-C | l3 | lemma | 3 | valid | None | False | True | 24 | 0.3333 | 0.1667 | 720 | 759 | 4.04 |  |
+| 64 | V-D | t1 | trivial | 1 | valid | False | False | True | 33 | 0.6667 | 0.2121 | 1090 | 1113 | 5.76 |  |
+| 65 | V-D | t1 | trivial | 2 | valid | False | False | True | 15 | 0.5333 | 0.1333 | 494 | 517 | 3.28 |  |
+| 66 | V-D | t1 | trivial | 3 | valid | False | False | True | 17 | 0.4118 | 0.1176 | 597 | 620 | 3.4 |  |
+| 67 | V-D | t2 | trivial | 1 | valid | False | False | True | 29 | 0.6897 | 0.2759 | 997 | 1021 | 5.09 |  |
+| 68 | V-D | t2 | trivial | 2 | valid | False | False | True | 13 | 0.6154 | 0.1538 | 681 | 704 | 3.72 |  |
+| 69 | V-D | t2 | trivial | 3 | valid | False | False | True | 32 | 0.625 | 0.1562 | 1107 | 1131 | 6.11 |  |
+| 70 | V-D | m1 | mechanical | 1 | valid | False | False | True | 8 | 0.5 | 0.0 | 416 | 441 | 2.82 |  |
+| 71 | V-D | m1 | mechanical | 2 | valid | False | False | True | 28 | 0.5 | 0.1071 | 1145 | 1172 | 6.4 |  |
+| 72 | V-D | m1 | mechanical | 3 | valid | False | False | True | 11 | 0.5455 | 0.0909 | 648 | 675 | 4.02 |  |
+| 73 | V-D | m2 | mechanical | 1 | valid | False | False | True | 56 | 0.5 | 0.1607 | 2303 | 2336 | 11.08 |  |
+| 74 | V-D | m2 | mechanical | 2 | valid | False | False | True | 96 | 0.2396 | 0.0521 | 3289 | 3324 | 13.34 |  |
+| 75 | V-D | m2 | mechanical | 3 | valid | False | False | True | 32 | 0.4062 | 0.125 | 2603 | 2636 | 13.18 |  |
+| 76 | V-D | l1 | lemma | 1 | valid | False | False | True | 38 | 0.5789 | 0.2632 | 1209 | 1243 | 5.52 |  |
+| 77 | V-D | l1 | lemma | 2 | valid | False | False | True | 34 | 0.7059 | 0.3529 | 685 | 716 | 3.66 |  |
+| 78 | V-D | l1 | lemma | 3 | valid | False | False | True | 111 | 0.6036 | 0.2703 | 2309 | 2367 | 9.84 |  |
+| 79 | V-D | l2 | lemma | 1 | valid | False | False | True | 10 | 0.6 | 0.1 | 600 | 629 | 3.53 |  |
+| 80 | V-D | l2 | lemma | 2 | valid | False | False | True | 30 | 0.3 | 0.0667 | 1123 | 1152 | 6.04 |  |
+| 81 | V-D | l2 | lemma | 3 | valid | False | False | True | 11 | 0.3636 | 0.0909 | 331 | 360 | 2.57 |  |
+| 82 | V-D | l3 | lemma | 1 | valid | False | False | True | 24 | 0.4167 | 0.1667 | 838 | 877 | 4.53 |  |
+| 83 | V-D | l3 | lemma | 2 | valid | False | False | True | 9 | 0.5556 | 0.1111 | 175 | 207 | 1.58 |  |
+| 84 | V-D | l3 | lemma | 3 | valid | False | False | True | 18 | 0.5 | 0.2222 | 476 | 515 | 2.95 |  |
+| 85 | V-E | t1 | trivial | 1 | valid | None | False | True | 3 | 0.6667 | 0.0 | 164 | 187 | 1.78 |  |
+| 86 | V-E | t1 | trivial | 2 | valid | None | False | True | 10 | 0.6 | 0.2 | 335 | 358 | 2.36 |  |
+| 87 | V-E | t1 | trivial | 3 | invalid | None | False | True | 17 | 0.4118 | 0.1176 | 355 | 437 | 2.38 | unexpected token 'have'; expected command |
+| 88 | V-E | t2 | trivial | 1 | valid | None | False | True | 16 | 0.4375 | 0.125 | 528 | 551 | 3.46 |  |
+| 89 | V-E | t2 | trivial | 2 | valid | None | False | True | 10 | 0.8 | 0.0 | 556 | 578 | 3.57 |  |
+| 90 | V-E | t2 | trivial | 3 | valid | None | False | True | 14 | 0.5 | 0.1429 | 570 | 594 | 4.33 |  |
+| 91 | V-E | m1 | mechanical | 1 | valid | None | False | True | 32 | 0.4062 | 0.0938 | 1426 | 1453 | 7.44 |  |
+| 92 | V-E | m1 | mechanical | 2 | valid | None | False | True | 10 | 0.4 | 0.1 | 499 | 526 | 3.21 |  |
+| 93 | V-E | m1 | mechanical | 3 | valid | None | True | True | 9 | 0.2222 | 0.0 | 100 | 130 | 1.33 |  |
+| 94 | V-E | m2 | mechanical | 1 | invalid | None | False | True | 78 | 0.1667 | 0.0513 | 1686 | 1720 | 9.64 | unknown tactic |
+| 95 | V-E | m2 | mechanical | 2 | valid | None | False | True | 65 | 0.4308 | 0.1538 | 2182 | 2215 | 12.02 |  |
+| 96 | V-E | m2 | mechanical | 3 | valid | None | False | True | 33 | 0.4848 | 0.0909 | 1878 | 1911 | 8.87 |  |
+| 97 | V-E | l1 | lemma | 1 | valid | None | False | True | 17 | 0.4706 | 0.2353 | 569 | 600 | 3.73 |  |
+| 98 | V-E | l1 | lemma | 2 | valid | None | False | True | 33 | 0.4848 | 0.2424 | 706 | 737 | 4.05 |  |
+| 99 | V-E | l1 | lemma | 3 | valid | None | False | True | 30 | 0.5333 | 0.2 | 857 | 888 | 5.02 |  |
+| 100 | V-E | l2 | lemma | 1 | valid | None | False | True | 39 | 0.5641 | 0.1282 | 1773 | 1802 | 8.61 |  |
+| 101 | V-E | l2 | lemma | 2 | valid | None | False | True | 10 | 0.4 | 0.1 | 452 | 481 | 2.79 |  |
+| 102 | V-E | l2 | lemma | 3 | valid | None | False | True | 80 | 0.275 | 0.1 | 2187 | 2215 | 10.63 |  |
+| 103 | V-E | l3 | lemma | 1 | valid | None | True | True | 9 | 0.4444 | 0.2222 | 142 | 186 | 1.7 |  |
+| 104 | V-E | l3 | lemma | 2 | invalid | None | True | True | 3 | 0.3333 | 0.0 | 98 | 264 | 1.87 | unexpected token 'have'; expected command |
+| 105 | V-E | l3 | lemma | 3 | invalid | None | False | True | 10 | 0.4 | 0.2 | 118 | 261 | 2.24 | unexpected token 'have'; expected command |
