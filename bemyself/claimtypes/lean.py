@@ -83,7 +83,11 @@ repository is a request, not an authority: only elan's native
 installed under ``<ELAN_HOME>/toolchains`` -- a path-like or uninstalled
 request leaves the claim UNVERIFIABLE, because elan would execute a path
 directly and the checker does not substitute a toolchain the project did not
-ask for. When no request is in reach, the sole installed toolchain is pinned
+ask for. A checkout that ships its own elan home (``.elan/settings.toml`` or
+``.elan/toolchains``) is shut out too: when no host root can be recognized
+next to the tools (a copied or wrapped elan binary looks like a plain one),
+the run gets a neutral, empty ``ELAN_HOME`` instead of ``HOME=<checkout>``.
+When no request is in reach, the sole installed toolchain is pinned
 as ``ELAN_TOOLCHAIN`` so the shim does not query its release server (no
 network in the sandbox). Every verdict names the tools that judged: name,
 version and the sha256 short form of the binary that ran (with its toolchain,
@@ -188,6 +192,9 @@ _LAKEFILES = ("lakefile.toml", "lakefile.lean")
 # Where the standalone-file build puts its artifact, inside the checkout so
 # the sandbox keeps it writable.
 _BUILD_DIR = ".bemyself-build"
+# A checkout that carries its own elan home: only elan reads it, so it only
+# matters when elan is in play -- but then it must never win over the host.
+_ELAN_DIR = ".elan"
 _QUERY_PROGRAM = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "lean_axioms.lean"
 )
@@ -307,6 +314,15 @@ def _missing_dependency(text, imports):
     if _ENV_FAILURE_RE.search(text):
         return True
     return None
+
+
+def _ships_elan_home(checkout):
+    """Does the checkout carry an elan home (settings or toolchains)?"""
+    root = os.path.join(checkout, _ELAN_DIR)
+    return os.path.isdir(root) and (
+        os.path.isfile(os.path.join(root, "settings.toml"))
+        or os.path.isdir(os.path.join(root, "toolchains"))
+    )
 
 
 def _elan_home(tool_path):
@@ -918,12 +934,32 @@ def check(claim, ctx):
             elan_home = _elan_home(tool.path)
             if elan_home is not None:
                 break
+        neutral_elan = False
+        if elan_home is None and _ships_elan_home(checkout):
+            # The checkout carries its own elan home, but no host root could
+            # be recognized next to the tools: a copy or a wrapper of the
+            # elan binary cannot be told from a plain one. An elan shim would
+            # resolve its toolchain through HOME=<checkout>, so the run gets a
+            # neutral, empty root instead -- a shim can resolve nothing from
+            # the repository then, and a tool that is no shim ignores it.
+            elan_home = os.path.join(tool_bin, "elan-home")
+            try:
+                os.makedirs(elan_home, exist_ok=True)
+            except OSError as exc:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"cannot prepare the elan home for the run: {exc}" + note_suffix,
+                    sandboxed=sandboxed,
+                )
+            neutral_elan = True
         # A `lean-toolchain` file is a request, not an authority. A path-like
         # value is refused whenever it is seen -- elan would execute the path
         # directly, and that holds with or without an elan root. A well-formed
         # request is only followed when an elan root can resolve it to an
-        # installed toolchain; a manifest pin for lean wins outright, and the
-        # request is then not even read.
+        # installed toolchain; with a manifest pin for lean, the request is
+        # not followed (the pin settles the toolchain).
         toolchain_file = _project_toolchain_file(project or os.path.dirname(real_file))
         request = None
         if toolchain_file is not None:
@@ -941,8 +977,6 @@ def check(claim, ctx):
                     f"is not quoted: the file may point outside the repository)" + note_suffix,
                     sandboxed=sandboxed,
                 )
-            # A manifest pin for lean settles the toolchain, so the file is
-            # then not even read.
             request = (value or None) if lean_pin is None else None
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
@@ -950,40 +984,59 @@ def check(claim, ctx):
             # honored when it is installed, and without any request the sole
             # installed toolchain is pinned, so the shim does not query its
             # release server (no network in the sandbox) on every invocation.
-            toolchain_pin = os.environ.get("ELAN_TOOLCHAIN") or None
-            if toolchain_pin is None and request is not None:
-                if not os.path.isdir(
-                    os.path.join(elan_home, "toolchains", _toolchain_dir(request))
-                ):
+            operator_choice = os.environ.get("ELAN_TOOLCHAIN") or None
+            if neutral_elan:
+                # The neutral root only shuts the repository's own elan home
+                # out; it cannot vouch for any toolchain. A run that needs one
+                # is refused instead of guessed.
+                wanted = request or operator_choice
+                if wanted is not None:
                     return Result(
                         Verdict.UNVERIFIABLE,
                         command_desc,
                         "",
-                        f"the project requests the toolchain {request!r}, which is not "
-                        f"installed under {elan_home}; the proof was not checked" + note_suffix,
+                        f"the checkout ships an elan home and no host-side elan root could be "
+                        f"recognized next to the tools (a copied or wrapped elan binary cannot "
+                        f"be told from a plain one), so the toolchain {wanted!r} cannot be "
+                        f"confirmed against the host; the proof was not checked" + note_suffix,
                         sandboxed=sandboxed,
                     )
-                toolchain_pin = request
-            if toolchain_pin is None:
-                toolchain_pin = _sole_toolchain(elan_home)
-            if toolchain_pin:
-                env["ELAN_TOOLCHAIN"] = toolchain_pin
-            elif toolchain_file is not None:
-                # Nothing host-side settles the toolchain while the project
-                # ships a lean-toolchain file: an unpinned elan would resolve
-                # it from the inspected tree (and run a path-like value), so
-                # the run is refused instead of judged.
-                return Result(
-                    Verdict.UNVERIFIABLE,
-                    command_desc,
-                    "",
-                    f"the project ships a lean-toolchain file and no host-side toolchain "
-                    f"is pinned against it (no ELAN_TOOLCHAIN, no --tools entry for lean, "
-                    f"and {elan_home} does not hold exactly one installed toolchain); elan "
-                    f"would resolve the toolchain from the inspected tree, so the proof "
-                    f"was not checked" + note_suffix,
-                    sandboxed=sandboxed,
-                )
+            else:
+                toolchain_pin = operator_choice
+                if toolchain_pin is None and request is not None:
+                    if not os.path.isdir(
+                        os.path.join(elan_home, "toolchains", _toolchain_dir(request))
+                    ):
+                        return Result(
+                            Verdict.UNVERIFIABLE,
+                            command_desc,
+                            "",
+                            f"the project requests the toolchain {request!r}, which is not "
+                            f"installed under {elan_home}; the proof was not checked"
+                            + note_suffix,
+                            sandboxed=sandboxed,
+                        )
+                    toolchain_pin = request
+                if toolchain_pin is None:
+                    toolchain_pin = _sole_toolchain(elan_home)
+                if toolchain_pin:
+                    env["ELAN_TOOLCHAIN"] = toolchain_pin
+                elif toolchain_file is not None:
+                    # Nothing host-side settles the toolchain while the project
+                    # ships a lean-toolchain file: an unpinned elan would
+                    # resolve it from the inspected tree (and run a path-like
+                    # value), so the run is refused instead of judged.
+                    return Result(
+                        Verdict.UNVERIFIABLE,
+                        command_desc,
+                        "",
+                        f"the project ships a lean-toolchain file and no host-side toolchain "
+                        f"is pinned against it (no ELAN_TOOLCHAIN, no --tools entry for lean, "
+                        f"and {elan_home} does not hold exactly one installed toolchain); elan "
+                        f"would resolve the toolchain from the inspected tree, so the proof "
+                        f"was not checked" + note_suffix,
+                        sandboxed=sandboxed,
+                    )
             refresh_identity_note()
         cache_note = ""
         if extra_binds:
@@ -1054,11 +1107,10 @@ def check(claim, ctx):
         if lean_version:
             lean_tool = lean_tool._replace(version=lean_version)
             # leanchecker has no usable version probe (`leanchecker --version`
-            # does not answer); besides lean, it is the same toolchain that
+            # does not answer); beside lean, it is the same toolchain that
             # answers, so the version is derived from it.
             if (
                 checker_tool.version is None
-                and elan_home is not None
                 and os.path.dirname(checker_tool.path) == os.path.dirname(lean_tool.path)
             ):
                 checker_tool = checker_tool._replace(version=lean_version)

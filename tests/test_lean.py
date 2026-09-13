@@ -1241,6 +1241,76 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIn("leanchecker 4.33.1 sha256:", result.reason)
         self.assertIn("[pinned]", result.reason)
 
+    def test_a_concrete_manifest_pair_confirms_the_checker_version(self):
+        # Review finding: the derivation must not depend on a recognizable
+        # elan root -- two concrete binaries from one directory are the same
+        # toolchain, and a version pin on the checker must be confirmable.
+        repo, commit = self.probe_repo("concrete-pair", _PROOF)
+        # The copies keep reading their control files from the directory the
+        # fake tools were created in, so the answers live there.
+        bin_dir = self.answering(self.fake())
+        concrete = os.path.join(self._tmp.name, "pair-bin", self._testMethodName)
+        os.makedirs(concrete, exist_ok=True)
+        for name in ("lean", "leanchecker"):
+            shutil.copyfile(os.path.join(bin_dir, name), os.path.join(concrete, name))
+            os.chmod(os.path.join(concrete, name), 0o755)
+        tools = self.write_manifest(
+            {
+                "lean": (os.path.join(concrete, "lean"), "4.33.1", None),
+                "leanchecker": (os.path.join(concrete, "leanchecker"), "4.33.1", None),
+            }
+        )
+        with self.patched_path(concrete):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, tools=tools)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("lean 4.33.1 sha256:", result.reason)
+        self.assertIn("leanchecker 4.33.1 sha256:", result.reason)
+
+    def test_an_unrecognized_shim_gets_a_neutral_elan_root(self):
+        # Review finding: a copied or wrapped elan binary cannot be told from
+        # a plain one, so a checkout shipping its own elan home must not be
+        # left to HOME=<checkout>: the run gets a neutral, empty root.
+        repo = make_repo(os.path.join(self._tmp.name, "neutral-root"))
+        commit_probe(repo, ".elan/settings.toml", 'default_toolchain = "./evil"\n')
+        commit = commit_probe(repo, "lean/Proof.lean", _PROOF)
+        bin_dir = self.answering(self.fake())
+        with open(os.path.join(bin_dir, "dump.env"), "w", encoding="utf-8") as handle:
+            handle.write("dump\n")
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_HOME", None)
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
+            elan_home, toolchain = handle.read().splitlines()[-1].split("|")[:2]
+        self.assertIn("elan-home", elan_home)
+        self.assertNotIn("checkout", elan_home)
+        self.assertEqual(toolchain, "")
+
+    def test_a_request_with_an_unrecognized_shim_is_refused(self):
+        # The neutral root cannot vouch for a requested toolchain, so such a
+        # run is refused instead of guessed.
+        repo = make_repo(os.path.join(self._tmp.name, "neutral-request"))
+        commit_probe(repo, ".elan/settings.toml", 'default_toolchain = "./evil"\n')
+        commit_probe(repo, "lean/Proof.lean", _PROOF)
+        commit = commit_probe(
+            repo, "lean/lean-toolchain", "leanprover/lean4:v4.33.1\n"
+        )
+        bin_dir = self.answering(self.fake())
+        with self.patched_path(bin_dir):
+            os.environ.pop("ELAN_HOME", None)
+            os.environ.pop("ELAN_TOOLCHAIN", None)
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("cannot be confirmed against the host", result.reason)
+        self.assertIn("leanprover/lean4:v4.33.1", result.reason)
+
     def test_the_launchers_resolve_lean_through_the_checker_owned_path(self):
         # The launchers call `lean` by name; that lookup must land on the
         # identified tool, not on whatever PATH offers.

@@ -729,10 +729,18 @@ mit je einer `[tool.lean]`-, `[tool.leanchecker]`- und `[tool.lake]`-Tabelle,
 (`sha256:<hex>`). Ein Manifest-Eintrag gewinnt **immer** gegen eine
 Repo-Anforderung: nur die gepinnten Werkzeuge laufen, `PATH` wird fuer alle
 Kindprozesse auf sie umgebogen (auch `leanchecker` ruft `lean` ueber `PATH`
-auf), und ein Digest- oder Versionsbruch bleibt `unpruefbar`. Ein Werkzeug,
+auf), und ein Digest- oder Versionsbruch bleibt `unpruefbar`. Eine
+wohlgeformte Toolchain-Bitte wird mit Manifest-Pin nicht mehr befolgt, eine
+pfadartige wird unabhaengig davon immer abgelehnt. Ein Werkzeug,
 das das Manifest nicht nennt, laeuft mit `--tools` gar nicht -- es gibt
 keinen stillen `PATH`-Rueckfall. Ohne Manifest gilt der bisherige Weg
-(`lean`/`lake`/`leanchecker` aus dem `PATH`). Jedes Urteil nennt die
+(`lean`/`lake`/`leanchecker` aus dem `PATH`). Bringt der Checkout ein
+eigenes elan-Heim mit (`.elan/settings.toml` oder `.elan/toolchains`) und
+laesst sich host-seitig keine elan-Wurzel erkennen, bekommt der Lauf ein
+neutrales, leeres `ELAN_HOME` -- ein Shim kann dann nichts aus dem
+Repository aufloesen, ein echtes Werkzeug ignoriert die Variable; eine
+angeforderte oder gepinnte Toolchain ist in diesem Zustand nicht
+bestaetigbar und bleibt `unpruefbar`. Jedes Urteil nennt die
 Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
 Datei, `[pinned]` bei einem Manifest-Pin:
 
