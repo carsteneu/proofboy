@@ -4,7 +4,8 @@ import unittest
 from unittest import mock
 
 from bemyself import claimtypes
-from bemyself.model import ClaimType, Result, Verdict
+from bemyself.checks import Ctx, run_claim
+from bemyself.model import Cause, ClaimType, Result, Verdict
 from bemyself.report import parse_report
 
 
@@ -348,6 +349,134 @@ class PlaceholderCaptureCostTest(unittest.TestCase):
 
     def test_truncation_ellipsis_behind_a_long_body(self):
         self.assertEqual(self.parsed_within_budget("[COMMIT: " + "a" * 4000 + "...]"), [])
+
+
+class UnknownMarkerTest(unittest.TestCase):
+    """A marker no registered claim type claims is a defect: silently
+    ignoring it let a report smuggle a claim of an unknown shape past the
+    verifier."""
+
+    def test_unknown_marker_with_a_real_body_is_a_defect(self):
+        claims = parse_report("**send_to payload:** `[DONE] [FROB: 1]`\n")
+        self.assertEqual([claim.kind for claim in claims], ["unknown_marker"])
+        self.assertEqual(claims[0].fields["token"], "FROB")
+        self.assertEqual(claims[0].line, 1)
+        self.assertIn("[FROB: 1]", claims[0].raw)
+
+    def test_the_unknown_marker_checker_is_a_defect(self):
+        claim = parse_report("[FROB: 1]\n")[0]
+        result = run_claim(claim, Ctx(repo=None, tmp_dir=None))
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
+        self.assertIs(result.cause, Cause.DEFECT)
+        self.assertIn("FROB", result.reason)
+
+    def test_ordinary_bracket_text_is_not_a_marker(self):
+        for text in (
+            "[sic]",
+            "[1]",
+            "[12: 30]",
+            "[foo: bar]",
+            "[Foo: bar]",
+            "[FOO]",
+            "[FOO bar]",
+            "[A-Z: x]",
+            "[0-9: x]",
+            "[:alpha:]",
+            "[[:upper:]:]",
+            "d = {'A': 1}",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(parse_report(text + "\n"), [])
+
+    def test_a_marker_body_without_a_leading_space_still_counts(self):
+        claims = parse_report("[FROB:bar]\n")
+        self.assertEqual([claim.kind for claim in claims], ["unknown_marker"])
+
+    def test_an_empty_body_is_still_a_marker(self):
+        claims = parse_report("[FROB:]\n")
+        self.assertEqual([claim.kind for claim in claims], ["unknown_marker"])
+
+    def test_a_placeholder_body_keeps_the_template_rule(self):
+        # P15: a marker body that reads as a template names no assertion. An
+        # unknown token must not turn a briefing template into a defect.
+        for text in (
+            "[FROB: <wert>]",
+            "[FROB: ...]",
+            "[FROB: \u2026]",
+            "[FROB: TODO]",
+            "[FROB: e5b68dd1\u2026]",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(parse_report(text + "\n"), [])
+
+    def test_every_registered_token_is_claimed(self):
+        # The claimed set follows the live registry: a token of an optional
+        # type (even with a body its own parse rejects) is no unknown marker.
+        for text in (
+            "[HALT: kaputt]",
+            "[SCORE: 1RB1RZ_0LA0LA -> 1]",
+            "[SEARCHED: kaputt]",
+            "[COMPUTE: kaputt]",
+            "[CYCLE: kaputt]",
+            "[IDENT: kaputt]",
+            "[COLORING: kaputt]",
+            "[ARTIFACT: kaputt]",
+            "[LEAN: kaputt]",
+            "[COMMIT: kaputt]",
+            "[BRANCH: kaputt]",
+            "[MERGE: kaputt]",
+            "[DEPLOY: kaputt]",
+        ):
+            with self.subTest(text=text):
+                kinds = [claim.kind for claim in parse_report(text + "\n")]
+                self.assertNotIn("unknown_marker", kinds)
+
+    def test_two_unknown_markers_on_one_line_are_two_defects(self):
+        claims = parse_report("[FROB: 1] [QUUX: 2]\n")
+        self.assertEqual(
+            [(claim.kind, claim.fields["token"]) for claim in claims],
+            [("unknown_marker", "FROB"), ("unknown_marker", "QUUX")],
+        )
+
+    def test_unknown_marker_beside_a_real_claim_shares_the_line(self):
+        # Within one line the parser emits the recognized claims first and the
+        # unknown-marker findings after them (the scan is its own pass); both
+        # carry the same line number, so the verdict lists them side by side.
+        claims = parse_report("[FROB: 1] [COMMIT: aaaa1111]\n")
+        self.assertEqual(
+            [(claim.kind, claim.line) for claim in claims],
+            [("commit_exists", 1), ("unknown_marker", 1)],
+        )
+
+    def test_an_absurdly_long_line_yields_no_marker_either(self):
+        line = "[FROB: 1] " + "x" * 9000
+        self.assertEqual(parse_report(line + "\n"), [])
+
+
+class UnknownMarkerCaptureCostTest(unittest.TestCase):
+    """The unknown-marker scan must stay linear on hostile input: its body
+    class never crosses a bracket, so every attempt is bounded by the
+    distance to the next one."""
+
+    BUDGET = 0.5
+    RUN = 2000
+
+    def parsed_within_budget(self, line):
+        start = time.perf_counter()
+        claims = parse_report(line + "\n")
+        elapsed = time.perf_counter() - start
+        self.assertLess(elapsed, self.BUDGET, f"{elapsed:.3f}s for a {len(line)}-char line")
+        return claims
+
+    def test_many_unterminated_unknown_markers(self):
+        self.assertEqual(self.parsed_within_budget("[FROB:" + "x" * self.RUN), [])
+
+    def test_a_long_token_without_a_colon(self):
+        self.assertEqual(self.parsed_within_budget("[" + "A" * (self.RUN * 3)), [])
+
+    def test_many_short_unknown_markers(self):
+        claims = self.parsed_within_budget("[FOO: x]" * 800)
+        self.assertEqual(len(claims), 800)
 
 
 if __name__ == "__main__":

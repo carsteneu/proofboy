@@ -183,4 +183,10 @@ def check(claim, ctx):
     )
 
 
-HALT = ClaimType(kind="halt", pattern=_HALT_RE, parse=parse, check=check)
+HALT = ClaimType(
+    kind="halt",
+    pattern=_HALT_RE,
+    parse=parse,
+    check=check,
+    markers=("HALT", "SCORE"),
+)
