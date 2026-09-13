@@ -1,0 +1,96 @@
+{
+  "built_at": "2026-09-13T07:41:46+00:00",
+  "seed": 20260912,
+  "arms": [
+    "B",
+    "C",
+    "D"
+  ],
+  "command": "training/build_corpus.py --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v11-20260912 --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v12-20260912 --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v13-20260912 --out training/corpus",
+  "counts": {
+    "runs_scanned": 436,
+    "sft": 160,
+    "dpo": 18,
+    "rlvr": 176,
+    "think": 176,
+    "splits": {
+      "train": 20,
+      "val": 4,
+      "test": 4
+    },
+    "verification": {
+      "checked": 131,
+      "solved": 112,
+      "unresolved": 1
+    },
+    "filtered": {
+      "sft_dropped_unverified": 16,
+      "dpo_dropped_unverified_chosen": 3
+    }
+  },
+  "files": {
+    "sft.jsonl": {
+      "sha256": "525628eb58894f41a90b240a8b8c6ed9c1312fa73da44af515ae2ba0dd20d4cb",
+      "records": 160
+    },
+    "dpo.jsonl": {
+      "sha256": "edd8366e06307598af5b6c0657a02a825598a4a917ff7673fb3581fbeda940ae",
+      "records": 18
+    },
+    "rlvr.jsonl": {
+      "sha256": "6d9ae44aff43449994f612a1871afcc73f36576bc853fe23193a30af52a5aec4",
+      "records": 176
+    },
+    "think.jsonl": {
+      "sha256": "aacf45eb2841e10b374500f9cb495c5a1f3e43b5a02ba257d6c390d352807459",
+      "records": 176
+    },
+    "splits.json": {
+      "sha256": "d030fdec08ea8bd703bf0fb319ae061f096b89bf9ad56bd03002e0028b0a528d",
+      "records": 28
+    }
+  },
+  "sources": [
+    {
+      "root": "runs-v11-20260912",
+      "runs": 132,
+      "labeled": 0,
+      "reevaluated": 131,
+      "unresolved": 1
+    },
+    {
+      "root": "runs-v12-20260912",
+      "runs": 176,
+      "labeled": 176,
+      "reevaluated": 0,
+      "unresolved": 0
+    },
+    {
+      "root": "runs-v13-20260912",
+      "runs": 128,
+      "labeled": 128,
+      "reevaluated": 0,
+      "unresolved": 0
+    }
+  ],
+  "sets": {
+    "0.1": {
+      "sha256": {
+        "A": "50c985e169aa500799824d7e05fa5cf918b5f1b1c3e45be5a4cb8c3ec73474f9",
+        "B": "074ab6bf5ebfc2132a73dcaae7b490754e559e1870a594c28dc0deb9a2b02ccf"
+      }
+    },
+    "0.2": {
+      "sha256": {
+        "A": "007424292fd10129877b3c0c2d733de6e556d08183955b6d9a10c0d2d8be81ce",
+        "B": "68eb917ebd26ae2d4ed1200b56c62114edd019bba868d2bd0d350348aad52395"
+      }
+    },
+    "0.3": {
+      "sha256": {
+        "A": "eb294ea93235e19c247eed4c547bbe879ea357aa86f8cdd80b979e4f9c5d11c3",
+        "B": "a1fcac5e4c6ae568dc17a4cd56928eaba7d7949ec94760d02281b1e5d3c1c51f"
+      }
+    }
+  }
+}
