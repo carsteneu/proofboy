@@ -133,6 +133,29 @@ def _answer(name, axioms):
     return f"BEMYSELF-LEAN-AXIOMS {name} [{axioms}]\n"
 
 
+def _sha256(path):
+    with open(path, "rb") as handle:
+        return "sha256:" + hashlib.sha256(handle.read()).hexdigest()
+
+
+def _write_manifest(root, name, entries):
+    """A manifest file for {tool: (path, version or None, digest or None)}."""
+    lines = []
+    for tool, (path, version, digest) in sorted(entries.items()):
+        lines.append(f"[tool.{tool}]")
+        lines.append(f'path = "{path}"')
+        if version is not None:
+            lines.append(f'version = "{version}"')
+        if digest is not None:
+            lines.append(f'digest = "{digest}"')
+        lines.append("")
+    os.makedirs(root, exist_ok=True)
+    manifest = os.path.join(root, name)
+    with open(manifest, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines))
+    return manifest
+
+
 class LeanParseTest(unittest.TestCase):
     def test_marker_parses(self):
         claims = parse_report("[LEAN: lean/Proof.lean -> fixture_proven]\n")
@@ -1060,24 +1083,13 @@ class LeanCheckTest(unittest.TestCase):
     # --- the --tools manifest (P17 c/d) ------------------------------------
     def write_manifest(self, entries, name="tools.toml"):
         """A manifest: {tool: (path, version or None, digest or None)}."""
-        lines = []
-        for tool, (path, version, digest) in sorted(entries.items()):
-            lines.append(f"[tool.{tool}]")
-            lines.append(f'path = "{path}"')
-            if version is not None:
-                lines.append(f'version = "{version}"')
-            if digest is not None:
-                lines.append(f'digest = "{digest}"')
-            lines.append("")
-        manifest = os.path.join(self._tmp.name, "manifests", self._testMethodName, name)
-        os.makedirs(os.path.dirname(manifest), exist_ok=True)
-        with open(manifest, "w", encoding="utf-8") as handle:
-            handle.write("\n".join(lines))
+        manifest = _write_manifest(
+            os.path.join(self._tmp.name, "manifests", self._testMethodName), name, entries
+        )
         return toolmanifest.load(manifest)
 
     def sha(self, path):
-        with open(path, "rb") as handle:
-            return "sha256:" + hashlib.sha256(handle.read()).hexdigest()
+        return _sha256(path)
 
     def test_a_manifest_pin_beats_the_repositorys_toolchain_request(self):
         # P17 (c): the manifest is host authority. The repository asks for
@@ -1309,6 +1321,126 @@ class LeanLiveTest(unittest.TestCase):
         commit = commit_probe(repo, "proofs/Proofs.lean", source)
         return repo, commit
 
+    def decoy(self, marker):
+        """A repository-authored toolchain binary: it proves it ran, or not."""
+        return (
+            "#!/bin/sh\n"
+            f'echo "decoy-ran $*" >> "{marker}"\n'
+            "case \"$1\" in\n"
+            "  --version) echo 'Lean (version 4.33.1, decoy, Release)' ;;\n"
+            "  --print-libdir) echo '/bin' ;;\n"
+            "  *) echo 'decoy' ;;\n"
+            "esac\n"
+            "exit 0\n"
+        )
+
+    def hostile_repo(self, name, marker, toolchain="./evil", lakefile=None):
+        """A proof whose project ships a path-like toolchain request + decoy."""
+        repo = make_repo(os.path.join(self._tmp.name, name))
+        commit_probe(repo, "evil/bin/lean", self.decoy(marker))
+        os.chmod(os.path.join(repo.path, "evil/bin/lean"), 0o755)
+        if lakefile is not None:
+            commit_probe(repo, "proofs/lakefile.toml", lakefile)
+            commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+            commit = commit_probe(repo, "proofs/lean-toolchain", toolchain + "\n")
+        else:
+            commit_probe(repo, "lean/Proof.lean", _PROOF)
+            commit = commit_probe(repo, "lean-toolchain", toolchain + "\n")
+        return repo, commit
+
+    def toolchain_bin(self):
+        """The toolchain's own bin directory behind the shim, else None."""
+        directory = os.path.dirname(os.path.realpath(_LEAN))
+        root = os.path.dirname(directory)
+        if os.path.basename(directory) == "bin" and os.path.isdir(
+            os.path.join(root, "toolchains")
+        ):
+            toolchains = os.path.join(root, "toolchains")
+            names = sorted(
+                name
+                for name in os.listdir(toolchains)
+                if os.path.isdir(os.path.join(toolchains, name))
+            )
+            if len(names) == 1:
+                return os.path.join(toolchains, names[0], "bin")
+            return None
+        if os.path.isfile(os.path.join(directory, "leanchecker")):
+            return directory
+        return None
+
+    def clear_marker(self, marker):
+        if os.path.exists(marker):
+            os.unlink(marker)
+
+    def marker_lines(self, marker):
+        if not os.path.exists(marker):
+            return []
+        with open(marker, encoding="utf-8") as handle:
+            return handle.read().splitlines()
+
+    # --- the P17 acceptance cases with the real toolchain ------------------
+    def test_a_path_like_toolchain_request_never_runs_the_decoy(self):
+        # P17 (a): the decoy writes a marker when it runs; the checker refuses
+        # the path-like request before any tool starts, so the marker stays
+        # absent and the verdict is UNVERIFIABLE, never CONFIRMED. Unsandboxed
+        # on purpose: a sandboxed decoy could not write the marker at all, so
+        # only outside the sandbox is the marker real evidence.
+        marker = os.path.join(self._tmp.name, "decoy-marker-path.txt")
+        self.clear_marker(marker)
+        repo, commit = self.hostile_repo("live-toolchain-path", marker)
+        result = self.check_report(
+            "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="off")
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("./evil", result.reason)
+        self.assertEqual(self.marker_lines(marker), [])
+
+    def test_a_manifest_pin_keeps_the_decoy_out_of_the_run(self):
+        # P17 (b): the pinned toolchain launchers resolve `lean` through PATH;
+        # the run's own tool directory must keep that lookup away from the
+        # elan shim, which would otherwise read the repository's toolchain
+        # file and run the decoy. Unsandboxed so the marker is observable.
+        marker = os.path.join(self._tmp.name, "decoy-marker-manifest.txt")
+        self.clear_marker(marker)
+        bin_dir = self.toolchain_bin()
+        if bin_dir is None:
+            self.skipTest("the toolchain's own bin directory is not derivable")
+        repo, commit = self.hostile_repo("live-toolchain-manifest", marker)
+        manifest = _write_manifest(
+            os.path.join(self._tmp.name, "live-manifests"),
+            "pins.toml",
+            {
+                name: (
+                    os.path.join(bin_dir, name),
+                    self.toolchain if name == "lean" else None,
+                    _sha256(os.path.join(bin_dir, name)),
+                )
+                for name in ("lean", "leanchecker")
+            },
+        )
+        result = self.check_report(
+            "lean/Proof.lean",
+            "fixture_proven",
+            commit,
+            self.ctx(repo.path, sandbox="off", tools=toolmanifest.load(manifest)),
+        )
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
+        self.assertIn("[pinned]", result.reason)
+        self.assertEqual(self.marker_lines(marker), [])
+
+    def test_a_lake_projects_toolchain_request_is_refused_before_any_build(self):
+        marker = os.path.join(self._tmp.name, "decoy-marker-lake.txt")
+        self.clear_marker(marker)
+        repo, commit = self.hostile_repo(
+            "live-toolchain-lake", marker, lakefile=_LAKEFILE
+        )
+        result = self.check_report(
+            "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+        )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("./evil", result.reason)
+        self.assertEqual(self.marker_lines(marker), [])
+
     # --- the acceptance matrix --------------------------------------------
     def test_a_real_theorem_confirms(self):
         repo, commit = self.probe_repo("live-confirm", _PROOF)
@@ -1319,6 +1451,8 @@ class LeanLiveTest(unittest.TestCase):
         self.assertIn("does not depend on any axioms", result.reason)
         self.assertIn("passed Lean's kernel re-check", result.reason)
         self.assertIn("sandboxed with bwrap", result.reason)
+        self.assertIn(f"tools: lean {self.toolchain} sha256:", result.reason)
+        self.assertIn(f"leanchecker {self.toolchain} sha256:", result.reason)
         self.assertIs(result.sandboxed, True)
 
     def test_a_real_sorry_refutes(self):
