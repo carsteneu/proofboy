@@ -15,8 +15,8 @@ Lake 5.0.0 (Muster: `lean/cycle-bridge`).
   (`none`). Halte-Prädikat `Halts s := s.2 % 2 = 1 ∧ s.1 = 0`;
   `step_eq_none_iff` verbindet beide Modelle. `stepN n s` ist die `n`-fache
   legale Iteration (`none`, wenn der Lauf früher endet).
-- **Lemma A1** (`odd_of_two_mul`): `b + 3 = 2q → b % 2 = 1` (expliziter
-  Ungeradheitszeuge `q−2`, bewacht durch `2 ≤ q`).
+- **Lemma A1** (`odd_of_two_mul`): `b + 3 = 2q → b % 2 = 1` (der
+  Ungeradheitszeuge `q−2` des Textes, Guard `2 ≤ q`, in der `omega`-Ableitung).
 - **Lemma A2** (`U_add_three_of_two_mul`): `b + 3 = 2q → U b + 3 = 3q` mit der
   verschobenen Koordinate `U b := (3b+3)/2`.
 - **Induktion I** (`beta_invariant`): für die β-Folge `β₀ = 2^k−3`,
@@ -59,12 +59,15 @@ ausführen. Erwartet: nur die Standardaxiome `propext` und `Quot.sound`, kein
 
 ## Bezug zum Beweis-Text
 
-Der Beweis folgt 1:1 dem Astra-Lemma-Loop r3, Abschnitt „(A) Halt-Familie“:
-zwei Induktionen mit je *einer* Induktionsbehauptung, bewachte
-Nat-Subtraktionen an genau drei Stellen (`2^k − 3 + 3 = 2^k` via `3 ≤ 2^k`;
-`q − 2` im Ungeradheitszeugen via `2 ≤ q`; Exponentenidentität
-`k−i = (k−(i+1)) + 1` via `i+1 ≤ k`). Die Definitionen spiegeln
-`antihydra_next` (`yesdocs/formal-conjectures/tools/reductions.py:225`).
+Der Beweis folgt dem Astra-Lemma-Loop r3, Abschnitt „(A) Halt-Familie“ 1:1 in
+der Struktur: zwei Induktionen mit je *einer* Induktionsbehauptung. Die
+bewachten Nat-Subtraktionen des Textes (`2^k − 3 + 3 = 2^k`; der
+Ungeradheitszeuge `q − 2`; die Exponentenidentität `k−i = (k−(i+1)) + 1`)
+trägt `omega`; explizit als Lemmas herausgezogen sind die beiden
+Potenz-Wachen `three_le_two_pow` (`3 ≤ 2^k`) und
+`three_le_two_mul_three_pow` (`3 ≤ 2·3^{k−1}`, Endpunkt-Subtraktion). Die
+Definitionen spiegeln `antihydra_next`
+(`yesdocs/formal-conjectures/tools/reductions.py:225`).
 Der Satz löst **keine** offene Frage: er beweist eine vollständige
 Halt-Familie der reduzierten Regel, nicht die Antihydra-Vermutung.
 
