@@ -20,17 +20,18 @@ class Verdict(str, Enum):
 class Cause(str, Enum):
     """Why a claim did not end CONFIRMED: the machine-readable class.
 
-    ``DEFECT`` blames the report: the claim contradicts its own declaration
-    (a coloring that uses more colors than it declares, a malformed binding)
-    or cannot be bound and executed as written (missing commit hash, path
-    outside the trust root, embedded NUL). Payload the tool simply cannot
-    interpret -- a prose number, a machine outside the notation, an unsound
-    but internally consistent certificate -- is NOT a defect: the report may
-    be honest, the claim stays ``UNVERIFIABLE`` and only ``--strict``
-    punishes it. ``ENVIRONMENT`` is a capability the run does not have (no
-    remote, no sandbox, no tool). ``LIMIT`` is a budget that was exhausted
-    before the claim could be checked. ``UNVERIFIABLE`` is the residual: the
-    check was attempted and could not decide.
+    ``DEFECT`` is a form violation: the claim cannot be bound or executed as
+    written -- in the report (a coloring that uses more colors than it
+    declares, a missing commit hash, a malformed binding, an embedded NUL) or
+    in the checked thing itself (a value that is present but lacks the
+    required form, like a path-like ``lean-toolchain`` request). Absence is
+    not a defect: payload the tool simply cannot interpret -- a prose number,
+    a machine outside the notation, an unsound but internally consistent
+    certificate -- keeps the claim ``UNVERIFIABLE``, and a missing capability
+    stays ``ENVIRONMENT`` (no remote, no sandbox, no tool). ``LIMIT`` is a
+    budget that was exhausted before the claim could be checked.
+    ``UNVERIFIABLE`` is the residual: the check was attempted and could not
+    decide.
     """
 
     DEFECT = "defect"

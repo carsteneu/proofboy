@@ -55,7 +55,7 @@ Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
 | 2 | Fehler (Report fehlt oder zu gross, benoetigtes `--repo` fehlt oder ist ungueltig, Section unbekannt oder nicht lesbar) |
 | 3 | Nichts bestaetigt: keine Behauptung oder alles `unpruefbar`; auch eine leere Section |
 | 4 | Nur mit `--strict`: mindestens eine Behauptung `bestaetigt` und mindestens eine `unpruefbar` (Klasse `environment` oder `unverifiable`), nichts `widerlegt` |
-| 5 | Mindestens eine Behauptung ist ein Defekt (Klasse `defect`, der Bericht ist schuld) -- scheitert mit und ohne `--strict` |
+| 5 | Mindestens eine Behauptung ist ein Defekt (Klasse `defect`: der Bericht oder die gepruefte Sache verletzt eine geforderte Form) -- scheitert mit und ohne `--strict` |
 | 6 | Nur mit `--strict`: nichts `widerlegt`, und mindestens eine Behauptung wurde wegen eines Budgets nicht ausgefuehrt (Klasse `limit`) |
 
 Exit 0 heisst nicht, dass jede Behauptung bewiesen ist: `unpruefbar` ist kein
@@ -94,7 +94,7 @@ Zaehlung im JSON (`classes`) und in der Schlusszeile des Urteilstexts:
 
 | Klasse | Bedeutung | Scheitert |
 |---|---|---|
-| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte. | immer, auch ohne `--strict` (Exit 5) |
+| `defect` | Eine geforderte Form ist verletzt: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando, `lean-toolchain`), ein eingebettetes NUL-Byte -- egal, ob der Wert aus dem Bericht oder aus der geprueften Sache stammt. | immer, auch ohne `--strict` (Exit 5) |
 | `environment` | Es fehlt eine Faehigkeit der Umgebung: kein Remote, kein `bwrap`, kein Werkzeug oder Modul, kein `--repo`/`--artifact-root`/`--base`, das Kommando steht nicht auf der Allowlist. | nur mit `--strict` (Exit 4) |
 | `limit` | Ein Budget war ausgeschoepft, bevor die Behauptung laufen konnte: Schritt-/Suchzahl, Zeit, Ausgabe- und Tape-Grenzen, Artefaktgroesse. | nur mit `--strict` (Exit 6) |
 | `unverifiable` | Der Rest (echte Unwissenheit): der Versuch lief und konnte nicht entscheiden (Fetch, Clone oder Diff schlugen fehl, der Branch-Tip wanderte weiter, eine Prosa-Zahl wie `2^^^5`, kein Checker fuer `[DEPLOY]`). Die Klasse ist der Default. | nur mit `--strict` (Exit 4) |
@@ -102,7 +102,14 @@ Zaehlung im JSON (`classes`) und in der Schlusszeile des Urteilstexts:
 Ein Wert, den das Werkzeug nicht interpretieren kann -- eine Prosa-Zahl, eine
 Maschine ausserhalb der Notation --, ist kein Defekt: der Bericht kann ehrlich
 sein, die Behauptung bleibt unpruefbar. `defect` ist enger gefasst: die
-Behauptung kann so, wie sie dasteht, nicht einmal gebunden werden. Die
+Behauptung kann so, wie sie dasteht, nicht einmal gebunden werden. Die Grenze
+verlaeuft zwischen Abwesenheit und Formverletzung: fehlt eine Faehigkeit
+(kein Werkzeug, kein Remote, keine Allowlist-Freigabe, eine angeforderte, aber
+nicht installierte Toolchain), bleibt es `environment`; ist ein Wert
+vorhanden, hat aber nicht die geforderte Form (etwa eine pfadartige
+`lean-toolchain`-Bitte), ist es `defect` -- auch wenn der falsche Wert aus der
+geprueften Sache stammt statt aus dem Bericht: die Klasse beantwortet die
+Frage, ob die Behauptung ueberhaupt gebildet oder gebunden werden konnte. Die
 bisherigen Widerlegungs- und Bestaetigungscodes bleiben davon unberuehrt.
 
 Je nicht ausgefuehrtem Claim nennt der Urteilstext das Limit, den behaupteten
@@ -751,8 +758,11 @@ Befugnis**: befolgt wird nur elans native Form `authority/name:version`
 (etwa `leanprover/lean4:v4.33.1`), und auch die nur, wenn genau diese
 Toolchain installiert ist. Ein pfadartiger Wert (`./evil`) wird in jedem Fall
 abgelehnt -- elan wuerde den Pfad direkt ausfuehren und damit Repo-Code zur
-Toolchain machen --, und eine angeforderte, aber nicht installierte Toolchain
-wird nicht durch eine andere ersetzt; beide Faelle bleiben `unpruefbar` (nie
+Toolchain machen: die Bitte hat dann nicht die geforderte Form, die
+Behauptung kann nicht binden und ist ein Defekt (Exit 5, mit und ohne
+`--strict`), geprueft bevor der Host ueberhaupt Werkzeuge aufloest. Eine
+angeforderte, aber nicht installierte Toolchain
+wird nicht durch eine andere ersetzt; sie bleibt `unpruefbar` (nie
 `widerlegt`: eine kaputte Umgebung ist kein Beweis gegen den Satz). Den
 Ausschlag gibt der Host: `ELAN_TOOLCHAIN` des Operators, sonst die einzige
 installierte Toolchain. Laesst sich beides nicht bestimmen, waehrend das
@@ -771,7 +781,7 @@ Repo-Anforderung: nur die gepinnten Werkzeuge laufen, `PATH` wird fuer alle
 Kindprozesse auf sie umgebogen (auch `leanchecker` ruft `lean` ueber `PATH`
 auf), und ein Digest- oder Versionsbruch bleibt `unpruefbar`. Eine
 wohlgeformte Toolchain-Bitte wird mit Manifest-Pin nicht mehr befolgt, eine
-pfadartige wird unabhaengig davon immer abgelehnt. Ein Werkzeug,
+pfadartige wird unabhaengig davon immer als Defekt abgelehnt. Ein Werkzeug,
 das das Manifest nicht nennt, laeuft mit `--tools` gar nicht -- es gibt
 keinen stillen `PATH`-Rueckfall. Ohne Manifest gilt der bisherige Weg
 (`lean`/`lake`/`leanchecker` aus dem `PATH`). Laesst sich host-seitig keine
@@ -785,7 +795,8 @@ echten Werkzeugen ohne elan, wenn das Repo eine `lean-toolchain` mitbringt;
 Abhilfe ist ein `--tools`-Eintrag fuer `lean` oder ein gesetztes
 `ELAN_HOME`). Eine `lean-toolchain`-Datei, die erst waehrend des Builds
 auftaucht, wird vor jeder weiteren Stufe erneut geprueft: ein pfadartiger
-Wert verweigert den Lauf, denn elan fuehrt ihn ohne Umweg aus. Jedes Urteil nennt die
+Wert verweigert den Lauf als Defekt (Exit 5), denn elan fuehrt ihn ohne
+Umweg aus. Jedes Urteil nennt die
 Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
 Datei, `[pinned]` bei einem Manifest-Pin:
 
@@ -1121,7 +1132,9 @@ nennt `sorryAx`, die Meldung wird `widerlegt`; auf einem Host ohne
 Lean-Toolchain bleibt sie ehrlich `unpruefbar`, nie bestaetigt). Dazu kommen
 eine LEAN-Behauptung, deren Projekt `lean-toolchain='./evil'` samt Attrappe
 `lean/evil/bin/lean` committet -- der Pruefer lehnt die Anfrage vor jedem
-Werkzeuglauf ab, das Urteil ist `unpruefbar` und nennt den Grund (den Wert
+Werkzeuglauf ab, das Urteil ist `unpruefbar` mit der Klasse `defect` (Exit 5,
+auch ohne `--strict`; host-unabhaengig, die Formpruefung laeuft vor der
+Werkzeug-Aufloesung) und nennt den Grund (den Wert
 selbst zitiert es nicht)
 (nie bestaetigt, nie widerlegt),
 zwei ehrliche HALT-Meldungen: eine bestaetigt den

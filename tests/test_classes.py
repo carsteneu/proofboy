@@ -1,10 +1,10 @@
 """P18: defect vs. boundary -- the machine-readable class of unconfirmed claims.
 
-Every UNVERIFIABLE result carries exactly one class: ``defect`` (the report is
-at fault), ``environment`` (a capability is missing), ``limit`` (a budget was
-exceeded) or ``unverifiable`` (the residual). A defect fails the run in both
-modes; a limit gets its own exit code under ``--strict``. The old exit-code
-matrix (0-4) is pinned unchanged.
+Every UNVERIFIABLE result carries exactly one class: ``defect`` (the report or
+the checked thing violates a required form), ``environment`` (a capability is
+missing), ``limit`` (a budget was exceeded) or ``unverifiable`` (the
+residual). A defect fails the run in both modes; a limit gets its own exit
+code under ``--strict``. The old exit-code matrix (0-4) is pinned unchanged.
 """
 
 import json
