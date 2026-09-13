@@ -57,13 +57,20 @@ _COMMIT_40 = "a" * 40
 _FAKE_TOOL = """#!/bin/sh
 dir='{bin_dir}'
 mode=
+artifact=
+prev=
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then artifact="$a"; fi
+  prev="$a"
+done
 case "$1" in
   --version) mode=version ;;
   --print-libdir) mode=libdir ;;
   build) mode=build ;;
-  -o) mode=build ;;
   --run) mode=query ;;
-  *) mode=recheck ;;
+  *)
+    if [ -n "$artifact" ]; then mode=build; else mode=recheck; fi
+    ;;
 esac
 if [ "$mode" = version ]; then
   printf '%s\\n' 'Lean (version 4.33.1, fake, Release)'
@@ -88,15 +95,20 @@ if [ "$mode" = query ] && [ -f "$dir/dump.env" ]; then
 fi
 [ -f "$dir/$f.sleep" ] && sleep 30
 [ -f "$dir/$f.out" ] && cat "$dir/$f.out"
+if [ "$mode" = build ] && [ -f "$dir/build.dirty" ]; then
+  printf '\\n-- dirtied by another module\\n' >> "$(cat "$dir/build.dirty")"
+fi
 if [ -f "$dir/$f.rc" ] && [ "$(cat "$dir/$f.rc")" != "0" ]; then
   # A failing build compiles nothing; a failing run produces no artifact.
   exit "$(cat "$dir/$f.rc")"
 fi
 if [ "$mode" = build ] && [ ! -f "$dir/build.skip-artifact" ]; then
-  case "$1" in
-    -o) mkdir -p "$(dirname "$2")"; : >> "$2" ;;
-    build) m="$2"; d=$(printf '%s' "$m" | tr '.' '/'); mkdir -p ".lake/build/lib/lean/$(dirname "$d")" && touch ".lake/build/lib/lean/$d.olean" ;;
-  esac
+  if [ -n "$artifact" ]; then
+    mkdir -p "$(dirname "$artifact")"; : >> "$artifact"
+  else
+    m="$2"; d=$(printf '%s' "$m" | tr '.' '/')
+    mkdir -p ".lake/build/lib/lean/$(dirname "$d")" && touch ".lake/build/lib/lean/$d.olean"
+  fi
 fi
 if [ -f "$dir/$f.rc" ]; then exit "$(cat "$dir/$f.rc")"; fi
 exit 0
@@ -480,7 +492,10 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
         self.assertIn("Mathlib", result.reason)
 
-    def test_a_missing_module_the_file_does_not_import_still_refutes(self):
+    def test_a_forged_module_error_downgrades_at_most(self):
+        # The file's own compile is repository code: a forged
+        # `unknown module prefix` line turns its refutation into UNVERIFIABLE
+        # (the documented downgrade class) but never into CONFIRMED.
         repo, commit = self.probe_repo("dep-lies", _BROKEN)
         bin_dir = self.fake(
             **{
@@ -492,8 +507,8 @@ class LeanCheckTest(unittest.TestCase):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path)
             )
-        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
-        self.assertIn("does not compile", result.reason)
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("not available", result.reason)
 
     # --- the stages --------------------------------------------------------
     def test_the_kernel_recheck_runs_before_the_query_and_guards_it(self):
@@ -672,8 +687,80 @@ class LeanCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         with open(os.path.join(bin_dir, "calls.log"), encoding="utf-8") as handle:
             calls = handle.read()
-        self.assertIn("build|-o ", calls)
+        self.assertIn("-R ", calls)
+        self.assertIn("-o ", calls)
         self.assertIn("query|--run ", calls)
+
+    def test_a_declaration_from_another_module_refutes(self):
+        # The claim says "proved in <file>"; a declaration that only lives in
+        # an imported module is not (review 5.2 round 3, N3).
+        repo, commit = self.probe_repo("foreign", _PROOF)
+        bin_dir = self.fake(
+            **{
+                "query.out": "BEMYSELF-LEAN-FOREIGN fixture_proven Helper\n",
+                "query.rc": "1\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("not defined in", result.reason)
+        self.assertIn("Helper", result.reason)
+
+    def test_a_file_changed_by_the_project_build_is_unverifiable(self):
+        # Another module's elaboration-time code can rewrite the checked file
+        # (review 5.4 round 3, F2): the artifact must describe the pinned
+        # source, so a modified file refuses.
+        repo, commit = self.lake_repo("dirty-file")
+        bin_dir = self.fake(
+            **{"query.out": _answer("lake_proven", ""), "build.dirty": "Proofs.lean\n"}
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("changed during", result.reason)
+
+    def test_a_lake_error_prefix_does_not_hide_the_attribution(self):
+        # Lake prefixes Lean's error lines with `error: ` (review 5.2 round 3,
+        # N1).
+        repo, commit = self.lake_repo("lake-prefix")
+        bin_dir = self.fake(
+            **{
+                "build.out": "error: proofs/Proofs.lean:1:0: error: unsolved goals\n",
+                "build.rc": "1\n",
+            }
+        )
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.REFUTED, result.reason)
+        self.assertIn("does not compile", result.reason)
+
+    def test_a_build_directory_pointing_outside_the_checkout_is_refused(self):
+        # `.lake` as a committed symlink must not let the checker delete host
+        # files (review 5.2 round 3, N2).
+        repo = make_repo(os.path.join(self._tmp.name, "lake-outside"))
+        outside = os.path.join(self._tmp.name, "lake-outside-outside")
+        os.makedirs(os.path.join(outside, "build"), exist_ok=True)
+        canary = os.path.join(outside, "build", "canary.txt")
+        with open(canary, "w", encoding="utf-8") as handle:
+            handle.write("keep me\n")
+        commit_probe(repo, "proofs/lakefile.toml", _LAKEFILE)
+        os.symlink(outside, os.path.join(repo.path, "proofs", ".lake"))
+        commit = commit_probe(repo, "proofs/Proofs.lean", _LAKE_PROOF)
+        bin_dir = self.fake(**{"query.out": _answer("lake_proven", "")})
+        with self.patched_path(bin_dir):
+            result = self.check_report(
+                "proofs/Proofs.lean", "lake_proven", commit, self.ctx(repo.path)
+            )
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.reason)
+        self.assertIn("outside the checkout", result.reason)
+        self.assertTrue(os.path.exists(canary), "the checker deleted a host file")
 
     # --- the guards --------------------------------------------------------
     def test_without_lean_the_claim_is_unverifiable(self):

@@ -14,23 +14,43 @@ the only writer is this program.  The axiom data comes from the olean the
 build produced; `leanchecker` (run separately) re-checks that artifact with
 the kernel.
 
-Exit codes: 0 answer printed, 1 declaration unknown, 2 module could not be
-loaded, 3 usage. -/
+The declaration must be defined in `<Module>` itself: a name that only lives
+in an imported module is reported as foreign, so a claim cannot be confirmed
+with a proof that does not come from the checked file.
+
+Exit codes: 0 answer printed, 1 declaration unknown or foreign, 2 module
+could not be loaded, 3 usage. -/
 def main (args : List String) : IO UInt32 := do
   match args with
   | [moduleName, constName] =>
     let imports : Array Import := #[{ module := moduleName.toName }]
+    let moduleName := moduleName.toName
     let constName := constName.toName
     try
       let env ← importModules imports {} (leakEnv := true)
-      if env.find? constName |>.isNone then
+      match env.find? constName with
+      | none =>
         IO.println s!"BEMYSELF-LEAN-UNKNOWN {constName}"
         return 1
-      let ctx : Core.Context := { fileName := "<bemyself-lean-axioms>", fileMap := default }
-      let axioms ← (collectAxioms constName : CoreM (Array Name)).toIO' ctx { env := env }
-      let names := axioms.toList.map (·.toString)
-      IO.println s!"BEMYSELF-LEAN-AXIOMS {constName} [{String.intercalate ", " names}]"
-      return 0
+      | some _ =>
+        let foreign? : Option Name :=
+          match env.header.moduleNames.findIdx? (· == moduleName),
+              env.getModuleIdxFor? constName with
+          | some home, some defining =>
+            if home == defining.toNat then none
+            else (env.header.moduleNames[defining.toNat]?).getD .anonymous
+          | _, _ => none
+        match foreign? with
+        | some origin =>
+          IO.println s!"BEMYSELF-LEAN-FOREIGN {constName} {origin}"
+          return 1
+        | none =>
+          let ctx : Core.Context :=
+            { fileName := "<bemyself-lean-axioms>", fileMap := default }
+          let axioms ← (collectAxioms constName : CoreM (Array Name)).toIO' ctx { env := env }
+          let names := axioms.toList.map (·.toString)
+          IO.println s!"BEMYSELF-LEAN-AXIOMS {constName} [{String.intercalate ", " names}]"
+          return 0
     catch e =>
       IO.println s!"BEMYSELF-LEAN-ERROR {e.toString}"
       return 2

@@ -574,25 +574,32 @@ Deklaration, also inklusive Namensraum (`CycleBridge.cycle_never_halts`).
 Der Pruefer arbeitet in einem Wegwerf-Checkout des Commits in drei Stufen,
 alle im Sandkasten:
 
-1. **Bauen.** Die eigenen Build-Artefakte des Projekts werden verworfen (ein
-   symlinktes Build-Verzeichnis wird entfernt, nicht nur geleert), dann
-   wird das Modul aus dem gepinnten Quelltext gebaut (`lake build <modul>`
-   fuer ein Lake-Projekt, `lean -o` fuer eine einzelne Datei). Diese Stufe
-   fuehrt Repo-Code aus (Taktiken, `#eval`, Initializer) -- nichts, was sie
-   ausgibt, ist Evidenz; ein erfolgreicher Build muss ein **frisch
-   geschriebenes** Artefakt hinterlassen, sonst ist die Behauptung
-   `unpruefbar`. Ein Kompilierfehler der geprueften Datei widerlegt die
+1. **Abhaengigkeiten bauen** (nur Lake-Projekte). Die eigenen
+   Build-Artefakte des Projekts werden verworfen (ein symlinktes
+   Build-Verzeichnis wird entfernt, nicht geleert), dann baut
+   `lake build <modul>` den Abhaengigkeitsgraph. Diese Stufe fuehrt
+   Repo-Code aus; **ihr Artefakt ist nie die Evidenz** -- die lakefile
+   bestimmt ueber `srcDir`/Ziele selbst, welche Quelle ein Modul ist.
+2. **Die gepruefte Datei selbst kompilieren.** Der Pruefer kopiert die
+   Datei aus dem Commit in sein eigenes Verzeichnis im Checkout und
+   kompiliert **die Kopie** (`lean -o`); das so entstandene Artefakt ist die
+   Evidenz. Vorher prueft er, dass die Datei der Build-Stufe unveraendert
+   entstammt (`git status` sauber -- ein importiertes Modul koennte sie
+   sonst per `#eval` umschreiben), und danach, dass das Artefakt frisch
+   geschrieben wurde. Ein Kompilierfehler der Datei widerlegt die
    Behauptung (erste Fehlerzeile im Urteil).
-2. **Kernel-Recheck.** `leanchecker <modul>` prueft die Deklarationen des
-   kompilierten Artefakts mit dem Lean-Kernel nach. Recheck und Abfrage
-   rufen die Toolchain **direkt** auf, nie ueber `lake`: die lakefile ist
+3. **Kernel-Recheck.** `leanchecker <modul>` prueft die Deklarationen des
+   Artefakts mit dem Lean-Kernel nach. Recheck und Abfrage rufen die
+   Toolchain **direkt** auf, nie ueber `lake`: die lakefile ist
    Repo-Code und wuerde denselben Ausgabekanal teilen. Der Suchpfad beginnt
    mit dem Libverzeichnis der Toolchain, damit der gepruefte Baum die
    Imports des Abfrageprogramms nicht verschatten kann.
-3. **Axiom-Abfrage.** Das eigene Abfrageprogramm
+4. **Axiom-Abfrage.** Das eigene Abfrageprogramm
    (`bemyself/tools/lean_axioms.lean`) laedt das Artefakt als **Daten**
    (`importModules`) und druckt die Axiomliste der Deklaration; eine
-   AXIOMS-Zeile gilt nur zusammen mit Exit 0. In diesem
+   AXIOMS-Zeile gilt nur zusammen mit Exit 0, und die Deklaration muss im
+   geprueften Modul selbst definiert sein (kommt sie aus einem importierten
+   Modul, ist die Behauptung widerlegt). In diesem
    Prozess laeuft kein Repo-Code -- keine Taktik, kein Makro, kein
    Initializer -- darum kann das gepruefte Projekt die Antwort weder
    faelschen noch unterdruecken: einziger Schreiber ist das Abfrageprogramm,
@@ -601,7 +608,7 @@ alle im Sandkasten:
 
 ```
 $ python3 -m bemyself check --report lean-report.md --repo <repo>
-lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: the compiled artifact passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query -- no repository code executed -- read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
+lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 5885fcfad823: the artifact built from that commit passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query (no repository code in the query process) read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (sandboxed with bwrap)
 ```
 
 Urteile: `bestaetigt` nur, wenn die Abfrage mit Exit 0 genau fuer diese
@@ -611,7 +618,9 @@ steht vollstaendig im Urteil (logische Grundaxiome wie `propext`,
 "axiomfrei"). `widerlegt` bei `sorryAx`, bei `lcProof` (der Kernel hat den
 Rumpf nicht geprueft, etwa bei `unsafe`), bei einer Deklaration, die selbst
 ein Axiom ist (ihr Name steht in der eigenen Axiomliste -- da ist kein
-Beweis), bei fehlender Deklaration im Artefakt, bei fehlender Datei im
+Beweis), bei einer Deklaration, die aus einem importierten Modul stammt und
+nicht in der geprueften Datei definiert ist, bei fehlender Deklaration im
+Artefakt, bei fehlender Datei im
 Commit und bei einem Kompilierfehler der Datei. `unpruefbar` bleibt die
 Behauptung ohne `lean`/`lake`/`leanchecker`
 im `PATH`, ohne funktionierenden Sandkasten (auch bei `--sandbox=auto`),
@@ -645,16 +654,23 @@ und der eigenen Abfrage kommt, kann Build-Ausgabe ein Urteil nur
 herabstufen (auf `unpruefbar`), niemals auf `bestaetigt` heben. Der
 Evidenzprozess selbst fuehrt keinen Repo-Code aus -- weder Taktiken noch
 Makros noch Initializer; die Live-Tests in `tests/test_lean.py` pinnen
-genau diese Faelle. Die **Build**-Stufe dagegen fuehrt Repo-Code aus, und
-das laesst sich nicht vermeiden: sie liefert das Artefakt, das geprueft
-wird. Darum gilt eine dokumentierte Politik: Dateien (und eine
-`lakefile.lean`), die zur Elaborationszeit sichtbar Code ausfuehren
-(`#eval`, `#exec`, `run_cmd`, `run_elab`), werden nicht geprueft und
-bleiben `unpruefbar` -- ihre Build-Kette ist nicht zu verbuergen.
-Verdeckte Formen der Codeausfuehrung (eigene Elaboratoren, `native_decide`,
-Code in Abhaengigkeitsmodulen) erkennt diese Politik nicht: wer sie
-einsetzt, kann die Herkunft des Artefakts von der geprueften Datei
-entkoppeln und liegt ausserhalb dessen, was dieses Werkzeug zusichert.
+genau diese Faelle. Das Artefakt entsteht aus einer Kopie der geprueften
+Datei, nicht aus dem lakefile-getriebenen Projektbuild: eine lakefile, die
+`srcDir` auf eine andere Quelle umbiegt, oder ein importiertes Modul, das
+die gepruefte Datei waehrend des Builds umschreibt, kann die Evidenz nicht
+mehr auf eine fremde Quelle lenken (die Integritaetspruefung verweigert
+dann). Die Build-Stufe fuer Abhaengigkeiten fuehrt trotzdem Repo-Code aus,
+und das laesst sich nicht vermeiden. Darum gilt eine dokumentierte Politik:
+die gepruefte Datei und eine `lakefile.lean`, die zur Elaborationszeit
+sichtbar Code ausfuehren (`#eval`, `#exec`, `run_cmd`, `run_elab`), werden
+nicht geprueft und bleiben `unpruefbar` -- ihre Build-Kette ist nicht zu
+verbuergen; importierte Module werden von dieser Politik **nicht** erfasst
+(und koennen ein Urteil nur herabstufen). Die Politik sucht Textstellen:
+auch ein `#eval` in einem Kommentar oder String verweigert die Pruefung
+(die sichere Richtung). Verdeckte Formen der
+Codeausfuehrung (eigene Elaboratoren, `native_decide`) erkennt sie
+ebenfalls nicht; wer sie einsetzt, kann die Abhaengigkeits-Artefakte
+manipulieren und liegt ausserhalb dessen, was dieses Werkzeug zusichert.
 
 Toolchain und Abhaengigkeiten: `lean`, `lake` (fuer Lake-Projekte) und
 `leanchecker` muessen im `PATH` liegen (eine elan-Installation erfuellt

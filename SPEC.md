@@ -305,27 +305,34 @@ repository-relativ, `[A-Za-z0-9_./-]`, Endung `.lean`, kein `..`; Name:
 Lean-Identifier mit Unicode-Buchstaben/Ziffern/Unterstrich, Punkten und
 `!?`).
 
-1. Bauen: die eigenen Build-Artefakte des Projekts (`.lake/build` bzw. das
-   Ausgabeverzeichnis) werden verworfen -- ein symlinktes Build-Verzeichnis
-   wird entfernt, nicht geleert --, dann baut `lake build <modul>`
-   (bzw. `lean -o <oleandatei> <datei>` fuer eine Datei ohne Lakefile) das
-   Modul aus dem gepinnten Quelltext. Diese Stufe fuehrt Repo-Code aus;
-   ihre Ausgabe dient nur der Diagnose. Ein erfolgreicher Build muss ein
-   frisch geschriebenes Artefakt hinterlassen (Existenz und mtime nach
-   Build-Beginn), sonst `UNVERIFIABLE`. Ein Kompilierfehler, dessen erste
-   Fehlerzeile genau die gepruefte Datei nennt, ist `REFUTED`; ein Fehler
-   in einer anderen Datei, ein Dependency-Problem oder ein
-   Sandkastenproblem bleibt `UNVERIFIABLE`.
-2. Kernel-Recheck: `leanchecker <modul>` prueft die Deklarationen des
+1. Abhaengigkeiten bauen (nur Lake-Projekte): die eigenen Build-Artefakte
+   des Projekts (`.lake/build` bzw. das Ausgabeverzeichnis) werden
+   verworfen -- ein symlinktes Build-Verzeichnis wird entfernt, nicht
+   geleert, und ein Pfad, dessen Realziel den Checkout verlaesst, wird
+   nicht angefasst --, dann baut `lake build <modul>` den
+   Abhaengigkeitsgraph. Diese Stufe fuehrt Repo-Code aus; ihr Artefakt ist
+   NIE die Evidenz (die lakefile bestimmt ueber `srcDir`/Ziele selbst,
+   welche Quelle ein Modul ist).
+2. Die gepruefte Datei selbst kompilieren: eine Kopie der Datei aus dem
+   Commit wird in ein pruefereigenes Verzeichnis im Checkout gelegt und mit
+   `lean -R <verzeichnis> -o <artefakt>` kompiliert. Vorher muss
+   `git status --porcelain -- <pfad>` sauber sein (ein importiertes Modul
+   koennte die Datei wahrend des Builds per `#eval` umschreiben), danach
+   muss das Artefakt frisch geschrieben sein (Existenz und mtime nach
+   Kompilierbeginn), sonst `UNVERIFIABLE`. Ein Kompilierfehler der Datei
+   ist `REFUTED` (erste Fehlerzeile im Urteil); ein
+   "unknown module prefix"-Fehler oder ein Sandkastenproblem bleibt
+   `UNVERIFIABLE`.
+3. Kernel-Recheck: `leanchecker <modul>` prueft die Deklarationen des
    Artefakts mit dem Lean-Kernel; ein Fehlschlag ist `UNVERIFIABLE`
    ("did not pass Lean's kernel re-check"). Recheck und Abfrage rufen die
    Toolchain direkt auf -- nie `lake`, dessen lakefile Repo-Code ist und
    denselben Ausgabekanal teilen wuerde. Der Suchpfad (`LEAN_PATH`) beginnt
    mit dem Libverzeichnis der Toolchain (`lean --print-libdir`), dann folgt
-   das frische Build-Ausgabeverzeichnis und danach die Build-Verzeichnisse
-   der Abhaengigkeiten; so kann der gepruefte Baum die Imports des
-   Abfrageprogramms nicht verschatten.
-3. Axiom-Abfrage: `bemyself/tools/lean_axioms.lean` wird als eigenes
+   das Evidenzverzeichnis und danach die Build-Verzeichnisse der
+   Abhaengigkeiten; so kann der gepruefte Baum die
+   Imports des Abfrageprogramms nicht verschatten.
+4. Axiom-Abfrage: `bemyself/tools/lean_axioms.lean` wird als eigenes
    Programm gestartet (`lean --run <programm> <modul> <name>`) und laedt
    das Modul zur Laufzeit als Daten
    (`importModules`); es wird nie zur Elaborationszeit importiert. In
@@ -333,19 +340,20 @@ Lean-Identifier mit Unicode-Buchstaben/Ziffern/Unterstrich, Punkten und
    `initialize`, kein `#eval`), darum ist der Ausgabekanal vertrauenswuerdig.
    Das Programm druckt genau eine Protokollzeile
    (`BEMYSELF-LEAN-AXIOMS <name> [<axiome>]`, `BEMYSELF-LEAN-UNKNOWN
-   <name>` oder `BEMYSELF-LEAN-ERROR <detail>`); genau eine zur Behauptung
+   <name>`, `BEMYSELF-LEAN-FOREIGN <name> <modul>` oder
+   `BEMYSELF-LEAN-ERROR <detail>`); genau eine zur Behauptung
    passende Zeile wird akzeptiert, keine oder mehrere sind `UNVERIFIABLE`,
    und eine AXIOMS-Zeile gilt nur zusammen mit Exit 0.
 
-Ausfuehrungspolitik: die Build-Stufe fuehrt Repo-Code aus und laesst sich
-nicht vermeiden (sie liefert das Artefakt). Dateien und eine
+Ausfuehrungspolitik: die Build-Stufe fuer Abhaengigkeiten fuehrt Repo-Code
+aus und laesst sich nicht vermeiden. Die gepruefte Datei und eine
 `lakefile.lean`, die zur Elaborationszeit sichtbar Code ausfuehren
 (`#eval`, `#exec`, `run_cmd`, `run_elab`), werden darum nicht geprueft und
-bleiben `UNVERIFIABLE`; verdeckte Formen (eigene Elaboratoren,
-`native_decide`, Code in Abhaengigkeitsmodulen) erkennt diese Politik
-nicht. Wer sie einsetzt, kann die Herkunft des Artefakts von der geprueften
-Datei entkoppeln und liegt ausserhalb der Zusicherung; Build-Ausgabe kann
-ein Urteil in jedem Fall nur herabstufen, nie zu `CONFIRMED` heben.
+bleiben `UNVERIFIABLE`; importierte Module erfasst diese Politik nicht,
+verdeckte Formen (eigene Elaboratoren, `native_decide`) ebenfalls nicht.
+Wer sie einsetzt, kann die Abhaengigkeits-Artefakte manipulieren und liegt
+ausserhalb der Zusicherung; Build-Ausgabe kann ein Urteil in jedem Fall nur
+herabstufen, nie zu `CONFIRMED` heben.
 
 Urteile: `CONFIRMED` nur bei einer AXIOMS-Zeile (Exit 0) fuer genau diesen
 Namen ohne `sorryAx` (die kanonische Evidenzzeile `'<name>' does not depend
@@ -354,13 +362,16 @@ im Urteil; logische Grundaxiome inklusive -- `CONFIRMED` heisst nicht
 "axiomfrei"). `REFUTED` bei `sorryAx`, bei `lcProof` (der Kernel hat den
 Rumpf nicht geprueft, z.B. `unsafe`), bei einer Deklaration, die selbst ein
 Axiom ist (ihr Name in der eigenen Axiomliste -- da ist kein Beweis), bei
+FOREIGN (die Deklaration ist im geprueften Modul nicht definiert, sondern
+nur importiert), bei
 UNKNOWN (Deklaration fehlt im
 Artefakt), bei fehlender Datei im Commit, bei non-blob und bei
 Kompilierfehler der Datei. `UNVERIFIABLE` ohne lean/lake/leanchecker im
 PATH, ohne nutzbaren Sandkasten, bei unbekanntem Sandkasten-Modus, ohne
 Commit, bei ungueltigem Pfad/Namen, bei Timeout je Stufe (600 s), bei
 Ausgabe ueber dem Limit, bei fehlgeschlagenem Kernel-Recheck, bei
-unlesbarer Abfrage, bei fehlendem frischem Artefakt und bei
+unlesbarer Abfrage, bei fehlendem frischem Artefakt, bei einer waehrend des
+Builds veraenderten Datei und bei
 Dependency-/Umgebungsfehlern -- ein
 Dependency-Fehler zaehlt nur, wenn der fehlende Modulname in den
 `import`-Zeilen der Datei steht (oder eine Netz-/Toolchain-Meldung

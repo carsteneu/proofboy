@@ -5,29 +5,37 @@ A LEAN claim asserts that in the report's pinned commit the named Lean source
 file exists and the named declaration is proved there without ``sorry`` or
 ``admit``. The verifier re-derives the claim with the real toolchain in three
 stages, all inside the bwrap sandbox:
-1. **Build.** The pinned commit is checked out into a throwaway directory,
-   the project's own build artifacts are discarded (a symlinked build
-   directory is unlinked, not emptied), and the file's module is built from
-   the pinned source (``lake build <module>`` for a Lake project, ``lean -o``
-   for a standalone file). The build executes repository code (tactics,
-   ``#eval``, initializers); nothing it prints is evidence, and a successful
-   build must leave a freshly written artifact behind (existence and mtime
-   after the build started) or the claim stays unverifiable.
-2. **Kernel re-check.** ``leanchecker <module>`` re-checks the compiled
-   artifact's declarations with Lean's kernel. Re-check and query call the
-   toolchain directly -- never ``lake``, whose lakefile is repository code
-   that would share the evidence channel -- with a search path whose first
-   entry is the toolchain's own library directory (``lean --print-libdir``),
-   so the inspected tree cannot shadow the query program's imports.
-3. **Axiom query.** The checker's own program (``bemyself/tools/lean_axioms.lean``)
+1. **Dependencies.** The pinned commit is checked out into a throwaway
+   directory, the project's own build artifacts are discarded (a symlinked
+   build directory is unlinked, a path whose real target leaves the
+   checkout is never touched), and ``lake build <module>`` builds the
+   dependency graph. The build executes repository code; its artifact is
+   *not* the evidence, because the lakefile decides through ``srcDir`` and
+   targets which source a module is.
+2. **Compile the checked file itself.** A copy of the pinned file is
+   compiled into the checker's own directory inside the checkout
+   (``lean -R <dir> -o <artifact>``); this artifact is the evidence. The
+   file must have survived the dependency build unchanged
+   (``git status --porcelain``) and the artifact must be freshly written,
+   otherwise the claim stays unverifiable -- so neither a lakefile redirect
+   nor a dependency module rewriting the checked file can move the evidence
+   to another source.
+3. **Kernel re-check.** ``leanchecker <module>`` re-checks the artifact's
+   declarations with Lean's kernel. Re-check and query call the toolchain
+   directly -- never ``lake``, whose lakefile is repository code that would
+   share the evidence channel -- with a search path whose first entry is
+   the toolchain's own library directory (``lean --print-libdir``), so the
+   inspected tree cannot shadow the query program's imports.
+4. **Axiom query.** The checker's own program (``bemyself/tools/lean_axioms.lean``)
    loads the artifact as *data* at runtime (``importModules``, the module is
    never imported at elaboration time) and prints the declaration's axiom
-   list; an AXIOMS line only counts together with exit status 0. No
-   repository code executes in that process -- not a tactic, not a macro,
-   not an ``initialize`` block -- so the answer cannot be forged or
-   suppressed by the inspected project: the only writer is the query
-   program, and the axiom data comes from the artifact the kernel just
-   re-checked.
+   list; an AXIOMS line only counts together with exit status 0, and the
+   declaration must be defined in the checked module itself (a name that
+   only lives in an imported module is reported as foreign). No repository
+   code executes in that process -- not a tactic, not a macro, not an
+   ``initialize`` block -- so the answer cannot be forged or suppressed by
+   the inspected project: the only writer is the query program, and the
+   axiom data comes from the artifact the kernel just re-checked.
 
 Verdicts. CONFIRMED only when the query answers for exactly that declaration
 (with exit status 0) and the list names no ``sorryAx``; the canonical
@@ -38,22 +46,23 @@ logical foundations such as ``propext``, ``Quot.sound`` or
 on ``sorryAx`` (``depends on axioms: [sorryAx]``), on ``lcProof`` (the
 kernel did not check the body, e.g. an ``unsafe`` declaration), on a
 declaration that is itself an axiom (its own name in its axiom list), on a
-declaration missing from the artifact, and on a build error that names the
+declaration that is only imported rather than defined in the checked file,
+on a declaration missing from the artifact, and on a compile error of the
 checked file. UNVERIFIABLE otherwise: no toolchain, no sandbox, no commit,
 invalid path or name, timeout, a failed kernel re-check, a missing fresh
-artifact, an unreadable answer, and any dependency problem -- a missing
-dependency is never evidence against the theorem, and a failed build that
-does not name the checked file is never a refutation.
+artifact, a file the dependency build changed, an unreadable answer, and any
+dependency problem -- a missing dependency is never evidence against the
+theorem, and a failed build that does not name the checked file is never a
+refutation.
 
-Execution policy. The build runs repository code and cannot avoid it (it
-delivers the artifact the kernel re-checks). Files -- and a
-``lakefile.lean`` -- that visibly execute code at elaboration time
+Execution policy. Building the dependencies runs repository code and cannot
+be avoided. Sources that visibly execute code at elaboration time
 (``#eval``, ``#exec``, ``run_cmd``, ``run_elab``) are therefore not checked
-and stay UNVERIFIABLE: their build chain cannot be vouched for. Hidden
-forms of execution (custom elaborators, ``native_decide``, code inside
-dependency modules) are not caught by that policy; a repository using them
-can decouple the artifact's provenance from the checked file and lies
-outside what this check guarantees. Build output can only downgrade a
+-- the checked file and a ``lakefile.lean`` alike -- and stay UNVERIFIABLE:
+their build chain cannot be vouched for. Imported modules and hidden forms
+of execution (custom elaborators, ``native_decide``) are not caught by that
+policy; a repository using them can manipulate the dependency artifacts and
+lies outside what this check guarantees. Build output can only downgrade a
 verdict, never lift one to CONFIRMED.
 
 Isolation. Elaboration and building execute code, and ``lake`` would fetch
@@ -135,6 +144,7 @@ _ANSWER_RE = re.compile(
     r"\ABEMYSELF-LEAN-AXIOMS (?P<name>[^\s]+) \[(?P<axioms>[^\]\n]*)\]\s*\Z"
 )
 _UNKNOWN_RE = re.compile(r"\ABEMYSELF-LEAN-UNKNOWN (?P<name>[^\s]+)\s*\Z")
+_FOREIGN_RE = re.compile(r"\ABEMYSELF-LEAN-FOREIGN (?P<name>[^\s]+) (?P<module>[^\s]+)\s*\Z")
 _QUERY_ERROR_RE = re.compile(r"\ABEMYSELF-LEAN-ERROR (?P<detail>.*)\Z")
 # An axiom name that means "this proof was not kernel-checked": `lcProof` is
 # what an `unsafe` declaration's dependency list carries.
@@ -415,6 +425,10 @@ def _query_answer(text, theorem):
         if match and match.group("name") == theorem:
             found.append(("unknown", None))
             continue
+        match = _FOREIGN_RE.match(line)
+        if match and match.group("name") == theorem:
+            found.append(("foreign", match.group("module")))
+            continue
         match = _QUERY_ERROR_RE.match(line)
         if match:
             found.append(("error", match.group("detail").strip()))
@@ -581,7 +595,7 @@ def check(claim, ctx):
         project = _lake_project(checkout, os.path.dirname(real_file))
         lake = None
         module = None
-        build_dir = None
+        build_dir = os.path.join(checkout, _BUILD_DIR)
         if project is not None:
             lake = _find_tool("lake")
             module = _module_name(project, real_file)
@@ -609,7 +623,6 @@ def check(claim, ctx):
                     "",
                     f"the file name of {path!r} is not a Lean module name",
                 )
-            build_dir = os.path.join(checkout, _BUILD_DIR)
             try:
                 os.makedirs(build_dir, exist_ok=True)
             except OSError as exc:
@@ -674,18 +687,29 @@ def check(claim, ctx):
         elan_home = _elan_home(lean)
         if elan_home is not None:
             env["ELAN_HOME"] = elan_home
-            # The operator's explicit choice wins; otherwise pin the sole
-            # installed toolchain when no lean-toolchain file is in reach, so
-            # the shim does not query its release server (no network here).
+            # The operator's explicit choice wins. Otherwise pin the toolchain
+            # explicitly: the runs use cwd=<checkout>, so a project's
+            # `lean-toolchain` file (which may live deeper in the tree) is not
+            # an ancestor and the shim would query its release server (no
+            # network in the sandbox) on every invocation.
             operator_choice = os.environ.get("ELAN_TOOLCHAIN")
-            if operator_choice:
-                env["ELAN_TOOLCHAIN"] = operator_choice
-            elif _project_toolchain_file(project or os.path.dirname(real_file)) is None:
-                sole = _sole_toolchain(elan_home)
-                if sole is not None:
-                    env["ELAN_TOOLCHAIN"] = sole
-        if build_dir is not None:
-            env["LEAN_PATH"] = build_dir
+            pin = operator_choice
+            if not pin:
+                toolchain_file = _project_toolchain_file(
+                    project or os.path.dirname(real_file)
+                )
+                if toolchain_file is not None:
+                    try:
+                        with open(toolchain_file, encoding="utf-8") as handle:
+                            value = handle.readline().strip()
+                    except OSError:
+                        value = ""
+                    if value and not any(char.isspace() for char in value):
+                        pin = value
+                if not pin:
+                    pin = _sole_toolchain(elan_home)
+            if pin:
+                env["ELAN_TOOLCHAIN"] = pin
         cache_note = ""
         if extra_binds:
             cache_note = (
@@ -776,50 +800,145 @@ def check(claim, ctx):
                     f"the Lake toolchain could not run ({lake_preflight[0]} --version): {detail}",
                 )
 
-        # --- stage 1: build the pinned source ---------------------------------
-        # The build executes repository code: its output is diagnostic only,
-        # never evidence. Discarding the project's own build artifacts first
-        # keeps a committed artifact from standing in for the build (a symlink
-        # survives rmtree, so it is unlinked instead).
+        # --- stage 1: build the dependencies (repository code, diagnostics only) --
+        # A Lake project's dependency graph is built first, but its output is
+        # never the evidence: lake maps modules through the repository's own
+        # lakefile (`srcDir`, targets), so an artifact of that build may come
+        # from a different source than the checked file.
         if project is not None:
             build_root = os.path.join(project, ".lake", "build")
-            if os.path.islink(build_root) or os.path.isfile(build_root):
-                try:
-                    os.unlink(build_root)
-                except OSError:
-                    pass
-            else:
-                shutil.rmtree(build_root, ignore_errors=True)
-            parts = module.split(".")
-            search_root = os.path.join(build_root, "lib", "lean")
-            artifact = os.path.join(search_root, *parts[:-1], f"{parts[-1]}.olean")
-            build = [lake, "build", module]
-            cwd = project
-        else:
-            shutil.rmtree(build_dir, ignore_errors=True)
-            try:
-                os.makedirs(build_dir, exist_ok=True)
-            except OSError as exc:
+            if not _discard_path(build_root, checkout):
                 return Result(
                     Verdict.UNVERIFIABLE,
                     command_desc,
                     "",
-                    f"cannot recreate the build directory in the checkout: {exc}",
+                    f"the build directory {build_root!r} resolves outside the checkout; "
+                    f"it was not touched",
                 )
-            artifact = os.path.join(build_dir, f"{module}.olean")
-            search_root = build_dir
-            build = [lean, "-o", artifact, real_file]
-            cwd = os.path.dirname(real_file)
+            build = [lake, "build", module]
+            cwd = project
+            run_argv, shown = wrapped(build, " ".join(build), cwd)
+            run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-build-")
+            if run.error is not None:
+                return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
+            if run.returncode is None:
+                return unverifiable(run, shown, f"the Lean build timed out after {LEAN_TIMEOUT}s")
+            if run.truncated:
+                return unverifiable(
+                    run, shown, "the Lean build exceeded the output limit; its outcome cannot be verified"
+                )
+            if run.returncode != 0:
+                combined = run.head + "\n" + run.tail
+                first = _first_error_line(combined)
+                if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+                    return unverifiable(
+                        run, shown, f"the sandbox could not run the command: {first}"
+                    )
+                if extra_binds and _READONLY_CACHE_RE.search(combined):
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"the dependency packages bound read-only from {extra_binds[0][0]} "
+                        f"carry no compiled artifacts for this build; the project cannot "
+                        f"be built offline: {first}",
+                    )
+                if _missing_dependency(combined, imports) is not None:
+                    return unverifiable(
+                        run,
+                        shown,
+                        f"a dependency of {path!r} is not available in the checkout "
+                        f"(no network, no complete dependency cache); the build was "
+                        f"not checked: {first}",
+                    )
+                if _blames_the_file(first, real_file, checkout, project):
+                    return refuted(
+                        run,
+                        shown,
+                        f"the file does not compile: {first}",
+                        output=checks._last_lines(combined),
+                    )
+                return unverifiable(
+                    run,
+                    shown,
+                    f"the project did not build; the first reported problem is "
+                    f"outside {path!r}: {first}",
+                )
+
+            # The repository's build ran; the checked file must have survived it.
+            dirty = checks._run_git(
+                ["git", "-C", checkout, "status", "--porcelain", "--", path],
+                checks.GIT_TIMEOUT,
+            )
+            if dirty.returncode != 0 or dirty.stdout.strip():
+                return unverifiable(
+                    None,
+                    "",
+                    f"the checked file changed during the project's build; an artifact "
+                    f"would not describe the pinned source",
+                )
+
+        # --- stage 1b: compile the checked file itself ------------------------
+        # The evidence artifact is compiled from a copy of the pinned file:
+        # never through the lakefile-driven build, and never through the
+        # checked file's own path, which the build step may have rewritten.
+        # The toolchain's library directory leads the search path so the
+        # inspected tree cannot shadow the query program's imports or Lean's
+        # own modules; then comes the artifact compiled from the pinned file,
+        # then the dependency artifacts the project's build produced.
+        evidence_dir = os.path.join(build_dir, "evidence")
+        search = [libdir, evidence_dir]
+        if project is not None:
+            search.append(os.path.join(build_root, "lib", "lean"))
+            packages = os.path.join(project, ".lake", "packages")
+            if os.path.isdir(packages):
+                for name in sorted(os.listdir(packages)):
+                    candidate = os.path.join(packages, name, ".lake", "build", "lib", "lean")
+                    if os.path.isdir(candidate):
+                        search.append(candidate)
+        env["LEAN_PATH"] = os.pathsep.join(search)
+        evidence_name = os.path.basename(real_file)[: -len(".lean")]
+        if not _module_part(evidence_name):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"the file name of {path!r} is not a Lean module name",
+            )
+        if not _discard_path(build_dir, checkout):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"the build directory {build_dir!r} resolves outside the checkout; "
+                f"it was not touched",
+            )
+        evidence_dir = os.path.join(build_dir, "evidence")
+        evidence_file = os.path.join(evidence_dir, f"{evidence_name}.lean")
+        artifact = os.path.join(evidence_dir, f"{evidence_name}.olean")
+        try:
+            os.makedirs(evidence_dir, exist_ok=True)
+            shutil.copyfile(real_file, evidence_file)
+        except OSError as exc:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"cannot prepare the evidence directory in the checkout: {exc}",
+            )
+        compile_cmd = [lean, "-R", evidence_dir, "-o", artifact, evidence_file]
+        cwd = evidence_dir
         started = time.time()
-        run_argv, shown = wrapped(build, " ".join(build), cwd)
-        run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-build-")
+        run_argv, shown = wrapped(compile_cmd, " ".join(compile_cmd), cwd)
+        run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-compile-")
         if run.error is not None:
             return Result(Verdict.UNVERIFIABLE, command_desc, "", run.error + note_suffix)
         if run.returncode is None:
-            return unverifiable(run, shown, f"the Lean build timed out after {LEAN_TIMEOUT}s")
+            return unverifiable(run, shown, f"the Lean compile timed out after {LEAN_TIMEOUT}s")
         if run.truncated:
             return unverifiable(
-                run, shown, "the Lean build exceeded the output limit; its outcome cannot be verified"
+                run,
+                shown,
+                "the Lean compile exceeded the output limit; its outcome cannot be verified",
             )
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
@@ -836,31 +955,22 @@ def check(claim, ctx):
                     f"carry no compiled artifacts for this build; the project cannot "
                     f"be built offline: {first}",
                 )
-            if _missing_dependency(combined, imports) is not None:
+            if _missing_dependency(combined, imports) is not None or "unknown module prefix" in combined:
                 return unverifiable(
                     run,
                     shown,
                     f"a dependency of {path!r} is not available in the checkout "
-                    f"(no network, no complete dependency cache); the build was "
-                    f"not checked: {first}",
+                    f"(no network, no complete dependency cache); the file was not "
+                    f"checked: {first}",
                 )
-            if _blames_the_file(first, real_file, checkout, project):
-                return refuted(
-                    run,
-                    shown,
-                    f"the file does not compile: {first}",
-                    output=checks._last_lines(combined),
-                )
-            return unverifiable(
+            return refuted(
                 run,
                 shown,
-                f"the project did not build; the first reported problem is "
-                f"outside {path!r}: {first}",
+                f"the file does not compile: {first}",
+                output=checks._last_lines(combined),
             )
 
-        # A successful build must have produced the module's own artifact,
-        # written after the build started: a build that ends early (or only
-        # appears to run) leaves nothing to re-check.
+        # The artifact must come from the compile that just ran.
         try:
             fresh = os.path.isfile(artifact) and os.path.getmtime(artifact) >= started - 1.0
         except OSError:
@@ -869,28 +979,13 @@ def check(claim, ctx):
             return unverifiable(
                 run,
                 shown,
-                f"the build produced no freshly compiled artifact for module "
-                f"{module!r}; there is nothing to re-check",
+                f"the compile produced no freshly compiled artifact for module "
+                f"{evidence_name!r}; there is nothing to re-check",
             )
 
-        # The evidence stages run the toolchain directly -- never `lake`, whose
-        # lakefile is repository code that would share the evidence channel.
-        # The search path starts with the toolchain's own library directory so
-        # the inspected tree cannot shadow the query program's imports, then
-        # the project's fresh build output, then the dependency artifacts.
-        search = [libdir, search_root]
-        if project is not None:
-            packages = os.path.join(project, ".lake", "packages")
-            if os.path.isdir(packages):
-                for name in sorted(os.listdir(packages)):
-                    candidate = os.path.join(packages, name, ".lake", "build", "lib", "lean")
-                    if os.path.isdir(candidate):
-                        search.append(candidate)
-        env["LEAN_PATH"] = os.pathsep.join(search)
-
         # --- stage 2: kernel re-check of the artifact -------------------------
-        recheck = [leanchecker, module]
-        cwd = project if project is not None else os.path.dirname(real_file)
+        recheck = [leanchecker, evidence_name]
+        cwd = checkout
         run_argv, shown = wrapped(recheck, " ".join(recheck), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-recheck-")
         if run.error is not None:
@@ -914,8 +1009,8 @@ def check(claim, ctx):
             )
 
         # --- stage 3: the axiom query (no repository code runs here) ----------
-        query = [lean, "--run", _QUERY_PROGRAM, module, theorem]
-        cwd = project if project is not None else os.path.dirname(real_file)
+        query = [lean, "--run", _QUERY_PROGRAM, evidence_name, theorem]
+        cwd = checkout
         run_argv, shown = wrapped(query, " ".join(query), cwd)
         run = _run(run_argv, cwd, env, LEAN_TIMEOUT, ctx.tmp_dir, "lean-query-")
         if run.error is not None:
@@ -957,6 +1052,14 @@ def check(claim, ctx):
                 run,
                 shown,
                 f"declaration not found: {theorem!r} is not in the compiled artifact of {path!r}",
+                output=checks._last_lines(combined),
+            )
+        if status == "foreign":
+            return refuted(
+                run,
+                shown,
+                f"the declaration is not defined in {path!r}: the artifact re-exports it "
+                f"from module {payload!r}, so the file does not prove it",
                 output=checks._last_lines(combined),
             )
         axioms = payload
@@ -1006,17 +1109,42 @@ def check(claim, ctx):
         shutil.rmtree(checkout, ignore_errors=True)
 
 
+def _discard_path(path, checkout):
+    """Remove a build path inside the checkout, symlinks included.
+
+    ``shutil.rmtree`` refuses symlinks and follows a symlinked parent, which
+    would delete host files outside the checkout; a path whose real location
+    leaves the checkout is never touched (the caller refuses instead).
+    """
+    real = os.path.realpath(path)
+    root = os.path.realpath(checkout)
+    inside = real == root or real.startswith(root + os.sep)
+    if os.path.islink(path) or os.path.isfile(path):
+        if not os.path.realpath(os.path.dirname(path)).startswith(root):
+            return False
+        os.unlink(path)
+        return True
+    if not inside:
+        return False
+    shutil.rmtree(path, ignore_errors=True)
+    return True
+
+
 def _blames_the_file(first_line, real_file, checkout, project):
     """Does one error line point at the checked file?
 
-    Lake reports paths relative to the project, Lean reports them relative to
-    the working directory or absolute; a bare basename counts only when the
-    reported path has no directory part, so a same-named file elsewhere cannot
-    be mistaken for the checked one.
+    Lake prefixes Lean's lines with ``error: ``, Lean reports paths relative
+    to the working directory, the project or absolute; a bare basename counts
+    only when the reported path has no directory part, so a same-named file
+    elsewhere cannot be mistaken for the checked one.
     """
     if not first_line:
         return False
-    reported = first_line.split(":", 1)[0].strip()
+    line = first_line.strip()
+    for prefix in ("error: ", "warning: ", "info: "):
+        while line.lower().startswith(prefix):
+            line = line[len(prefix) :].strip()
+    reported = line.split(":", 1)[0].strip()
     if not reported:
         return False
     if reported in (real_file, os.path.basename(real_file)):
