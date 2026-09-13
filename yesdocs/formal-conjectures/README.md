@@ -279,6 +279,12 @@ keine Lösung der Vermutung; die Beobachtungen liegen teils **unter** den
 öffentlich dokumentierten Bestwerten (bbchallenge: 10^8 Iterationen für BMO#1;
 OEIS-Kommentare führen Tests weit über 10^4).
 
+Semantik-Abgleich (BMO#8): Die Reformulierung rechnet über `ℤ`, unser Probe
+spiegelt sie mit Pythons `//`. Beide Divisionssemantiken wurden gegeneinander
+geprüft: `#eval ((-7 : Int) / 2)` → `-4` unter Lean 4.33.1 (Projekt
+`lean/erdos-straus`, mathlib `v4.33.1`), identisch zu `(-7) // 2` in Python —
+die Spiegelung ist geprüft, nicht angenommen.
+
 Reproduktion (deterministisch, byte-identisch wiederholbar):
 
 ```bash
