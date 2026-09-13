@@ -24,13 +24,14 @@ Runde 2 (V12): Reparatur-Loop. Runde 0 laeuft wie der Pilot; ist der
 Endzustand danach nicht bestaetigt, folgt eine Reparaturrunde (max.
 ``--max-repairs``, Default 2) mit dem Verdikt-Appendix des Runners im
 Verlauf. K erhaelt stattdessen eine neutrale Selbstpruefung; die Formel-Arme
-(B/C/D) erhalten ihre eigenen maschinell geprueften Verdikte -- niemals
-Referenzwerte (Gold-Leak-Schutz in :func:`feedback_lines`).
+(B/C/D und die RC-Varianten C0/C1/C2) erhalten ihre eigenen maschinell
+geprueften Verdikte -- niemals Referenzwerte (Gold-Leak-Schutz in
+:func:`feedback_lines`).
 
 Runde 3 (V13, Haerte): zwei Begriffe, getrennt gefuehrt --
 
 - **Erfolg** ist der tier-typisierte Endzustand einer Runde: Zahl exakt (K)
-  bzw. Beleg-Blatt bestaetigt (B/C/D), alle Checkpoints exakt (trace),
+  bzw. Beleg-Blatt bestaetigt (B/C/D, C0/C1/C2), alle Checkpoints exakt (trace),
   Zyklus-Zertifikat maschinenverifiziert (cyc, auch ohne Vorgabe).
 - **Trigger** ist das Ereignis, das die *naechste* Runde ausloest:
   ``end_state_not_confirmed`` (siehe :data:`TRIGGER_NOT_CONFIRMED`). Er steht
@@ -50,6 +51,7 @@ Befunde durchreichen.
 Aufrufe::
 
     python3 harness.py batch --arms K,B,C,D --reps 2 --tier-a 16 --tier-b 8
+    python3 harness.py batch --arms C0,C1,C2 --task-ids B3-0001,B3-0005,A3-0016 --reps 1
     python3 harness.py one --arm C --task A3-0008 --rep 1
     python3 harness.py dry --arm C --task B3-0005
 
@@ -112,7 +114,8 @@ _TIER_B_SET = "tier_b_v11-b-0.3.json"
 # Runde-2-Fairness-Design: Diese Arme erhalten in der Reparaturrunde ihre
 # eigenen maschinellen Verdikte (Appendix + Befunde). K erhaelt die neutrale
 # Selbstpruefung -- Verdikte, die es nicht gibt, werden nicht erfunden.
-MACHINE_FEEDBACK_ARMS = ("B", "C", "D")
+# C0/C1/C2 (V15) sind C-Varianten der RC-Umstellung und erben den Rueckkanal.
+MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2")
 
 # Der einzige Trigger der Rundenkette (Haerte-Runde V13): der typisierte
 # Endzustand der Runde ist nicht bestaetigt, es folgt die naechste Runde.
@@ -365,7 +368,7 @@ def evaluate_answer(arm, task, answer, evidence_out=None):
         fragment["first_deviation"] = first_deviation
         fragment["checkpoints"] = pairs
         fragment["solved"] = matched == len(task["checkpoints_gold"])
-        if arm in ("B", "C", "D"):
+        if arm in ("B", "C", "D", "C0", "C1", "C2"):
             sheet, result = _sheet_evaluation(answer)
             if evidence_out is not None:
                 evidence_out["sheet"] = sheet
@@ -631,6 +634,24 @@ def run_rounds(arm, task, rep, runs_root, args, call=None):
 
 
 def _select_tasks(tier_a, tier_b, args):
+    """The task list of one batch.
+
+    ``--task-ids`` (comma list) selects exactly the named tasks, in the given
+    order -- the reproducible-subset path (V15). Without it the seeded shuffle
+    of the historical rounds applies unchanged.
+    """
+    task_ids = getattr(args, "task_ids", None)
+    if task_ids:
+        wanted = [part.strip() for part in task_ids.split(",") if part.strip()]
+        if len(wanted) != len(set(wanted)):
+            raise ValueError(
+                f"duplicate task ids: {', '.join(sorted({t for t in wanted if wanted.count(t) > 1}))}"
+            )
+        by_id = {task["id"]: task for task in tier_a["tasks"] + tier_b["tasks"]}
+        missing = [task_id for task_id in wanted if task_id not in by_id]
+        if missing:
+            raise ValueError(f"unknown task ids: {', '.join(missing)}")
+        return [by_id[task_id] for task_id in wanted]
     rng = random.Random(args.seed)
     a_tasks = list(tier_a["tasks"])
     b_tasks = list(tier_b["tasks"])
@@ -742,6 +763,7 @@ def main(argv=None):
     batch = sub.add_parser("batch", help="run the pilot matrix")
     batch.add_argument("--arms", default="K,B,C")
     batch.add_argument("--reps", type=int, default=2)
+    batch.add_argument("--task-ids", default=None, help="comma list of exact task ids (in order; skips the seeded shuffle and the tier caps; empty string falls back to the shuffle)")
     batch.add_argument("--tier-a", type=int, default=None, help="max Tier-A tasks")
     batch.add_argument("--tier-b", type=int, default=None, help="max Tier-B tasks")
     batch.add_argument("--seed", type=int, default=20260912)

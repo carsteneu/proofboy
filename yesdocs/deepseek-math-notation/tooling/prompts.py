@@ -8,6 +8,11 @@ Die Arme unterscheiden sich nur in Präambel und Antwortkonvention:
 - C  V1.1: Tag-Kopfzeilen, Status-Register, Kuerzel, kompakter Stil,
       v-Zeugen (auto/py/range/ref/sim/cyc).
 - D  C + Zeugenpflicht fuer jede =-Konsequenz + Verdikt-Rueckkanal.
+- C0/C1/C2 (V15, RC-Umstellung, 2026-09-13): C0 = C (V13-Stand, Kontrolle);
+      C1 = C + starke RC-Instruktion (Denkspur laeuft in V1.1-Zeilen, keine
+      Prosa); C2 = C1 + vollstaendiges RC-Beispiel. Adressiert wird nur der
+      unsichtbare Denkkanal (reasoning_content); sichtbare Zone und
+      Antwortkonventionen bleiben identisch zu C.
 
 Der Aufgabenkern bleibt arm-unabhaengig (task['prompt']); die Antwort-
 konvention pro Arm und Tier steht in ``answer_instruction``. Fuer
@@ -121,7 +126,41 @@ LEGEND_D = LEGEND_C.replace(
     "Zeugenpflicht: Jede =-Konsequenz traegt ein v; h-Zeilen ohne Zeugen gelten als offen.",
 )
 
-LEGENDS = {"K": LEGEND_K, "B": LEGEND_B, "C": LEGEND_C, "D": LEGEND_D}
+# --- V15 RC-Umstellung (2026-09-13): die reasoning_content-Denkspur ---------
+#
+# C0/C1/C2 variieren ausschliesslich die Instruktion an den *unsichtbaren*
+# Denkkanal; die sichtbare Zone und die Antwortkonventionen bleiben identisch
+# zu C. C0 ist darum byte-identisch zu LEGEND_C (V13-Stand als Kontrolle).
+
+RC_STRONG = """
+
+Denkspur-Zusatz (reasoning_content): Deine vollstaendige Denkspur laeuft in
+derselben V1.1-Sprache wie die Denkzone -- jede Zeile traegt einen gueltigen
+Tag-Kopf (g:/d:/a:/c:/h:/v:/q:/=:) mit kurzem Inhalt, Status-Mini-Zeilen
+(+/-/?/!) wo noetig. Keine Prosa-Absaetze, keine Erklaersaetze in Saetzen,
+auch keine Vorrede in Worten; ein Zug pro Zeile. Denkfehler sind erlaubt,
+Prosa-Zeilen nicht."""
+
+RC_EXAMPLE = """
+
+Beispiel einer Denkspur (nur zur Form, beliebige Werte):
+g: (12+30)%7?
+a: 12+30=42
+c: 42=6*7+0 -> Rest 0
+h1: ((12+30)%7)=0
+v h1: auto
+h1+
+=: Rest 0 (h1+)"""
+
+LEGENDS = {
+    "K": LEGEND_K,
+    "B": LEGEND_B,
+    "C": LEGEND_C,
+    "D": LEGEND_D,
+    "C0": LEGEND_C,
+    "C1": LEGEND_C + RC_STRONG,
+    "C2": LEGEND_C + RC_STRONG + RC_EXAMPLE,
+}
 
 
 def _answer_instruction(arm, task):
