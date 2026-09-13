@@ -43,6 +43,18 @@ def checker_for(kind: str) -> Callable | None:
     return claim_type.check if claim_type is not None else None
 
 
+def marker_tokens(claim_type: ClaimType) -> tuple[str, ...]:
+    """The marker tokens a claim type claims, resolved.
+
+    A type that does not declare ``markers`` claims the upper-cased kind --
+    the convention every built-in type follows, so the common case stays
+    declarative without spelling the token out. ``SCORE`` is the exception
+    that needs the field: the halt type consumes it beside its ``HALT``
+    marker.
+    """
+    return claim_type.markers or (claim_type.kind.upper(),)
+
+
 def type_needs_repo(kind: str) -> bool:
     """Whether the registered optional claim kind declares a repo need.
 

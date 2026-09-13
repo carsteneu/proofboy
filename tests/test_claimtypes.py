@@ -341,5 +341,41 @@ class CaptureCostTest(unittest.TestCase):
         self.assertEqual(self.parsed_within_budget("[HALT: M " + "->" * 700 + " "), [])
 
 
+class MarkerTokenTest(unittest.TestCase):
+    """Which marker tokens are claimed: read from the live registry (P19)."""
+
+    def even_type(self):
+        def check(claim, ctx):
+            return Result(Verdict.CONFIRMED, reason="even")
+
+        def parse(match, raw):
+            return {"value": match.group(1)}
+
+        return ClaimType(
+            kind="even",
+            pattern=re.compile(r"\[EVEN: (\d+)\]"),
+            parse=parse,
+            check=check,
+        )
+
+    def test_the_live_registry_decides_which_tokens_are_known(self):
+        marker = "[EVEN: 42]\n"
+        self.assertEqual(
+            [claim.kind for claim in parse_report(marker)], ["unknown_marker"]
+        )
+        with mock.patch.object(
+            claimtypes, "CLAIM_TYPES", claimtypes.CLAIM_TYPES + (self.even_type(),)
+        ):
+            self.assertEqual([claim.kind for claim in parse_report(marker)], ["even"])
+
+    def test_every_registered_type_claims_its_upper_case_kind(self):
+        for claim_type in claimtypes.CLAIM_TYPES:
+            with self.subTest(kind=claim_type.kind):
+                self.assertIn(claim_type.kind.upper(), claimtypes.marker_tokens(claim_type))
+
+    def test_halt_declares_its_second_token(self):
+        self.assertEqual(halt.HALT.markers, ("HALT", "SCORE"))
+
+
 if __name__ == "__main__":
     unittest.main()

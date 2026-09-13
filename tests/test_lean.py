@@ -1293,9 +1293,17 @@ class LeanCheckTest(unittest.TestCase):
             )
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
         with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
-            elan_home, toolchain = handle.read().splitlines()[-1].split("|")[:2]
+            elan_home, toolchain, _lean_path, home = handle.read().splitlines()[-1].split("|")
         self.assertIn("elan-home", elan_home)
-        self.assertNotIn("checkout", elan_home)
+        # The neutral root must not be derived from the run's HOME (the
+        # throwaway checkout, where repository code could plant an elan home).
+        # A substring check on "checkout" asked the wrong question: it failed
+        # whenever the neutral root's own path contained that word -- which is
+        # the rule inside the verifier's sandbox, whose HOME is <tmp>/checkout-XXXX.
+        self.assertFalse(
+            os.path.abspath(elan_home).startswith(os.path.abspath(home) + os.sep),
+            f"the neutral elan root {elan_home} lies under the run's HOME {home}",
+        )
         self.assertEqual(toolchain, "")
 
     def test_a_request_with_an_unrecognized_shim_is_refused(self):

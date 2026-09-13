@@ -935,5 +935,252 @@ class RepoNeedRegistryTest(unittest.TestCase):
         self.assertEqual(claims[0]["verdict"], "CONFIRMED")
 
 
+class ProfileCliTest(unittest.TestCase):
+    """P19: ``--profile``, unknown markers and the negative-space line."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.repo = make_repo(os.path.join(cls._tmp.name, "fixture"))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def write_report(self, text, name="report.txt"):
+        path = os.path.join(self._tmp.name, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        return path
+
+    def invoke(self, *args, tmp=True):
+        command = [
+            sys.executable,
+            "-m",
+            "bemyself",
+            "check",
+            "--repo",
+            self.repo.path,
+        ]
+        if tmp:
+            command += ["--tmp", os.path.join(self._tmp.name, "tmp")]
+        return subprocess.run(
+            command + list(args), cwd=REPO_ROOT, capture_output=True, text=True
+        )
+
+    def payload(self, *args):
+        proc = self.invoke("--json", *args)
+        return proc, json.loads(proc.stdout)
+
+    def test_profile_violation_is_a_defect_without_strict(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+        )
+        proc = self.invoke("--report", report, "--profile", "yesloop-done")
+        self.assertEqual(proc.returncode, 5, proc.stdout + proc.stderr)
+        self.assertIn("yesloop-done", proc.stdout)
+        self.assertIn("tests_green/tests_exit", proc.stdout)
+        self.assertIn("defect: 1", proc.stdout)
+
+    def test_profile_violation_keeps_its_code_under_strict(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+        )
+        proc = self.invoke("--report", report, "--profile", "yesloop-done", "--strict")
+        self.assertEqual(proc.returncode, 5, proc.stdout + proc.stderr)
+
+    def test_a_complete_report_passes_the_profile(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+            "Tests run: python3 -m unittest test_ok -> exit 0\n"
+        )
+        proc, payload = self.payload("--report", report, "--profile", "yesloop-done")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(
+            [claim["kind"] for claim in payload["claims"]],
+            ["commit_exists", "branch_pushed", "tests_green"],
+        )
+
+    def test_a_template_report_violates_the_profile(self):
+        # The briefing template names no commit and no test run: the profile
+        # sees both classes missing and fails the report.
+        report = self.write_report(
+            "**send_to payload:** `[DONE] [COMMIT: <40-hex>] [BRANCH: main] [MERGE: no]`\n"
+            "Tests run: <cmd> -> exit 0\n"
+        )
+        proc, payload = self.payload("--report", report, "--profile", "yesloop-done")
+        self.assertEqual(proc.returncode, 5, proc.stdout + proc.stderr)
+        violation = [claim for claim in payload["claims"] if claim["kind"] == "profile"]
+        self.assertEqual(len(violation), 1)
+        self.assertEqual(violation[0]["class"], "defect")
+        self.assertIn("commit_exists", violation[0]["reason"])
+        self.assertIn("tests_green/tests_exit", violation[0]["reason"])
+
+    def test_unknown_profile_name_is_a_usage_error(self):
+        report = self.write_report("**send_to payload:** `[MERGE: no]`\n")
+        proc = self.invoke("--report", report, "--profile", "no-such-profile")
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("yesloop-done", proc.stderr)
+
+    def test_unknown_marker_is_a_defect(self):
+        report = self.write_report("**send_to payload:** `[FROB: 1]`\n")
+        proc, payload = self.payload("--report", report)
+        self.assertEqual(proc.returncode, 5, proc.stdout + proc.stderr)
+        claim = payload["claims"][0]
+        self.assertEqual(claim["kind"], "unknown_marker")
+        self.assertEqual(claim["class"], "defect")
+        self.assertIn("FROB", claim["reason"])
+
+    def test_ordinary_bracket_text_is_no_defect(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [sic] [1] [foo: bar]`\n"
+        )
+        proc, payload = self.payload("--report", report)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(
+            [claim["kind"] for claim in payload["claims"]], ["commit_exists"]
+        )
+
+    def test_a_placeholder_body_keeps_the_report_clean(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [FROB: <wert>]`\n"
+        )
+        proc, payload = self.payload("--report", report)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(
+            [claim["kind"] for claim in payload["claims"]], ["commit_exists"]
+        )
+
+    def test_negative_space_line_is_printed_with_a_profile(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+        )
+        proc = self.invoke("--report", report, "--profile", "yesloop-done")
+        self.assertIn(
+            "negativraum: gesucht: commit_exists, branch_pushed, tests_green/tests_exit; "
+            "gefunden: commit_exists, branch_pushed; gefehlt: tests_green/tests_exit",
+            proc.stdout,
+        )
+
+    def test_negative_space_line_marks_a_run_without_profile(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}]`\n"
+        )
+        proc = self.invoke("--report", report)
+        self.assertIn(
+            "negativraum: gesucht: keine (ohne --profile); "
+            "gefunden: commit_exists; gefehlt: keine",
+            proc.stdout,
+        )
+
+    def test_empty_report_distinguishes_nothing_found_from_nothing_sought(self):
+        report = self.write_report("nothing to verify here\n")
+        without = self.invoke("--report", report)
+        self.assertEqual(without.returncode, 3, without.stdout + without.stderr)
+        self.assertIn(
+            "negativraum: gesucht: keine (ohne --profile); gefunden: keine; gefehlt: keine",
+            without.stdout,
+        )
+        with_profile = self.invoke("--report", report, "--profile", "yesloop-done")
+        self.assertEqual(with_profile.returncode, 5, with_profile.stdout + with_profile.stderr)
+        self.assertIn("gefunden: keine", with_profile.stdout)
+        self.assertIn("gefehlt: commit_exists, branch_pushed, tests_green/tests_exit", with_profile.stdout)
+
+    def test_negative_space_is_machine_readable(self):
+        report = self.write_report(
+            f"**send_to payload:** `[COMMIT: {self.repo['good']}] [BRANCH: main]`\n"
+        )
+        proc, payload = self.payload("--report", report, "--profile", "yesloop-done")
+        self.assertEqual(
+            payload["negative_space"],
+            {
+                "profile": "yesloop-done",
+                "sought": [
+                    ["commit_exists"],
+                    ["branch_pushed"],
+                    ["tests_green", "tests_exit"],
+                ],
+                "found": ["commit_exists", "branch_pushed"],
+                "missing": [["tests_green", "tests_exit"]],
+            },
+        )
+
+    def test_negative_space_is_machine_readable_without_profile(self):
+        report = self.write_report("nothing to verify here\n")
+        proc, payload = self.payload("--report", report)
+        self.assertEqual(proc.returncode, 3, proc.stdout + proc.stderr)
+        self.assertEqual(
+            payload["negative_space"],
+            {"profile": None, "sought": [], "found": [], "missing": []},
+        )
+
+    def test_an_error_payload_carries_no_negative_space(self):
+        # Nothing was judged in an error run: the key would claim a finding
+        # that never happened.
+        proc, payload = self.payload("--report", os.path.join(self._tmp.name, "missing.txt"))
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("error", payload)
+        self.assertNotIn("negative_space", payload)
+
+
+class ListTypesTest(unittest.TestCase):
+    """P19: ``--list-types`` reads the claim-type registry, not a copy."""
+
+    def invoke(self, *args):
+        return subprocess.run(
+            [sys.executable, "-m", "bemyself", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_check_list_types_lists_every_registered_type(self):
+        proc = self.invoke("check", "--list-types")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        lines = {line.split()[0]: line for line in proc.stdout.splitlines() if line.strip()}
+        self.assertEqual(list(lines), [claim_type.kind for claim_type in claimtypes.CLAIM_TYPES])
+        for claim_type in claimtypes.CLAIM_TYPES:
+            with self.subTest(kind=claim_type.kind):
+                line = lines[claim_type.kind]
+                self.assertIn(
+                    f"needs_repo={claimtypes.type_needs_repo(claim_type.kind)}", line
+                )
+                self.assertIn(f"binds_commit={claim_type.binds_commit}", line)
+                for token in claimtypes.marker_tokens(claim_type):
+                    self.assertIn(token, line)
+
+    def test_list_types_works_without_a_subcommand(self):
+        proc = self.invoke("--list-types")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("compute", proc.stdout)
+
+    def test_list_types_needs_no_report_and_no_repo(self):
+        proc = self.invoke("check", "--list-types")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("--report", proc.stderr)
+
+    def test_list_types_json_is_machine_readable(self):
+        proc = self.invoke("check", "--list-types", "--json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        entries = json.loads(proc.stdout)
+        self.assertEqual(
+            [entry["kind"] for entry in entries],
+            [claim_type.kind for claim_type in claimtypes.CLAIM_TYPES],
+        )
+        for entry, claim_type in zip(entries, claimtypes.CLAIM_TYPES):
+            with self.subTest(kind=claim_type.kind):
+                self.assertEqual(
+                    entry["needs_repo"], claimtypes.type_needs_repo(claim_type.kind)
+                )
+                self.assertEqual(entry["binds_commit"], claim_type.binds_commit)
+                self.assertEqual(
+                    entry["markers"], list(claimtypes.marker_tokens(claim_type))
+                )
+
+    def test_no_subcommand_is_still_a_usage_error(self):
+        proc = self.invoke()
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

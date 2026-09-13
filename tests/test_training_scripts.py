@@ -205,9 +205,22 @@ class ScriptsTest(unittest.TestCase):
         previous = os.environ.get("BEMYSELF_PROXY_URL")
         os.environ["BEMYSELF_PROXY_URL"] = "not a url"
         try:
-            content, raw, _duration, error = harness.call_model([{"role": "user", "content": "hi"}], timeout=1.0)
-            self.assertIsNone(content)
-            self.assertIn("ValueError", error or "")
+            with tempfile.TemporaryDirectory() as tmp:
+                # The key file belongs to the environment, not to the test: a
+                # developer's HOME has one, the verifier's sandbox does not
+                # (it sets HOME to the checkout) -- and the missing file would
+                # answer with SystemExit instead of the transport error this
+                # test is about.
+                auth = Path(tmp) / "auth.json"
+                auth.write_text(
+                    json.dumps({"deepseek": {"key": "test-key"}}), encoding="utf-8"
+                )
+                harness.AUTH_PATH = str(auth)
+                content, raw, _duration, error = harness.call_model(
+                    [{"role": "user", "content": "hi"}], timeout=1.0
+                )
+                self.assertIsNone(content)
+                self.assertIn("ValueError", error or "")
         finally:
             if previous is None:
                 os.environ.pop("BEMYSELF_PROXY_URL", None)

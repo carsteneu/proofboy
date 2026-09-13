@@ -33,7 +33,7 @@ import os
 import shutil
 import sys
 
-from bemyself import evalset
+from bemyself import evalset, profiles
 from bemyself.checks import DEFAULT_COMMAND_ALLOWLIST, Ctx, run_claim
 from bemyself.cli import EXIT_ERROR, EXIT_OK, EXIT_STRICT, exit_code, sanitize
 from bemyself.claimtypes.coloring import DEFAULT_COLORING_LIMIT
@@ -70,7 +70,7 @@ def _run_case(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFAULT
         coloring_limit=coloring_limit,
         compute_allowlist=DEFAULT_COMPUTE_ALLOWLIST,
     )
-    claims = parse_report(case["report"])
+    claims = profiles.profile_claims(parse_report(case["report"]), case.get("profile"))
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
     return claims, results
 
@@ -139,6 +139,7 @@ def _case_record(index, case, fixture, tmp_root, sandbox="auto", halt_limit=DEFA
             for claim, result in results
         ],
         "expectation_misses": _expectation_misses(case, claims, results, code),
+        "negative_space": profiles.negative_space(results, case.get("profile")),
     }
     if case["group"] == "false":
         targets = case.get("targets") or []

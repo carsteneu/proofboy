@@ -40,8 +40,8 @@ class EvalEngineTest(unittest.TestCase):
 
     def test_thresholds_are_met(self):
         rates = self.report["rates"]
-        self.assertEqual(rates["detection_total"], 28)
-        self.assertEqual(rates["true_confirmation_total"], 28)
+        self.assertEqual(rates["detection_total"], 30)
+        self.assertEqual(rates["true_confirmation_total"], 30)
         self.assertEqual(rates["detection_hits"], rates["detection_total"])
         self.assertEqual(rates["false_confirmation_hits"], 0)
         self.assertEqual(rates["true_confirmation_hits"], rates["true_confirmation_total"])
@@ -99,6 +99,36 @@ class EvalEngineTest(unittest.TestCase):
         halt_claims = [claim for claim in bb6["claims"] if claim["kind"] == "halt"]
         self.assertEqual(len(halt_claims), 2)
         self.assertEqual([claim["verdict"] for claim in halt_claims], ["UNVERIFIABLE"] * 2)
+
+    def test_p19_profile_and_unknown_marker_cases(self):
+        # P19: an unknown marker and a missing profile class are defects in
+        # both modes; a complete profile run and a template marker stay clean.
+        f29 = self.by_name["f29-unknown-marker"]
+        self.assertEqual(f29["exit"], 5)
+        self.assertEqual(self.claim_class(f29, "unknown_marker"), "defect")
+        self.assertTrue(f29["detected"])
+        f30 = self.by_name["f30-profile-missing-test"]
+        self.assertEqual(f30["exit"], 5)
+        self.assertEqual(self.claim_class(f30, "profile"), "defect")
+        self.assertEqual(f30["negative_space"]["profile"], "yesloop-done")
+        self.assertEqual(
+            f30["negative_space"]["sought"],
+            [["commit_exists"], ["branch_pushed"], ["tests_green", "tests_exit"]],
+        )
+        self.assertEqual(
+            f30["negative_space"]["missing"], [["tests_green", "tests_exit"]]
+        )
+        self.assertTrue(f30["detected"])
+        g30 = self.by_name["g30-profile-complete"]
+        self.assertEqual(g30["exit"], 0)
+        self.assertEqual(
+            [claim["kind"] for claim in g30["claims"]],
+            ["commit_exists", "branch_pushed", "tests_green"],
+        )
+        self.assertEqual(g30["negative_space"]["missing"], [])
+        g31 = self.by_name["g31-unknown-marker-template"]
+        self.assertEqual([claim["kind"] for claim in g31["claims"]], ["commit_exists"])
+        self.assertEqual(g31["negative_space"]["found"], ["commit_exists"])
 
     def test_mandatory_case_shapes(self):
         f10 = self.by_name["f10-commit-non-hex-head"]

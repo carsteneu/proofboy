@@ -22,6 +22,18 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 - "send_to orchestrator: yes"
 - Phasen-Bloecke mit `**Status:** COMPLETE`
 
+Dazu die beiden Befunde, die der Pruefer selbst erhebt: ein Marker, dessen
+Kuerzel kein registrierter Typ beansprucht (Grossbuchstaben-Token,
+Doppelpunkt, klammerfreier Rumpf), ist ein Defekt; und `--profile <name>`
+deklariert Pflichtklassen (Registry `bemyself/profiles.py`; erstes Profil
+`yesloop-done`: Commit, Branch, Testlauf), deren Fehlen ein Defekt ist. Beide
+erscheinen als zusaetzliche Behauptung in der Urteilsliste (kinds
+`unknown_marker` und `profile`, Klasse `defect`). Ausgenommen von der
+Marker-Regel ist die yesmem-Zitierform `[ID: <n>]` (mehrere IDs
+komma-getrennt): sie ist ein Beleg, keine Behauptung. Jeder abgeschlossene
+`check`-Lauf endet mit der Negativraum-Zeile (gesucht/gefunden/gefehlt je
+Klasse), im JSON als `negative_space` -- siehe "Profile und Negativraum".
+
 Ein Marker, dessen Rumpf ein Platzhalter ist -- ein Winkel-Token (`<hash>`,
 `<machine>`, `<pfad>`), das woertliche `TODO` oder eine abgeschnittene
 Ellipse (`e5b68dd1…`, `...`) -- ist eine Vorlage und keine Behauptung: er
@@ -56,6 +68,8 @@ gelesene Zeile sind nicht unterscheidbar. Siehe README, Abschnitt
 | MERGE | Commit existiert, genau zwei Parents, ein Parent ist der Tip des genannten Branches, der andere liegt auf der Zielbranch; Widerspruch nennt die echten Parents |
 | ARTIFACT | Datei existiert unter der Artefakt-Wurzel und ihr SHA-256 stimmt; Pfad per realpath konfiniert, Streaming mit Groessenlimit |
 | Beleg-ID existiert | Nachschlagen in der angegebenen Quelle (Datei, DB, Session-Registry) |
+| Unbekannter Marker | Kein Checker noetig: das Kuerzel beansprucht kein registrierter Typ -- der Bericht ist schuld (`DEFECT`, Exit 5 in beiden Modi); ein Platzhalter-Rumpf bleibt Vorlage |
+| Profilpflicht fehlt | Kein Checker noetig: `--profile` fordert eine Behauptungsklasse, die die Meldung nicht hergibt (`DEFECT`, Exit 5 in beiden Modi); das Urteil nennt Profilname und fehlende Klasse(n) |
 | Deploy erfolgt | Kein Checker (absichtlich): ein generischer Deploy-Begriff fehlt; `[ARTIFACT]` ist die pruefbare Form |
 
 Jede Pruefung liefert ein Ergebnis `CONFIRMED`, `REFUTED` oder `UNVERIFIABLE` mit dem ausgeführten Kommando und der rohen Ausgabe.
@@ -570,8 +584,9 @@ samt Digest.
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--profile <name>] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert; `--profile` fordert die Pflichtklassen der Gattung und macht eine fehlende zum Defekt |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--profile <name>] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself check --list-types [--json]` (auch ohne Subkommando) | Die registrierten optionalen Behauptungstypen aus `CLAIM_TYPES` auflisten: `kind`, `needs_repo`, `binds_commit` und die von ihnen beanspruchten Marker-Tokens; gemessen wird ein unbekannter Marker gegen diese Tokens plus die Kernmarker `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY` |
 | `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
@@ -611,12 +626,12 @@ Jede Behauptung, die nicht `bestaetigt` endet, traegt genau eine maschinenlesbar
 
 | Klasse | Bedeutung | Wirkung |
 |---|---|---|
-| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte. | scheitert immer, Exit 5, auch ohne `--strict` |
+| `defect` | Der Bericht ist schuld: kein `[COMMIT]` zum Binden, ein Wert ohne die noetige Form (Commit, Branch, Pfad, Deklaration, Kommando), ein eingebettetes NUL-Byte, ein Marker mit unbekanntem Kuerzel, eine von `--profile` geforderte Klasse, die fehlt. | scheitert immer, Exit 5, auch ohne `--strict` |
 | `environment` | Es fehlt eine Faehigkeit der Umgebung: kein Remote, kein `bwrap`, kein Werkzeug oder Modul, kein `--repo`/`--artifact-root`/`--base`, Kommando nicht auf der Allowlist. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 4) |
 | `limit` | Ein Budget war ausgeschoepft, bevor die Behauptung laufen konnte: Schritt-/Suchzahl, Zeit, Ausgabe- und Tape-Grenzen, Artefaktgroesse. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 6) |
 | `unverifiable` | Der Rest (echte Unwissenheit): der Versuch lief und konnte nicht entscheiden (Fetch/Clone/Diff fehlgeschlagen, Branch-Tip wanderte weiter, Prosa-Zahl, kein Checker fuer `[DEPLOY]`). Default, wenn nichts anderes zutrifft. | `UNVERIFIABLE`; scheitert nur mit `--strict` (Exit 4) |
 
-Die Grenze zwischen `defect` und dem Rest ist bewusst eng: ein Wert, den das Werkzeug nicht interpretieren kann (eine Prosa-Zahl wie `2^^^5`, eine Maschine ausserhalb der bbchallenge-Notation, ein unsicheres Zertifikat wie `t2 <= t1`), ist kein Defekt -- der Bericht kann ehrlich sein, die Behauptung bleibt `UNVERIFIABLE` (Doktrin aus P7/P10/P12). `defect` heisst: die Behauptung kann so, wie sie dasteht, nicht einmal gebunden oder ausgefuehrt werden (fehlende oder formlose Bindung, Platzhalter als Wert, Pfad ausserhalb des Vertrauensraums, NUL). `defect` ist der einzige klassenbedingte Fehlschlag ohne `--strict`.
+Die Grenze zwischen `defect` und dem Rest ist bewusst eng: ein Wert, den das Werkzeug nicht interpretieren kann (eine Prosa-Zahl wie `2^^^5`, eine Maschine ausserhalb der bbchallenge-Notation, ein unsicheres Zertifikat wie `t2 <= t1`), ist kein Defekt -- der Bericht kann ehrlich sein, die Behauptung bleibt `UNVERIFIABLE` (Doktrin aus P7/P10/P12). `defect` heisst: die Behauptung kann so, wie sie dasteht, nicht einmal gebunden oder ausgefuehrt werden (fehlende oder formlose Bindung, Platzhalter als Wert, Pfad ausserhalb des Vertrauensraums, NUL). Seit P19 zaehlen zwei Berichtsfaehigkeiten dazu, die frueher still durchgingen: ein Marker, dessen Kuerzel kein registrierter Typ beansprucht (Form: Grossbuchstaben-Token, Doppelpunkt, klammerfreier Rumpf; ein Platzhalter-Rumpf bleibt Vorlage), und eine von `--profile` geforderte Behauptungsklasse, die die Meldung nicht hergibt. `defect` ist der einzige klassenbedingte Fehlschlag ohne `--strict`.
 
 Praezedenz der Exit-Codes: `REFUTED` (1) > `defect` (5) > nur mit `--strict`: `limit` (6) > nichts bestaetigt (3) > `environment`/`unverifiable` (4) > OK (0). Ohne Defekt und ohne ausgeschoepftes Budget behalten die Codes 0-4 exakt ihre bisherige Bedeutung; ein `REFUTED` dominiert auch den Defekt.
 
@@ -624,8 +639,15 @@ Je nicht ausgefuehrtem Claim nennt der Urteilstext das Limit, den behaupteten We
 
 `limit`, `environment` und `unverifiable` scheitern nur mit `--strict` -- ohne Flag bleibt `UNVERIFIABLE` erlaubt (Exit 0 moeglich), weil niemand schuld ist: die Umgebung fehlt oder das Budget war zu klein. Genau dafuer gibt es den eigenen Limit-Code: ein Gate kann "konnte nicht pruefen" von "geprueft und durchgefallen" unterscheiden.
 
+## Profile und Negativraum
+
+`--profile <name>` deklariert die Pflichtklassen einer Meldungsgattung; das erste Profil `yesloop-done` fordert Commit (`commit_exists`), Branch (`branch_pushed`) und einen Testlauf (`tests_green` oder `tests_exit` -- die Vorgabe verlangt die Testbehauptung, kein gruenes Ergebnis). Der Testlauf wird nur in der festen Zeilenform `Tests run: <kommando> -> exit <code>` erkannt, die mit dem Exit-Code endet; ein nachgestellter Vermerk macht die Zeile zu keiner Testbehauptung, dann meldet das Profil die Testklasse als fehlend. Die Registry steht als `PROFILES` in `bemyself/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe ein Tupel akzeptierter Behauptungsklassen. Eine geforderte Klasse gilt als vorhanden, sobald die Meldung eine Behauptung dieses kind hergibt -- auch eine `diff_scope`-Behauptung aus `--files` zaehlt, und das Urteil der Behauptung darf `unpruefbar` sein. Fehlt eine Vorgabe, erzeugt der Lauf eine zusaetzliche Behauptung (`kind` `profile`, `line` 0, `raw` `--profile <name>`) mit Klasse `defect`: eine unvollstaendige Meldung, Exit 5 in beiden Modi, das Urteil nennt Profilname und fehlende Klasse(n). Ein unbekannter Profilname ist ein usage-Fehler (Exit 2, die Auswahl nennt die registrierten Namen). Ohne `--profile` gibt es keine Pflicht und keinen Defekt.
+
+Jeder abgeschlossene Lauf -- auch eine leere Meldung -- endet mit der Negativraum-Zeile `negativraum: gesucht: ...; gefunden: ...; gefehlt: ...`; im JSON steht derselbe Befund als `negative_space` (`profile`, `sought`, `found`, `missing`). `gesucht` sind die Vorgaben in Deklarationsreihenfolge (ohne Profil leer), `gefunden` die Behauptungsklassen der Meldung in der Reihenfolge ihres Auftretens, ohne die Befunde des Pruefers selbst (`profile`, `unknown_marker`), `gefehlt` die nicht erfuellten Vorgaben. Damit sind "nichts gefunden" und "nichts gesucht" unterscheidbar: eine leere Meldung ohne Profil meldet `gesucht: keine ...; gefunden: keine`, dieselbe Meldung unter `yesloop-done` meldet drei gesuchte Klassen und alle drei als gefehlt. In Fehler-Nutzlasten fehlt `negative_space`: die einzige Fehler-Nutzlast ist der unlesbare Report, und dort wurde nichts beurteilt (ein fehlendes `--repo` ist ein usage-Fehler ohne JSON-Ausgabe).
+
 ## Nicht-Ziele
 
 - Keine Reparatur, keine Korrektur von Meldungen. Der Pruefer urteilt, er handelt nicht.
 - Kein Ersatz fuer den Done-Guard. Der Guard prueft Form, der Pruefer prueft Substanz.
 - Keine Ausfuehrung von Befehlen, die die Meldung selbst vorschlaegt, ohne Whitelist.
+- Kein Pflichtzeilen-Modus ohne Deklaration: welche Klassen eine Meldung enthalten muss, sagt ausschliesslich ein Profil (`--profile`); ohne Profil bleibt eine unvollstaendige Meldung unbeanstandet.

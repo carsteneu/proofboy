@@ -1351,6 +1351,44 @@ def check_merge(claim: Claim, ctx: Ctx) -> Result:
     )
 
 
+def check_unknown_marker(claim: Claim, ctx: Ctx) -> Result:
+    """A marker token no registered claim type claims: the report is at fault.
+
+    The report parser (bemyself/report.py) emits this claim; nothing about it
+    can be checked against the world, so the verdict is the defect itself.
+    """
+    token = claim.fields.get("token") or ""
+    return Result(
+        Verdict.UNVERIFIABLE,
+        reason=(
+            f"unknown marker token {token!r}: no registered claim type claims "
+            "it (see --list-types)"
+        ),
+        cause=Cause.DEFECT,
+    )
+
+
+def check_profile(claim: Claim, ctx: Ctx) -> Result:
+    """A report that misses a class its profile requires: a defect.
+
+    The profile module (bemyself/profiles.py) emits this claim when the
+    report's classes do not satisfy the declared profile; the missing classes
+    ride in the claim's fields, so the verdict names the report's fault.
+    """
+    name = claim.fields.get("profile") or ""
+    missing = claim.fields.get("missing") or ()
+    labels = ", ".join("/".join(requirement) for requirement in missing)
+    if len(missing) == 1:
+        required = f"a claim of class {labels}"
+    else:
+        required = f"claims of classes {labels}"
+    return Result(
+        Verdict.UNVERIFIABLE,
+        reason=f"profile {name!r} requires {required}; the report has none",
+        cause=Cause.DEFECT,
+    )
+
+
 REGISTRY = {
     "commit_exists": check_commit_exists,
     "branch_pushed": check_branch_pushed,
@@ -1358,6 +1396,8 @@ REGISTRY = {
     "tests_green": check_tests_green,
     "tests_exit": check_tests_green,
     "merge": check_merge,
+    "unknown_marker": check_unknown_marker,
+    "profile": check_profile,
 }
 
 

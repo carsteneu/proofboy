@@ -17,6 +17,16 @@ the literal ``TODO``, or an ellipsis (``...``/``…``, e.g. a truncated digest)
 the marker and never reported UNVERIFIABLE (see
 :func:`looks_like_placeholder`).
 
+A marker whose token no registered claim type claims (an upper-case token,
+a colon and a body, like ``[FROB: 1]``) is a defect: ignoring it silently let
+a report smuggle a claim of an unknown shape past the verifier. The claimed
+tokens are the core markers plus the registry's
+(:func:`bemyself.claimtypes.marker_tokens`); a template body keeps the
+placeholder rule, an unknown token with a placeholder body claims nothing.
+One convention rides along: the yesmem citation form ``[ID: 97352]`` (the
+platform mandates it in reports) is a citation, not a claim, and is
+recognized without one -- a body outside that shape stays a defect.
+
 Parsing is deliberately permissive: unknown lines are ignored, and a claim is
 only emitted when its source is present. Absurdly long lines are skipped, and
 the marker patterns are written to scan linearly (see their comments); the
@@ -37,11 +47,27 @@ _MAX_LINE = 8192
 # must not block the binding of the one real hash.
 _COMMIT_SHAPE_RE = re.compile(r"\A[0-9a-fA-F]{4,64}\Z")
 
+# The core markers and their pattern come from one source: a token added here
+# is recognized and claimed at once.
+CORE_MARKERS = ("COMMIT", "BRANCH", "MERGE", "DEPLOY")
+
 # One lazy "anything but a bracket" capture, stripped in Python: overlapping
 # whitespace runs around the capture would let the engine backtrack cubically
 # on a hostile whitespace run behind an unterminated marker (see
 # bemyself/claimtypes/halt.py for the same shape).
-_MARKER_RE = re.compile(r"\[(COMMIT|BRANCH|MERGE|DEPLOY):([^\]\[]*?)\]")
+_MARKER_RE = re.compile(r"\[(" + "|".join(CORE_MARKERS) + r"):([^\]\[]*?)\]")
+
+# The form of a marker for a token no claim type claims: an upper-case token
+# (a letter first, then letters and digits, no separator), a colon and a
+# bracket-free body. The body class keeps the scan linear -- it never crosses
+# a bracket, so every attempt is bounded by the distance to the next one.
+_UNKNOWN_MARKER_RE = re.compile(r"\[([A-Z][A-Z0-9]*):([^\[\]]*)\]")
+
+# A citation is not a claim: the platform's output discipline mandates the
+# yesmem form [ID: 97352] (several ids comma-separated) in reports, so the
+# token is recognized without one. The exemption is exactly the citation
+# shape, not the token -- [ID: foo] stays a defect.
+_CITATION_RE = re.compile(r"\A\[ID:\s*\d+(?:\s*,\s*\d+)*\]\Z")
 _TESTS_RE = re.compile(
     r"^[ \t]*(?:\*\*)?Tests? run:[ \t]*(?P<cmd>\S(?:.*\S)?)[ \t]+"
     r"(?:->|\u2192)[ \t]+exit[ \t]+(?P<code>-?\d+)[ \t]*$"
@@ -112,11 +138,24 @@ def _split_list(value: str) -> tuple[str, ...]:
     return tuple(p for p in parts if p)
 
 
+def _claimed_tokens() -> set[str]:
+    """The marker tokens some registered claim type claims, read live.
+
+    Read per parse (not at import time) so a type registered at runtime
+    claims its token like a built-in one.
+    """
+    tokens = set(CORE_MARKERS)
+    for claim_type in claimtypes.CLAIM_TYPES:
+        tokens.update(claimtypes.marker_tokens(claim_type))
+    return tokens
+
+
 def parse_report(text: str) -> list[Claim]:
     claims: list[Claim] = []
     commit_values: list[str] = []
     tests_lines: list[tuple[int, str, str, int]] = []
     files_line: tuple[int, str, tuple[str, ...]] | None = None
+    claimed = _claimed_tokens()
 
     for lineno, raw in enumerate(text.splitlines(), start=1):
         if len(raw) > _MAX_LINE:
@@ -140,6 +179,19 @@ def parse_report(text: str) -> list[Claim]:
                 claims.append(Claim("merge", lineno, raw, {"value": value, "commit": None}))
             elif key == "DEPLOY":
                 claims.append(Claim("deploy", lineno, raw, {"value": value}))
+
+        for match in _UNKNOWN_MARKER_RE.finditer(raw):
+            token = match.group(1)
+            if token in claimed:
+                continue
+            if _CITATION_RE.match(match.group(0)):
+                continue
+            if looks_like_placeholder(match.group(2)):
+                # The template rule holds for an unknown token too: a marker
+                # body that reads as a placeholder asserts nothing, and the
+                # briefing of a section carries such templates.
+                continue
+            claims.append(Claim("unknown_marker", lineno, raw, {"token": token}))
 
         tests_match = _TESTS_RE.match(raw)
         if tests_match:

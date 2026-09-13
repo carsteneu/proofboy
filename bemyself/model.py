@@ -98,3 +98,10 @@ class ClaimType:
     # commit when it has one (like the built-in tests_green and branch_pushed
     # claims).
     binds_commit: bool = False
+    # The marker tokens this type claims in a report line. Empty means the
+    # upper-cased kind, the convention every built-in type follows; a type
+    # whose second marker rides along in ``parse`` (halt claims ``SCORE``)
+    # declares both. A marker token no registered type claims is a defect:
+    # silently ignoring it would let a report smuggle an unknown claim shape
+    # past the verifier.
+    markers: tuple[str, ...] = ()
