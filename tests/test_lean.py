@@ -1379,7 +1379,15 @@ class LeanCheckTest(unittest.TestCase):
         with open(os.path.join(bin_dir, "env.copy"), encoding="utf-8") as handle:
             elan_home, toolchain = handle.read().splitlines()[-1].split("|")[:2]
         self.assertIn("elan-home", elan_home)
-        self.assertNotIn("checkout", elan_home)
+        # The neutral root is checker-owned: it lives next to the run's tools,
+        # never inside a tree the repository controls. Checked structurally --
+        # a substring test on a path would also match an unrelated outer
+        # directory name (the gate's own "checkout-*" beside the suite).
+        self.assertTrue(
+            os.path.basename(os.path.dirname(elan_home)).startswith("lean-tool-bin-"),
+            elan_home,
+        )
+        self.assertFalse(elan_home.startswith(os.path.realpath(repo.path) + os.sep), elan_home)
         self.assertEqual(toolchain, "")
 
     def test_a_request_with_an_unrecognized_shim_is_refused(self):
