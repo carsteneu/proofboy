@@ -21,6 +21,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
+from bemyself import profiles
 from bemyself.cli import MAX_REPORT_BYTES
 from bemyself.model import Cause
 
@@ -263,7 +264,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard fifty-six-message set (28 honest, 28 false).
+    """Return the standard sixty-message set (30 honest, 30 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``), the verdicts
@@ -271,7 +272,8 @@ def standard_set(fixture):
     P18 class (``expect_classes``) and the run's exit code (``expect_exit``).
     ``expect_not_confirmed`` pins kinds that must never come out CONFIRMED
     whatever the host does; ``expect_claim_count`` covers messages that must
-    not parse into claims.
+    not parse into claims, and ``profile`` runs the case under a report
+    profile (bemyself/profiles.py).
     """
     commits = fixture.commits
     blob = fixture.blobs["good.txt"]
@@ -289,6 +291,7 @@ def standard_set(fixture):
         expect_exit=None,
         not_confirmed=(),
         claim_count=None,
+        profile=None,
     ):
         entry = {
             "name": name,
@@ -306,6 +309,8 @@ def standard_set(fixture):
             entry["expect_exit"] = expect_exit
         if claim_count is not None:
             entry["expect_claim_count"] = claim_count
+        if profile is not None:
+            entry["profile"] = profile
         entry["report"] = report
         return entry
 
@@ -1062,6 +1067,67 @@ def standard_set(fixture):
             expect_classes={"halt": "limit"},
             expect_exit=0,
         ),
+        case(
+            "g30-profile-complete",
+            "genuine",
+            "Ehrliche Vollmeldung unter dem Profil yesloop-done: Commit, Branch "
+            "und Testlauf sind da -- das Profil fordert keine Klasse, die fehlt, "
+            "also kein Profil-Defekt (Exit 0); expect_claim_count pinnt, dass "
+            "kein Defekt-Claim dazukommt.",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['good']}]", "[BRANCH: main]"),
+                "Tests run: python3 -m unittest test_ok -> exit 0",
+            ),
+            profile="yesloop-done",
+            expect_verdicts={
+                "commit_exists": "CONFIRMED",
+                "branch_pushed": "CONFIRMED",
+                "tests_green": "CONFIRMED",
+            },
+            expect_exit=0,
+            claim_count=3,
+        ),
+        case(
+            "g31-unknown-marker-template",
+            "genuine",
+            "Ehrliche Meldung mit dem Vorlagen-Marker eines unbekannten "
+            "Kuerzels: ein Platzhalter-Rumpf ist eine Vorlage (P15) und kein "
+            "Defekt -- nur der echte Commit wird geprueft.",
+            done(payload("[DONE]", "[FROB: <wert>]", f"[COMMIT: {commits['good']}]")),
+            expect_verdicts={"commit_exists": "CONFIRMED"},
+            expect_exit=0,
+            claim_count=1,
+        ),
+        case(
+            "f29-unknown-marker",
+            "false",
+            "Boesartig: ein Marker [FROB: 1], den kein registrierter "
+            "Behauptungstyp beansprucht. Frueher still ignoriert, ist er heute "
+            "ein Berichtsdefekt (Exit 5, auch ohne --strict) -- sonst schmuggelt "
+            "der Bericht eine Behauptung unbekannter Form an der Pruefung vorbei.",
+            done(payload("[DONE]", f"[COMMIT: {commits['good']}]", "[FROB: 1]")),
+            targets=["unknown_marker"],
+            expect_verdicts={
+                "commit_exists": "CONFIRMED",
+                "unknown_marker": "UNVERIFIABLE",
+            },
+            expect_classes={"unknown_marker": "defect"},
+            expect_exit=5,
+        ),
+        case(
+            "f30-profile-missing-test",
+            "false",
+            "Falsch: unter dem Profil yesloop-done fehlt die Testbehauptung -- "
+            "ein erwarteter-aber-fehlender Klasse ist ein Berichtsdefekt "
+            "(Exit 5, auch ohne --strict); das Urteil nennt Profilname und "
+            "fehlende Klasse.",
+            done(payload("[DONE]", f"[COMMIT: {commits['good']}]", "[BRANCH: main]")),
+            profile="yesloop-done",
+            targets=["profile"],
+            expect_verdicts={"profile": "UNVERIFIABLE"},
+            expect_classes={"profile": "defect"},
+            expect_exit=5,
+        ),
     ]
     return {
         "version": SET_VERSION,
@@ -1151,6 +1217,12 @@ def _validate(document):
         count = case.get("expect_claim_count")
         if count is not None and not isinstance(count, int):
             raise ValueError(f"case {case['name']!r}: expect_claim_count must be an integer")
+        profile = case.get("profile")
+        if profile is not None and profile not in profiles.PROFILES:
+            raise ValueError(
+                f"case {case['name']!r}: unknown profile {profile!r}; "
+                f"registered: {', '.join(profiles.profile_names())}"
+            )
 
 
 def load_set(path):

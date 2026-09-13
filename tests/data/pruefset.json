@@ -776,6 +776,75 @@
       },
       "expect_exit": 0,
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481]`\n[HALT: 1RB1RZ_0LA0LA -> 47176871]\n"
+    },
+    {
+      "name": "g30-profile-complete",
+      "group": "genuine",
+      "note": "Ehrliche Vollmeldung unter dem Profil yesloop-done: Commit, Branch und Testlauf sind da -- das Profil fordert keine Klasse, die fehlt, also kein Profil-Defekt (Exit 0); expect_claim_count pinnt, dass kein Defekt-Claim dazukommt.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "branch_pushed": "CONFIRMED",
+        "tests_green": "CONFIRMED"
+      },
+      "expect_exit": 0,
+      "expect_claim_count": 3,
+      "profile": "yesloop-done",
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [BRANCH: main]`\nTests run: python3 -m unittest test_ok -> exit 0\n"
+    },
+    {
+      "name": "g31-unknown-marker-template",
+      "group": "genuine",
+      "note": "Ehrliche Meldung mit dem Vorlagen-Marker eines unbekannten Kuerzels: ein Platzhalter-Rumpf ist eine Vorlage (P15) und kein Defekt -- nur der echte Commit wird geprueft.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED"
+      },
+      "expect_exit": 0,
+      "expect_claim_count": 1,
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [FROB: <wert>] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481]`\n"
+    },
+    {
+      "name": "f29-unknown-marker",
+      "group": "false",
+      "note": "Boesartig: ein Marker [FROB: 1], den kein registrierter Behauptungstyp beansprucht. Frueher still ignoriert, ist er heute ein Berichtsdefekt (Exit 5, auch ohne --strict) -- sonst schmuggelt der Bericht eine Behauptung unbekannter Form an der Pruefung vorbei.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "unknown_marker"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "commit_exists": "CONFIRMED",
+        "unknown_marker": "UNVERIFIABLE"
+      },
+      "expect_classes": {
+        "unknown_marker": "defect"
+      },
+      "expect_exit": 5,
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [FROB: 1]`\n"
+    },
+    {
+      "name": "f30-profile-missing-test",
+      "group": "false",
+      "note": "Falsch: unter dem Profil yesloop-done fehlt die Testbehauptung -- ein erwarteter-aber-fehlender Klasse ist ein Berichtsdefekt (Exit 5, auch ohne --strict); das Urteil nennt Profilname und fehlende Klasse.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "profile"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "profile": "UNVERIFIABLE"
+      },
+      "expect_classes": {
+        "profile": "defect"
+      },
+      "expect_exit": 5,
+      "profile": "yesloop-done",
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [BRANCH: main]`\n"
     }
   ]
 }

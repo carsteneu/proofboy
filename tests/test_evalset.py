@@ -137,12 +137,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 56)
+        self.assertEqual(len(cases), 60)
         groups = [case["group"] for case in cases]
-        self.assertEqual(groups.count("genuine"), 28)
-        self.assertEqual(groups.count("false"), 28)
+        self.assertEqual(groups.count("genuine"), 30)
+        self.assertEqual(groups.count("false"), 30)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 56)
+        self.assertEqual(len(set(names)), 60)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -369,6 +369,50 @@ class SetValidationTest(unittest.TestCase):
             with self.subTest(code=code):
                 with self.assertRaises(ValueError):
                     evalset._validate(self.document(expect_exit=code))
+
+    def test_a_registered_profile_is_accepted(self):
+        evalset._validate(self.document(profile="yesloop-done"))
+
+    def test_an_unknown_profile_is_rejected(self):
+        with self.assertRaises(ValueError):
+            evalset._validate(self.document(profile="no-such-profile"))
+
+
+class P19CaseTest(unittest.TestCase):
+    """The P19 cases pin the profile and the unknown-marker rule."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.fixture = evalset.build_fixture(os.path.join(cls._tmp.name, "fixture"))
+        cls.by_name = {
+            case["name"]: case for case in evalset.standard_set(cls.fixture)["cases"]
+        }
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_profile_case_requires_and_checks_the_class(self):
+        case = self.by_name["g30-profile-complete"]
+        self.assertEqual(case["profile"], "yesloop-done")
+        self.assertEqual(case["expect_claim_count"], 3)
+        self.assertEqual(case["expect_exit"], 0)
+
+    def test_profile_violation_case_is_marked(self):
+        case = self.by_name["f30-profile-missing-test"]
+        self.assertEqual(case["profile"], "yesloop-done")
+        self.assertEqual(case["targets"], ["profile"])
+        self.assertEqual(case["expect_classes"], {"profile": "defect"})
+        self.assertEqual(case["expect_exit"], 5)
+
+    def test_unknown_marker_cases_are_marked(self):
+        false_case = self.by_name["f29-unknown-marker"]
+        self.assertEqual(false_case["targets"], ["unknown_marker"])
+        self.assertEqual(false_case["expect_classes"], {"unknown_marker": "defect"})
+        genuine = self.by_name["g31-unknown-marker-template"]
+        self.assertEqual(genuine["expect_claim_count"], 1)
+        self.assertEqual(genuine["expect_exit"], 0)
 
 
 if __name__ == "__main__":
