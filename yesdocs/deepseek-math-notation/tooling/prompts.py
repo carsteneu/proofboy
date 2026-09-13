@@ -152,6 +152,30 @@ v h1: auto
 h1+
 =: Rest 0 (h1+)"""
 
+# --- V18 Lean-Arme (2026-09-13): Lean-Taktik-Denkspur -----------------------
+#
+# L0/L1/L2 variieren ausschliesslich die Instruktion an den *unsichtbaren*
+# Denkkanal; die sichtbare Zone und die Antwortkonventionen bleiben identisch
+# zu C. L0 ist darum byte-identisch zu C0/C, L1 byte-identisch zu C1 (die
+# Lean-Runde baut auf den unveraenderten V15-Referenzarmen auf).
+
+LEAN_RC = """
+
+Denkspur-Zusatz (reasoning_content): Deine vollstaendige Denkspur laeuft als
+Lean-4-Taktikskizze -- eine Taktik-Zeile pro Schritt, wie in einem
+Lean-Beweis. Jede Zeile beginnt mit einer Taktik (have, apply, exact, rw,
+simp, omega, decide, cases, induction, ...) oder ist ein `--`-Kommentar.
+Keine Prosa-Absaetze, keine Erklaersaetze in Saetzen; ein Zug pro Zeile, keine
+Vorrede. Denkfehler sind erlaubt, Prosa-Zeilen nicht. Die sichtbare Denk- und
+Behauptungszone bleibt unveraendert in V1.1 -- der Lean-Stil gilt nur fuer die
+Denkspur.
+
+Beispiel einer Denkspur (nur zur Form, beliebige Werte):
+-- goal: 12 + 30 durch 7 teilen
+have h1 : 12 + 30 = 42 := by decide
+have h2 : 42 % 7 = 0 := by decide
+exact h2"""
+
 LEGENDS = {
     "K": LEGEND_K,
     "B": LEGEND_B,
@@ -160,6 +184,9 @@ LEGENDS = {
     "C0": LEGEND_C,
     "C1": LEGEND_C + RC_STRONG,
     "C2": LEGEND_C + RC_STRONG + RC_EXAMPLE,
+    "L0": LEGEND_C,
+    "L1": LEGEND_C + RC_STRONG,
+    "L2": LEGEND_C + LEAN_RC,
 }
 
 

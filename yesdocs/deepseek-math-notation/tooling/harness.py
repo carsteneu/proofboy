@@ -125,8 +125,9 @@ _TIER_B_SET = "tier_b_v11-b-0.4.json"
 # Runde-2-Fairness-Design: Diese Arme erhalten in der Reparaturrunde ihre
 # eigenen maschinellen Verdikte (Appendix + Befunde). K erhaelt die neutrale
 # Selbstpruefung -- Verdikte, die es nicht gibt, werden nicht erfunden.
-# C0/C1/C2 (V15) sind C-Varianten der RC-Umstellung und erben den Rueckkanal.
-MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2")
+# C0/C1/C2 (V15) sind C-Varianten der RC-Umstellung und erben den Rueckkanal;
+# L0/L1/L2 (V18, Lean-Taktik-Denkspur) sind C-Varianten und erben ihn ebenso.
+MACHINE_FEEDBACK_ARMS = ("B", "C", "D", "C0", "C1", "C2", "L0", "L1", "L2")
 
 # Der einzige Trigger der Rundenkette (Haerte-Runde V13): der typisierte
 # Endzustand der Runde ist nicht bestaetigt, es folgt die naechste Runde.
