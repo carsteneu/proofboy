@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 digest/*.tmp
 lean/cycle-bridge/.lake/
+lean/erdos-straus/.lake/
