@@ -44,12 +44,18 @@ _VLINE_RE = re.compile(r"\Av[0-9]*\s+[a-zA-Z=][a-zA-Z0-9]*\s*:")
 
 
 def load_tasks(sets_dir=None):
-    """``{task_id: task}`` over every set file; spaetere Versionen gewinnen."""
+    """``{task_id: task}`` over every set file; spaetere Versionen gewinnen.
+
+    Leer heisst hier Fehler: sonst fiele die Bindungs-Metrik still aus und
+    das Ergebnis saehe wie "keine Faelle" aus.
+    """
     tasks = {}
     for path in sorted(Path(sets_dir or SETS_DIR).glob("tier_*_v11-*-0.*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
         for task in payload.get("tasks", []):
             tasks[task["id"]] = task
+    if not tasks:
+        raise SystemExit(f"no tasks loaded from {sets_dir or SETS_DIR} (wrong --sets path?)")
     return tasks
 
 

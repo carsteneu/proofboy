@@ -660,6 +660,15 @@ class ScanFeedbackTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             scan.scan_run(str(ROOT / "does-not-exist-xyz"), {})
 
+    def test_empty_sets_path_is_an_error_not_zero(self):
+        # Review-Fund: ein falscher --sets-Pfad darf nicht wie ein sauberer
+        # Befund aussehen ("violations 0").
+        scan = self._load_scan()
+        with self.assertRaises(SystemExit):
+            scan.load_tasks(ROOT / "does-not-exist-xyz")
+        with self.assertRaises(SystemExit):
+            evaluate.load_tasks(ROOT / "does-not-exist-xyz")
+
     def test_model_owned_ids_are_not_violations(self):
         scan = self._load_scan()
         root = self._root()

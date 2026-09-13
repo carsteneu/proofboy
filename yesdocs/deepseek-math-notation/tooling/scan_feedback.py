@@ -36,12 +36,19 @@ SETS_DIR = ROOT / "yesdocs" / "deepseek-math-notation" / "sets"
 
 
 def load_tasks(sets_dir):
-    """``{task_id: task}`` over every set file; spaetere Versionen gewinnen."""
+    """``{task_id: task}`` over every set file; spaetere Versionen gewinnen.
+
+    Leer heisst hier Fehler: der Scan darf nicht "0 Verletzungen" melden,
+    wenn er in Wahrheit keine Aufgaben (und damit keine Referenzwerte)
+    geladen hat -- das saehe wie ein sauberer Befund aus.
+    """
     tasks = {}
     for path in sorted(Path(sets_dir).glob("tier_*_v11-*-0.*.json")):
         payload = _load_json(path)
         for task in payload.get("tasks", []):
             tasks[task["id"]] = task
+    if not tasks:
+        raise SystemExit(f"no tasks loaded from {sets_dir} (wrong --sets path?)")
     return tasks
 
 
