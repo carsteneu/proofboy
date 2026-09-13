@@ -10,14 +10,27 @@ from __future__ import annotations
 import os
 import subprocess
 
+# Fixed commit metadata: two fixtures built from the same content must end in
+# identical hashes -- test classes hold a repository pair (the same history
+# with and without a remote) and compare the commits across it. With the wall
+# clock as timestamp the second fixture got different hashes whenever a
+# second boundary fell between the two builds (measured: 4 of 20 runs of
+# tests/test_classes.py::ClassEndToEndTest failed that way). A fixture must
+# not depend on the clock.
+_COMMIT_DATE = "2026-09-01T12:00:00+0000"
 
-def _git(repo, *args, check=True):
+
+def _git(repo, *args, check=True, env=None):
     proc = subprocess.run(
-        ("git", "-C", str(repo), *args), capture_output=True, text=True
+        ("git", "-C", str(repo), *args), capture_output=True, text=True, env=env
     )
     if check and proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc
+
+
+def _commit_env():
+    return dict(os.environ, GIT_AUTHOR_DATE=_COMMIT_DATE, GIT_COMMITTER_DATE=_COMMIT_DATE)
 
 
 class FixtureRepo:
@@ -39,7 +52,7 @@ def _write(repo, name, content):
 
 def _commit(repo, message):
     _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", message)
+    _git(repo, "commit", "-q", "-m", message, env=_commit_env())
     return _git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
@@ -66,7 +79,7 @@ def merge_into_main(repo, from_commit="good", branch="topic"):
     _write(repo.path, branch + ".txt", branch + "\n")
     tip = _commit(repo.path, branch + " work")
     _git(repo.path, "checkout", "-q", "main")
-    _git(repo.path, "merge", "-q", "--no-ff", "-m", "merge " + branch, branch)
+    _git(repo.path, "merge", "-q", "--no-ff", "-m", "merge " + branch, branch, env=_commit_env())
     return tip, _git(repo.path, "rev-parse", "HEAD").stdout.strip()
 
 
