@@ -371,7 +371,8 @@ PATH, ohne nutzbaren Sandkasten, bei unbekanntem Sandkasten-Modus, ohne
 Commit, bei ungueltigem Pfad/Namen, bei Timeout je Stufe (600 s), bei
 Ausgabe ueber dem Limit, bei fehlgeschlagenem Kernel-Recheck, bei
 unlesbarer Abfrage, bei fehlendem frischem Artefakt, bei einer waehrend des
-Builds veraenderten Datei und bei
+Builds veraenderten Datei, bei einer im Ablauf nicht aufloesbaren Toolchain
+(siehe Toolchain-Vertrauensmodell) und bei
 Dependency-/Umgebungsfehlern -- ein
 Dependency-Fehler zaehlt nur, wenn der fehlende Modulname in den
 `import`-Zeilen der Datei steht (oder eine Netz-/Toolchain-Meldung
@@ -396,6 +397,42 @@ nicht-logische Axiome und `Lean.ofReduceBool` aus `native_decide`) -- der
 Pruefer beurteilt nicht deren Wahrheit, nicht die Bedeutung des Satzes und
 nicht die Herkunft der Abhaengigkeits-Artefakte.
 
+Toolchain-Vertrauensmodell: die Werkzeuge gehoeren dem Host, nicht dem
+geprueften Repository. Eine `lean-toolchain`-Datei ist eine Bitte: befolgt
+wird nur elans native Form `authority/name:version`, und nur wenn diese
+Toolchain unter `<ELAN_HOME>/toolchains` installiert ist. Jeder andere
+nicht-leere Wert -- insbesondere pfadartige wie `./evil`, die elan als
+Programmpfad ausfuehren wuerde -- wird vor jedem Werkzeuglauf abgelehnt; eine
+angeforderte, aber nicht installierte Toolchain wird nicht durch eine andere
+ersetzt. Beide Faelle bleiben `UNVERIFIABLE` mit dem Grund im Urteil, nie
+`REFUTED` (eine kaputte Umgebung ist kein Beweis gegen den Satz).
+`ELAN_TOOLCHAIN` des Operators hat Vorrang, sonst wird die einzige
+installierte Toolchain gepinnt; bringt das Projekt eine Toolchain-Datei mit
+und laesst sich host-seitig nichts bestimmen, wird der Lauf verweigert statt
+elan aus dem geprueften Baum aufloesen zu lassen. Eine im Ablauf nicht
+aufloesbare Toolchain (elans `no Lean toolchain found at ...`, `invalid
+toolchain name`, `no such release ...`, `no default toolchain configured`,
+`override toolchain is not installed`, `toolchain does not contain binary`)
+macht jede Stufe `UNVERIFIABLE` -- sie ist nie ein Kompilierfehler der Datei.
+
+Tool-Manifest (`--tools <manifest>`): eine TOML-Datei pinnt `lean`,
+`leanchecker` und `lake` (je `[tool.<name>]`; `path` absolut und Pflicht,
+optional `version` und `digest` als `sha256:<64 hex>`). Unbekannte
+Werkzeugnamen oder Felder, ein fehlendes oder unlesbares Manifest sind
+Ladefehler (Exit 2). Ein Eintrag gewinnt **immer** gegen eine
+Repo-Anforderung -- die Datei wird dann nicht gelesen; ein Digest- oder
+Versionsbruch und ein fehlender Pfad bleiben `UNVERIFIABLE`. Ein Werkzeug,
+das das Manifest nicht nennt, laeuft nicht; es gibt keinen stillen
+`PATH`-Rueckfall. Jeder Lauf bekommt ein pruefereigenes Bin-Verzeichnis
+(Symlinks auf die identifizierten Werkzeuge) als ersten `PATH`-Eintrag:
+`leanchecker` und `lake` rufen `lean` ueber `PATH` auf, und ohne diese
+Pinnung koennte dieser Aufruf einen elan-Shim treffen, der die Toolchain
+wieder aus dem geprueften Baum aufloest. Jedes Urteil nennt die
+Werkzeug-Identitaet: Name, Version und die sha256-Kurzform der gestarteten
+Datei, `[pinned]` bei Manifest-Pin; die Identitaetsangabe ersetzt keine
+Zusicherung ueber die Abhaengigkeits-Artefakte. Ohne Manifest gilt der
+bisherige Weg (`lean`/`lake`/`leanchecker` aus dem `PATH`).
+
 Isolation: Bauen und Elaborieren fuehren Code aus, `lake` wuerde fehlende
 Abhaengigkeiten per Netz nachladen -- darum verhaelt sich
 `--sandbox=auto` fuer diesen Typ wie `require`: ohne nutzbaren bwrap bleibt
@@ -403,11 +440,16 @@ die Behauptung `UNVERIFIABLE`, kein stiller ungesandboxter Rueckfall; nur
 ein ausdrueckliches `--sandbox=off` laeuft ohne Sandkasten und nennt das im
 Urteil. Der Sandkasten ist die bestehende bwrap-Semantik (Wurzel read-only,
 nur der Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run`
-als leeres tmpfs). `ELAN_HOME` wird aus dem elan-Pfad abgeleitet; ohne
-`lean-toolchain` in Reichweite wird die einzige installierte Toolchain als
-`ELAN_TOOLCHAIN` gepinnt (kein Netz-Query im Sandkasten). Ein
+als leeres tmpfs). `ELAN_HOME` wird aus dem elan-Pfad abgeleitet. Ein
 Arbeitsbaum-`.lake/packages` wird read-only in denselben Pfad gebunden,
 wenn der Checkout keinen Cache hat; das Kommando im Urteil nennt den Pfad.
+
+Jedes Urteil ab der Werkzeug-Identifikation nennt die Werkzeug-Identitaet
+(Name, Version, sha256-Kurzform der gestarteten Datei, `[pinned]` bei
+Manifest-Pin) und den Sandkasten-Zustand; die Version von `leanchecker`
+stammt aus dem Manifest oder aus der Toolchain neben `lean`
+(`leanchecker --version` liefert keine Version: der Aufruf laeuft ohne
+Antwort in einen Timeout, verifiziert mit 4.33.1).
 
 ## Merges (`MERGE`)
 
@@ -524,7 +566,7 @@ und ARTIFACT loest seine Pfade gegen die Artefakt-Wurzel auf
 - Pruefungen laufen in einem Wegwerf-Checkout, nie im Arbeitsverzeichnis des Nutzers.
 - Der Pruefer selbst nutzt kein Netzwerk ausser `git fetch` gegen das eigene Remote und `git clone` aus dem lokalen Repo. Erlaubte Testkommandos laufen standardmaessig in einem bwrap-Sandkasten (`--sandbox=auto`, wenn bwrap vorhanden ist und startet): Wurzel read-only, nur der Wegwerf-Checkout beschreibbar, eigener Netz-/PID-/UTS-Namensraum, `/run` als leeres tmpfs (Socket-Pfade des Rechners fehlen). Ohne nutzbares bwrap laufen sie ungesandboxt, und jedes Ergebnis nennt den Grund; `--sandbox=require` laesst sie dann gar nicht laufen (die Testbehauptung bleibt `unpruefbar`, mit `--strict` faellt der Lauf), `--sandbox=off` schaltet den Sandkasten ab. Der Sandkasten ersetzt die Allowlist nicht (nur erlaubte Kommandos laufen ueberhaupt), ist keine vollstaendige Isolationsgrenze gegen feindlichen Code (sichtbare Dateien bleiben lesbar) und schuetzt nicht gegen Kernel-Exploits.
 - Keine neuen Abhaengigkeiten, Python 3 Standardbibliothek. bwrap ist ein optionales Systemprogramm, wird zur Laufzeit erkannt und ist nie Voraussetzung fuer den Pruefer selbst. Die HALT-, SEARCHED- und CYCLE-Pruefungen laufen in-process im Simulator und brauchen weder Netz noch Sandkasten. COMPUTE-Kommandos laufen unter derselben Sandkasten-Semantik wie Testkommandos, nur ueber die getrennte, standardmaessig minimale COMPUTE-Allowlist (`--allow` erweitert); ohne nutzbaren Sandkasten bei `--sandbox=require` laufen sie gar nicht.
-- LEAN prueft in einem Wegwerf-Checkout mit der Toolchain aus dem `PATH` (`lean`, `leanchecker` und, fuer Lake-Projekte, `lake`; `ELAN_HOME` wird abgeleitet). Bauen und Elaborieren verlangen denselben bwrap-Sandkasten wie COMPUTE, aber ohne stillen Rueckfall: `auto` verhaelt sich wie `require` (die Elaboration fuehrt Code aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz nachladen); nur `--sandbox=off` laeuft ohne Sandkasten und nennt das im Urteil. Ein `.lake/packages`-Cache des Arbeitsbaums wird nur read-only in den Checkout gebunden und im Urteil benannt; fehlende Abhaengigkeiten bleiben `UNVERIFIABLE`. Das Urteil nennt den Kernel-Recheck des Artefakts mit Toolchain-Version und die Axiomliste; es behauptet keinen Recheck der Abhaengigkeits-Artefakte und keine unabhaengige Nachpruefung ausserhalb von Lean.
+- LEAN prueft in einem Wegwerf-Checkout mit der Toolchain aus dem `PATH` (`lean`, `leanchecker` und, fuer Lake-Projekte, `lake`; `ELAN_HOME` wird abgeleitet; mit `--tools <manifest>` stattdessen genau die gepinnten Werkzeuge, Pfad/Version/Digest, und ein Manifest-Eintrag gewinnt gegen jede Repo-Anforderung). Eine `lean-toolchain`-Datei des Projekts ist eine Bitte: nur `authority/name:version`, nur installiert, pfadartige Werte werden abgelehnt; nicht aufloesbare Toolchains und ungepinnte Toolchain-Dateien bleiben `UNVERIFIABLE`, nie `REFUTED` (Toolchain-Vertrauensmodell). Bauen und Elaborieren verlangen denselben bwrap-Sandkasten wie COMPUTE, aber ohne stillen Rueckfall: `auto` verhaelt sich wie `require` (die Elaboration fuehrt Code aus, und `lake` wuerde fehlende Abhaengigkeiten ueber das Netz nachladen); nur `--sandbox=off` laeuft ohne Sandkasten und nennt das im Urteil. Ein `.lake/packages`-Cache des Arbeitsbaums wird nur read-only in den Checkout gebunden und im Urteil benannt; fehlende Abhaengigkeiten bleiben `UNVERIFIABLE`. Das Urteil nennt den Kernel-Recheck des Artefakts mit Toolchain-Version, die Werkzeug-Identitaet (Name, Version, sha256-Kurzform der gestarteten Datei) und die Axiomliste; es behauptet keinen Recheck der Abhaengigkeits-Artefakte und keine unabhaengige Nachpruefung ausserhalb von Lean.
 - Eine falsche Bestaetigung ist der schwerste Fehler. Im Zweifel `UNVERIFIABLE`, nie `CONFIRMED`. Fuer COMPUTE heisst das: kein Lauf ohne Allowlist, kein Lauf ohne aufloesbaren Commit, ausdrueckliche Vorabpruefung des Programms, Ausgabe- und Zeitlimits statt Kuerzung, und ein Urteil nur ueber den Hash des stdout.
 
 ## Strict-Modus

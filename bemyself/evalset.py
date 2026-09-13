@@ -2,7 +2,7 @@
 
 The fixture is a local git repository built from fixed content, a fixed
 identity and fixed commit dates, so rebuilding it reproduces the same commit
-hashes. That is what lets the standard set of fifty-three messages live in
+hashes. That is what lets the standard set of fifty-four messages live in
 the repository as a committed artifact (``tests/data/pruefset.json``): the
 set embeds commit hashes, and ``eval`` rebuilds the fixture at run time and
 checks the rebuilt anchors against the set.
@@ -78,6 +78,15 @@ _GOOD_TXT = "good\n"
 # only, and the honest case pins no verdict at all.
 _FIXTURE_LEAN_PROOF = "theorem fixture_proven (n : Nat) : n + 0 = n := rfl\n"
 _FIXTURE_LEAN_SORRY = "theorem fixture_sorry_proven (n : Nat) : n + 0 = n := by sorry\n"
+
+# The P17 repro's fake toolchain: a repository-authored "lean" that proves it
+# ran, if it ever runs. The eval case pins the verdict; the unit and live
+# tests hold the marker file.
+_FIXTURE_LEAN_DECOY = (
+    "#!/bin/sh\n"
+    "echo 'DECOY-TOOLCHAIN-EXECUTED' >> \"$(dirname \"$0\")/decoy.log\"\n"
+    "exit 0\n"
+)
 
 # BB(6) record holder (mxdys, June 2025): halts only after 2 arrow-up 5 steps,
 # so a bounded search cannot observe a halt; source wiki.bbchallenge.org/BB(6).
@@ -232,6 +241,18 @@ def build_fixture(root):
     _write(repo, os.path.join("lean", "Sorry.lean"), _FIXTURE_LEAN_SORRY)
     commits["lean"] = _commit(repo, _fixture_env(home, 11), "fixture lean sources")
 
+    # The P17 trust case: the same proof, but the project ships a path-like
+    # toolchain request plus the decoy it points at. A repository asks for a
+    # toolchain, it does not choose one -- the checker refuses the request
+    # before any tool runs, on every host.
+    os.makedirs(os.path.join(repo, "lean", "evil", "bin"), exist_ok=True)
+    _write(repo, os.path.join("lean", "evil", "bin", "lean"), _FIXTURE_LEAN_DECOY)
+    os.chmod(os.path.join(repo, "lean", "evil", "bin", "lean"), 0o755)
+    _write(repo, os.path.join("lean", "lean-toolchain"), "./evil\n")
+    commits["lean-toolchain-path"] = _commit(
+        repo, _fixture_env(home, 12), "fixture lean toolchain request (path-like)"
+    )
+
     blobs = {
         "good.txt": _run(
             ["git", "-C", repo, "rev-parse", f"{commits['good']}:good.txt"], env
@@ -241,7 +262,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard fifty-three-message set (27 honest, 26 false).
+    """Return the standard fifty-four-message set (27 honest, 27 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``) and the verdicts
@@ -971,6 +992,21 @@ def standard_set(fixture):
             at="lean",
             targets=["lean"],
             not_confirmed=["lean"],
+        ),
+        case(
+            "f27-lean-toolchain-path-request",
+            "false",
+            "Boesartig: das Repo committet lean-toolchain='./evil' samt Attrappe "
+            "lean/evil/bin/lean -- elan wuerde den Pfad direkt ausfuehren. Der "
+            "Pruefer lehnt die Anfrage vor jedem Werkzeuglauf ab (nur "
+            "authority/name:version, nur installiert), das Urteil ist UNVERIFIABLE "
+            "und nennt den abgelehnten Wert -- nie CONFIRMED, nie REFUTED.",
+            done(
+                payload("[DONE]", f"[COMMIT: {commits['lean-toolchain-path']}]"),
+                "[LEAN: lean/Proof.lean -> fixture_proven]",
+            ),
+            targets=["lean"],
+            expect_verdicts={"lean": "UNVERIFIABLE"},
         ),
     ]
     return {

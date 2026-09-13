@@ -25,6 +25,7 @@ COMMIT_NAMES = (
     "topic",
     "merge",
     "lean",
+    "lean-toolchain-path",
 )
 
 
@@ -136,12 +137,12 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 53)
+        self.assertEqual(len(cases), 54)
         groups = [case["group"] for case in cases]
         self.assertEqual(groups.count("genuine"), 27)
-        self.assertEqual(groups.count("false"), 26)
+        self.assertEqual(groups.count("false"), 27)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 53)
+        self.assertEqual(len(set(names)), 54)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())
@@ -188,6 +189,7 @@ class StandardSetTest(unittest.TestCase):
             "f25-merge-wrong-branch",
             "g27-lean-proven",
             "f26-lean-sorry",
+            "f27-lean-toolchain-path-request",
         ):
             self.assertIn(name, present, name)
 
@@ -206,6 +208,13 @@ class StandardSetTest(unittest.TestCase):
         self.assertEqual(sorry["targets"], ["lean"])
         self.assertEqual(sorry["expect_not_confirmed"], ["lean"])
         self.assertIn("lean/Sorry.lean -> fixture_sorry_proven", sorry["report"])
+        hostile = cases["f27-lean-toolchain-path-request"]
+        self.assertEqual(hostile["group"], "false")
+        self.assertEqual(hostile["targets"], ["lean"])
+        # The refusal holds on every host: the request is refused before any
+        # tool runs, so the verdict is pinned, not host-dependent.
+        self.assertEqual(hostile["expect_verdicts"], {"lean": "UNVERIFIABLE"})
+        self.assertIn("lean/Proof.lean -> fixture_proven", hostile["report"])
 
     def test_merge_and_artifact_cases_pin_their_evidence(self):
         cases = self.by_name()
