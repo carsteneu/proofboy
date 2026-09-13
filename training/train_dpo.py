@@ -40,6 +40,10 @@ def select_train(records):
     return [record for record in records if record["split"] == "train"]
 
 
+def is_adapter(path: Path | str) -> bool:
+    return (Path(path) / "adapter_config.json").exists()
+
+
 def dry_run(args) -> int:
     records = read_jsonl(args.corpus)
     validate_pairs(records, path=str(args.corpus))
@@ -48,11 +52,13 @@ def dry_run(args) -> int:
     chosen_chars = sum(len(record["chosen"]) for record in train_records)
     rejected_chars = sum(len(record["rejected"]) for record in train_records)
     noted = sum(1 for record in train_records if record.get("meta", {}).get("notes"))
+    base_model = args.base_model or config["base_model"]
     summary = {
         "mode": "dry-run",
         "corpus": str(args.corpus),
         "config": str(args.config),
-        "base_model": args.base_model or config["base_model"],
+        "base_model": base_model,
+        "base_model_is_adapter": is_adapter(base_model),
         "out": str(args.out),
         "records": len(records),
         "train_pairs": len(train_records),
@@ -65,11 +71,37 @@ def dry_run(args) -> int:
     return 0
 
 
+def load_model(base_model: str, quantization, config: dict):
+    """Basismodell laden -- oder einen SFT-Adapter (dann weiter auf ihm)."""
+    from peft import LoraConfig, PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    if is_adapter(base_model):
+        inner = json.loads(
+            (Path(base_model) / "adapter_config.json").read_text(encoding="utf-8")
+        )["base_model_name_or_path"]
+        model = AutoModelForCausalLM.from_pretrained(
+            inner, quantization_config=quantization, device_map="auto"
+        )
+        model = PeftModel.from_pretrained(model, base_model, is_trainable=True)
+        return model, AutoTokenizer.from_pretrained(inner), None
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model, quantization_config=quantization, device_map="auto"
+    )
+    lora = LoraConfig(
+        r=config["lora"]["r"],
+        lora_alpha=config["lora"]["alpha"],
+        lora_dropout=config["lora"]["dropout"],
+        target_modules=config["lora"]["target_modules"],
+        task_type="CAUSAL_LM",
+    )
+    return model, AutoTokenizer.from_pretrained(base_model), lora
+
+
 def train(args) -> int:
     import torch
     from datasets import Dataset
-    from peft import LoraConfig
-    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+    from transformers import BitsAndBytesConfig
     from trl import DPOConfig, DPOTrainer
 
     config = load_config(args.config)
@@ -85,17 +117,7 @@ def train(args) -> int:
         bnb_4bit_quant_type=config["bnb_4bit_quant_type"],
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model, quantization_config=quantization, device_map="auto"
-    )
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
-    lora = LoraConfig(
-        r=config["lora"]["r"],
-        lora_alpha=config["lora"]["alpha"],
-        lora_dropout=config["lora"]["dropout"],
-        target_modules=config["lora"]["target_modules"],
-        task_type="CAUSAL_LM",
-    )
+    model, tokenizer, lora = load_model(base_model, quantization, config)
     dpo_config = DPOConfig(
         output_dir=str(args.out),
         beta=config["beta"],

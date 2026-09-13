@@ -154,6 +154,17 @@ class ScriptsTest(unittest.TestCase):
             result = run_script("train_dpo.py", "--dry-run", "--corpus", str(directory / "dpo.jsonl"))
             self.assertNotEqual(result.returncode, 0)
 
+    def test_dpo_detects_adapter_base_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = Path(tmp) / "adapter"
+            adapter.mkdir()
+            (adapter / "adapter_config.json").write_text(
+                json.dumps({"base_model_name_or_path": "Qwen/Qwen3-8B"}), encoding="utf-8"
+            )
+            dpo = load_module("train_dpo")
+            self.assertTrue(dpo.is_adapter(adapter))
+            self.assertFalse(dpo.is_adapter(Path(tmp)))
+
     def test_rlvr_reward_scores_confirmed_and_refuted(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = write_fixture_corpus(Path(tmp) / "corpus")
