@@ -1,0 +1,81 @@
+commit_exists  CONFIRMED     commit 7c0c1288d5328ee066db52dbd17e58e28fae04f8 resolves to 7c0c1288d5328ee066db52dbd17e58e28fae04f8
+    cmd: git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.commitGraph=false -C /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku rev-parse --verify --quiet '7c0c1288d5328ee066db52dbd17e58e28fae04f8^{commit}'
+    out: 7c0c1288d5328ee066db52dbd17e58e28fae04f8
+compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 531 bytes) (sandboxed with bwrap)
+    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout 7c0c1288d5328ee066db52dbd17e58e28fae04f8 && bwrap --die-with-parent --ro-bind / / --dev /dev --proc /proc --tmpfs /run --bind <checkout> <checkout> --unshare-net --unshare-pid --unshare-uts --chdir <checkout> -- python3 yesdocs/formal-conjectures/tools/fast_orbit.py 1048576 -w 16 --quiet --no-bits
+    out: sha256=30076fd8cddeeef5030b0c58912021d7daabce307fc6bb3e05a0287f45dd4f1c bytes=531 exit=0
+compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 531 bytes) (sandboxed with bwrap)
+    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout 7c0c1288d5328ee066db52dbd17e58e28fae04f8 && bwrap --die-with-parent --ro-bind / / --dev /dev --proc /proc --tmpfs /run --bind <checkout> <checkout> --unshare-net --unshare-pid --unshare-uts --chdir <checkout> -- python3 yesdocs/formal-conjectures/tools/fast_orbit.py 1048576 -w 18 --quiet --no-bits
+    out: sha256=b5732bf33ecac1bc2387de075397f7383781a16482ce5a81a27ba63bb52943d6 bytes=531 exit=0
+artifact       CONFIRMED     yesdocs/formal-conjectures/tools/fast_orbit.py has the claimed sha256 (5787 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/tools/fast_orbit.py under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59 bytes=5787
+artifact       CONFIRMED     yesdocs/formal-conjectures/tools/test_fast_orbit.py has the claimed sha256 (6529 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/tools/test_fast_orbit.py under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0 bytes=6529
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/antihydra-wide92-cert.json has the claimed sha256 (288 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/antihydra-wide92-cert.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010 bytes=288
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md has the claimed sha256 (3188 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=8e32c92ac90630436073e447dde5265fa295da47099d2fd46baa454314e7e3b9 bytes=3188
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r1.json has the claimed sha256 (14663 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r1.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=8fde219ecb93fc8017183af8df3b3552383ccf5f723f327077f8ec7b9cc91269 bytes=14663
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r3.json has the claimed sha256 (18197 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r3.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=9ced79cd5afa6bdfbea60d61c2e10bd85d5105381ac0c15eca3aee22ca3b8ae1 bytes=18197
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r4.json has the claimed sha256 (11525 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r4.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=8d233e61909cfa82b71d6fceb1cf41f9fbf41a3cea486c7380a74a6305f641c7 bytes=11525
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r5.json has the claimed sha256 (15407 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r5.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=d37e7c3e59ac7739c3b39f4ca1074d8a3bf6430c22f25a239a95542f525736f9 bytes=15407
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r6.json has the claimed sha256 (9481 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r6.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=eb90007ae054ee3f4300ec8e62ea53dd2fb90c681c873c77e48193611ca75f29 bytes=9481
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r7.json has the claimed sha256 (13577 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r7.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=e947d8dee87ebb628cbf5a06d1b3ffbb0114f4bea84f59c5f724fd90c44360e1 bytes=13577
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r8.json has the claimed sha256 (11597 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r8.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=30e14cb52ab263dfd34b8483406adbcf13cda24e396d27f679f1119857d03739 bytes=11597
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r9.json has the claimed sha256 (8762 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r9.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=136b51668c22dbcfa8d29a55538d23795fdab128d678bdd7e751079e7bce288b bytes=8762
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r10.json has the claimed sha256 (13536 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r10.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=70cbab419d5904904de9a166f88db9c96249a9aa4999a490b55f197f835416da bytes=13536
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r11.json has the claimed sha256 (14762 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r11.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=1f5781b429d7236ff8eef873cfbf21b30c91363ff64ca0a2963d80028b501c53 bytes=14762
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r12.json has the claimed sha256 (10380 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r12.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=cf798134411e050ebd656e3699b3b2f86d540bfb0b0ebb43a00f8adea98f5a35 bytes=10380
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r13.json has the claimed sha256 (12128 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r13.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=c39fb5779616160e31ba6316e7986f55cda48ff9356ea9157df6d297f85228dd bytes=12128
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r14.json has the claimed sha256 (11581 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r14.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=dcca7306fce3af676be5d0afd483efa093a02e1ee34acfcb85f5a7323745f0f6 bytes=11581
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r15.json has the claimed sha256 (11428 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r15.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=edbcc77812c7481a1ff74c4cbead37345351a579408ac54cd02fde00840614f0 bytes=11428
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r16.json has the claimed sha256 (17564 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r16.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=124940a6c9d78ae0cb20c6e163feecef1764ed0dedbb65c36dd304a5bef6e7de bytes=17564
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r17.json has the claimed sha256 (10669 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r17.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=8c1f423bd8f8465a0c35ec47e9771abc60989d3fd931a220570d631158fb5b87 bytes=10669
+artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json has the claimed sha256 (16586 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=92608fa3f985580b09105d789de4237fee7d7e461be0dd86accd7bc62c676c82 bytes=16586
+artifact       CONFIRMED     yesdocs/formal-conjectures/attack-02.md has the claimed sha256 (34743 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/attack-02.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=ecbc3686fa4d7bdf678b8d4d84c6186b43ced9e0d68f3f2eabe2ba55e3431ab8 bytes=34743
+artifact       CONFIRMED     yesdocs/formal-conjectures/README.md has the claimed sha256 (33032 bytes)
+    cmd: sha256 of yesdocs/formal-conjectures/README.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v21-antihydra-doku
+    out: sha256=160470128d5fc5a2fc0d87f132bfcde8fa5456fa5323f79ac1cab4bc9f975f45 bytes=33032
+
+summary: CONFIRMED: 26, REFUTED: 0, UNVERIFIABLE: 0 (defect: 0, environment: 0, limit: 0, unverifiable: 0); executed: 26, not executed: 0
+negativraum: gesucht: keine (ohne --profile); gefunden: commit_exists, compute, artifact; gefehlt: keine
