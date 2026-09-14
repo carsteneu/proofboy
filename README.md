@@ -17,8 +17,8 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
+python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--project-config <datei>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
+python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--project-config <datei>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
 python3 -m bemyself check --list-types [--json]
 python3 -m bemyself --list-types
 python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
@@ -54,6 +54,44 @@ andere. Ein unbekannter Section-Name ist ein Fehler (Exit 2), eine leere
 Section verhaelt sich wie ein leerer Report (Exit 3), eine Section ueber 1 MiB
 wird wie ein zu grosser Report abgelehnt (Exit 2). Im `--json`-Modus nennt das
 Feld `report` die Quelle: den Dateipfad oder `scratchpad:<section>@<project>`.
+
+**Projekt-Config (`--project-config <datei>`):** ein JSON, das dieselben
+Knobeleien traegt wie die CLI, damit ein Projekt seinen Pruefer-Aufsatz nicht
+in jedem Aufruf wiederholt:
+
+```json
+{
+  "allow": ["node --test", "vendor/bin/phpunit"],
+  "profile": "yesloop-done",
+  "sandbox": "require",
+  "tools": "tools.toml",
+  "tmp": ".yesmem/tmp"
+}
+```
+
+Alle Schluessel sind optional. Die Herkunft ist strikt einweg: ein explizit
+gesetztes CLI-Flag schlaegt den Config-Eintrag, der Config-Eintrag schlaegt
+den eingebauten Default; `allow`-Eintraege sind additiv (erst die Config,
+dann die `--allow`-Eintraege der CLI). Die Quelle des Checks (`--report`,
+`--section`, `--repo`, `--db`) ist bewusst **nicht** konfigurierbar -- woher
+eine Behauptung kommt, entscheidet der Aufrufer, nie eine Projektdatei. Ein
+unbekannter Schluessel, ein falscher Typ oder ein ungueltiger Wert ist ein
+Usage-Fehler (Exit 2): ein Tippfehler in der Projektdatei darf nicht still
+nichts bewirken. Die Datei ist Daten, nie Code -- nichts wird ausgefuehrt,
+um sie zu lesen.
+
+**Stack-Vorschlag (`--detect`):** `python3 -m bemyself check --detect --repo
+<pfad>` liest die Namen der Marker-Dateien an der Repo-Wurzel (`composer.json`,
+`phpunit.xml(.dist)`, `package.json`, `go.mod`, `Cargo.toml`,
+`pyproject.toml`, `setup.py`, `pytest.ini`, `tox.ini`, `Makefile`; nur
+regulaere Dateien, **keine Inhalte**, keine Symlink-Ziele, kein Git) und
+nennt die passenden Test- und `[LINT]`-Kommandos -- als Vorschlag fuer
+`--allow` bzw. die Projekt-Config. Die Schicht ist strikt verdiktneutral: mit
+einem Report laeuft das Ergebnis nur als `detected`-Feld (JSON) bzw. als
+Zusatzzeilen (Text) mit, die Behauptungen und der Exit-Code bleiben exakt wie
+ohne `--detect` (ein Differentialtest pinnt das); ohne Report ist der Aufruf
+eine eigenstaendige Abfrage (Exit 0). Ein feindseliges Manifest kann die
+Erkennung nicht ausnutzen: es wird nie gelesen, nur gezaehlt.
 
 ## Exit-Codes
 
@@ -816,7 +854,13 @@ Herkunft der Abhaengigkeits-Artefakte.
 
 Was eine feindselige Datei nicht kann: weil Evidenz nur aus dem Artefakt
 und der eigenen Abfrage kommt, kann Build-Ausgabe ein Urteil nur
-herabstufen (auf `unpruefbar`), niemals auf `bestaetigt` heben. Der
+herabstufen (auf `unpruefbar`), niemals auf `bestaetigt` heben. Eine
+gefaelschte `bwrap: `-Zeile aus sichtbarer Codeausfuehrung gilt seit P20 nur
+dann als Sandbox-Fehler, wenn sie die **gesamte** Ausgabe des Laufs ist;
+eine solche Zeile neben echtem Werkzeug-Output kann ein Urteil nicht mehr
+umetikettieren. (Die verbleibende Ecke -- ein Lauf, dessen Ausgabe genau
+eine gefaelschte bwrap-Zeile ist -- kann ein Urteil weiterhin nur
+herabstufen, nie heben.) Der
 Evidenzprozess selbst fuehrt keinen Repo-Code aus -- weder Taktiken noch
 Makros noch Initializer; die Live-Tests in `tests/test_lean.py` pinnen
 genau diese Faelle. Das Artefakt entsteht aus einer Kopie der geprueften
@@ -1230,6 +1274,48 @@ liest: `needs_repo=True`, wenn `check` ein Repository liest (sonst laeuft ein
 Report ohne `--repo` bis zu dieser Behauptung durch und verlangt ihn dann
 nicht), und `binds_commit=True`, wenn die Behauptung an den einen
 `[COMMIT]`-Hash der Meldung binden soll.
+
+### Ein neues Projekt (Stack) anschliessen
+
+Der Weg fuer ein Projekt in einer Sprache, die der Pruefer noch nicht kennt,
+ist zweistufig -- und der erste Schritt braucht **keinen** neuen Typ:
+
+1. **Testkommandos oeffnen:** `--allow <praefix>` (oder `allow` in der
+   Projekt-Config) fuer Runner, die die eingebaute Allowlist nicht kennt. Die
+   Evidenzregel gilt weiter: `bestaetigt` nur mit positiver
+   Testzusammenfassung. Ein Runner, dessen Ausgabeformat
+   `_TEST_EVIDENCE_PATTERNS` nicht kennt, bleibt `unpruefbar` (nie still
+   bestaetigt) -- sein Format gehoert als Muster ergaenzt, wenn das oeffentliche
+   Projekt ihn regelmaessig faehrt.
+2. **Neuer Claim-Typ nur, wenn die Aussage neu ist** -- etwa Lint gegen den
+   Commit (`[LINT]`), Build-Artefakte, Frontend-Builds. Modul + Registrierung;
+   die Checkliste oben gilt. Eine Domain-Engine (Simulator, Parser, Solver)
+   lebt als eigenstaendig importierbare Bibliothek mit eigenen Tests, nicht im
+   Checker; kein Wissen wird zwischen Checkern kopiert (die gemeinsame
+   Lauf-Engine der Kommando-Checker liegt in `bemyself/checks.py`:
+   `_prepare_command` + `_run_in_checkout`).
+
+Durchgerechnetes PHP/Symfony-Beispiel (P20, ausgeliefert und getestet):
+
+- **`tests_green`:** `phpunit`, `bin/phpunit`, `vendor/bin/phpunit`,
+  `composer test` und `composer run test` stehen in
+  `DEFAULT_COMMAND_ALLOWLIST`; Evidenz ist die PHPUnit-Zusammenfassung
+  `OK (N tests, M assertions)` (Text) oder der `--teamcity`-Strom. Exit-Codes
+  bleiben getrennt: 0 gruen, 1 Fehler, 2 Warnungen/Risky -- ein Lauf mit
+  Risky-Zaehlern bleibt mit den Zaehlern im Verdikt sichtbar. Fehlt `vendor/`
+  im Wegwerf-Checkout, bleibt der Claim `unpruefbar` mit Klasse
+  `environment`: fehlende Abhaengigkeiten sind kein Testfehler.
+- **`[LINT]`:** `php -l`, die Symfony-Konsolen-Linter (`bin/console`,
+  `lint:twig`, `lint:yaml`, `lint:container`) und `composer validate`; die
+  Erfolgszeile ist die werkzeugeigene (z. B. `No syntax errors detected in
+  <datei>`), und Twig/YAML werden an die Zahl der Dateien unter dem Ziel
+  gebunden (siehe "Lint-Laeufe"). Die Lint-Allowlist ist von der
+  Test-Allowlist getrennt; `--allow` erweitert beide.
+- **Fixtures ohne PHP am Host:** `tests/data/shims/` enthaelt ehrliche
+  Shims (PHPUnit, Composer-Script-Wrapper, `php -l`, Symfony-Konsole), die
+  exakt die echten Ausgabeformate erzeugen; die Tests laufen damit real
+  durch die gemeinsame Engine. Ein neuer Stack bringt seine Fixtures genauso
+  mit -- echte Laeufe auf den Zielmaschinen bleiben der Abnahmetest.
 
 Durchgerechnetes COMPUTE-Mini-Beispiel (der Typ, an dem beides zusammenkommt):
 

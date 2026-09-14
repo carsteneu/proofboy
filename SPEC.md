@@ -598,11 +598,19 @@ samt Digest.
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--profile <name>] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert; `--profile` fordert die Pflichtklassen der Gattung und macht eine fehlende zum Defekt |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--profile <name>] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--profile <name>] [--project-config <datei>] [--detect] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert; `--profile` fordert die Pflichtklassen der Gattung und macht eine fehlende zum Defekt |
+| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--profile <name>] [--project-config <datei>] [--detect] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
 | `python3 -m bemyself check --list-types [--json]` (auch ohne Subkommando) | Die registrierten optionalen Behauptungstypen aus `CLAIM_TYPES` auflisten: `kind`, `needs_repo`, `binds_commit` und die von ihnen beanspruchten Marker-Tokens; gemessen wird ein unbekannter Marker gegen diese Tokens plus die Kernmarker `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY` |
+| `python3 -m bemyself check --detect --repo <pfad> [--json]` | Die Stacks eines Repos aus den Namen der Marker-Dateien an der Wurzel ableiten (keine Inhalte gelesen) und passende Test-/`[LINT]`-Kommandos vorschlagen; reine Vorschlags-Schicht, aendert kein Verdikt (mit Report nur `detected`-Feld/Zusatzzeilen), Exit 0 |
 | `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
 | `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
+
+`--project-config <datei>` liest dieselben Knobeleien aus einem JSON
+(`allow`, `profile`, `sandbox`, `tools`, `tmp`); die Herkunft ist einweg
+(explizites CLI-Flag > Config-Eintrag > Default), `allow` ist additiv, und
+die Quelle des Checks (`--report`/`--section`/`--repo`/`--db`) ist nicht
+konfigurierbar. Unbekannter Schluessel, falscher Typ oder ungueltiger Wert:
+Usage-Fehler (Exit 2).
 
 `--repo` verlangt `check --report` nur, wenn mindestens eine vorkommende
 Behauptung ein Repository deklariert (COMMIT, BRANCH, Tests, Diff-Scope,

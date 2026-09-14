@@ -21,7 +21,7 @@ from bemyself.claimtypes.coloring import DEFAULT_COLORING_LIMIT
 from bemyself.claimtypes.cycle import DEFAULT_CYCLE_LIMIT
 from bemyself.claimtypes.halt import DEFAULT_HALT_LIMIT
 from bemyself.claimtypes.search import DEFAULT_SEARCH_LIMIT
-from bemyself import claimtypes, profiles, toolmanifest
+from bemyself import claimtypes, profiles, projectconfig, stackdetect, toolmanifest
 from bemyself.model import Cause, Claim, Verdict
 from bemyself.report import parse_report
 from bemyself.scratchpad import DEFAULT_DB, ScratchpadError, default_db_path, read_section
@@ -205,11 +205,32 @@ def build_parser():
     check.add_argument(
         "--sandbox",
         choices=SANDBOX_MODES,
-        default="auto",
+        default=None,
         help=(
             "how test commands run: auto sandboxes with bwrap when available "
             "(the default), require refuses to run without a working sandbox, "
             "off runs unsandboxed"
+        ),
+    )
+    check.add_argument(
+        "--project-config",
+        metavar="DATEI",
+        help=(
+            "path to a JSON project config naming check knobs (allow, profile, "
+            "sandbox, tools, tmp); an explicit CLI flag wins over the config "
+            "entry, the config entry wins over the built-in default, allow "
+            "entries are additive, and an unreadable or invalid config is a "
+            "usage error"
+        ),
+    )
+    check.add_argument(
+        "--detect",
+        action="store_true",
+        help=(
+            "print the stacks detected from the repository's root marker files "
+            "and the commands they suggest; a pure suggestion layer -- with a "
+            "report it only rides along in the output, changing no claim and "
+            "no exit code, and without one it is a standalone query"
         ),
     )
     check.add_argument(
@@ -512,13 +533,54 @@ def _tmp_dir(args, repo):
     return candidate
 
 
+def _detection_payload(detection):
+    """The JSON shape of a stack detection (suggestion layer, no verdict)."""
+    return {
+        "stacks": list(detection.stacks),
+        "files": list(detection.files),
+        "suggested_commands": list(detection.commands),
+        "suggested_lint_commands": list(detection.lint_commands),
+    }
+
+
+def _apply_project_config(parser, args):
+    """Merge the project config under the explicit CLI flags.
+
+    Provenance is one-way: an explicit CLI flag wins over the config entry,
+    the config entry wins over the built-in default. ``allow`` entries are
+    additive (config entries first, then the CLI's --allow). The check's
+    source (--report/--section/--repo/--db) is never configurable. An
+    unreadable or invalid config is a usage error (exit 2): a typo in a
+    project file must not silently change nothing.
+
+    Called for every check run (the defaults are applied here too), so the
+    knob defaults live in exactly one place.
+    """
+    path = getattr(args, "project_config", None)
+    config = {}
+    if path is not None:
+        try:
+            config = projectconfig.load(path)
+        except projectconfig.ProjectConfigError as exc:
+            parser.error(str(exc))
+    args.allow = list(config.get("allow", [])) + list(args.allow or [])
+    if args.profile is None:
+        args.profile = config.get("profile")
+    if args.sandbox is None:
+        args.sandbox = config.get("sandbox") or "auto"
+    if args.tools is None:
+        args.tools = config.get("tools")
+    if args.tmp is None:
+        args.tmp = config.get("tmp")
+
+
 def _validate_check_args(parser, args):
     """Enforce the source contract before any file or database is touched.
 
     argparse cannot express the dependency pairs, so this is a usage error
     (exit 2) in every invalid combination.
     """
-    if args.report is None and args.section is None:
+    if args.report is None and args.section is None and not args.detect:
         parser.error("one of --report or --section is required")
     if args.report is not None and args.section is not None:
         parser.error("--report and --section are mutually exclusive")
@@ -537,6 +599,18 @@ def _source_error(as_json, source, repo, message):
 
 
 def run_check(args, parser):
+    if args.detect and args.report is None and args.section is None:
+        # Suggestion-only mode: no report, no claims, no verdict. Printing
+        # what the repository looks like changes nothing about a check.
+        repo = os.path.abspath(args.repo) if args.repo is not None else None
+        if repo is None or not os.path.isdir(repo):
+            parser.error("--detect without --report/--section requires --repo <directory>")
+        detection = stackdetect.detect(_resolve_repo_root(repo))
+        if args.json:
+            print(json.dumps(_detection_payload(detection), indent=2, ensure_ascii=True))
+        else:
+            print(stackdetect.render(detection))
+        return EXIT_OK
     if args.section is not None:
         # The descriptor names the source in the JSON output: there is no
         # report file behind a section, and the exit code alone cannot say
@@ -588,6 +662,13 @@ def run_check(args, parser):
     else:
         repo = None
 
+    # The detection is a suggestion layer: it reads marker file names under
+    # the repo root and changes neither a claim nor the exit code. With a
+    # report it only rides along in the output.
+    detection = None
+    if args.detect and repo is not None:
+        detection = stackdetect.detect(repo)
+
     tools = None
     if args.tools is not None:
         # The manifest is host-side trust input: a defective one is a usage
@@ -615,12 +696,17 @@ def run_check(args, parser):
         kind = "section" if args.section is not None else "report"
         print(f"bemyself: no verifiable claims found in the {kind}", file=sys.stderr)
         if args.json:
-            print(json.dumps(_json_payload(source, repo, [], args.profile), indent=2, ensure_ascii=True))
+            payload = _json_payload(source, repo, [], args.profile)
+            if detection is not None:
+                payload["detected"] = _detection_payload(detection)
+            print(json.dumps(payload, indent=2, ensure_ascii=True))
         else:
             # The negative space is what keeps this run apart from one that
             # sought classes and missed them: "found nothing" and "sought
             # nothing" must not read the same.
             print(profiles.render_negative_space(profiles.negative_space([], args.profile)))
+            if detection is not None:
+                print(stackdetect.render(detection))
         return EXIT_NOTHING
 
     tmp_dir = _tmp_dir(args, repo)
@@ -653,9 +739,14 @@ def run_check(args, parser):
     results = [(claim, run_claim(claim, ctx)) for claim in claims]
 
     if args.json:
-        print(json.dumps(_json_payload(source, repo, results, args.profile), indent=2, ensure_ascii=True))
+        payload = _json_payload(source, repo, results, args.profile)
+        if detection is not None:
+            payload["detected"] = _detection_payload(detection)
+        print(json.dumps(payload, indent=2, ensure_ascii=True))
     else:
         print(sanitize(render_text(results, args.profile)))
+        if detection is not None:
+            print(stackdetect.render(detection))
 
     return exit_code(results, strict=args.strict)
 
@@ -667,6 +758,7 @@ def main(argv=None):
         # Answered on its own: no report, no repository, no claim runs.
         return list_types(json_mode=bool(getattr(args, "json", False)))
     if args.command == "check":
+        _apply_project_config(parser, args)
         _validate_check_args(parser, args)
         return run_check(args, parser)
     if args.command == "eval":
