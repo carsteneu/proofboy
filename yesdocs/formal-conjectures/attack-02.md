@@ -1,4 +1,4 @@
-# Angriff 02 - Antihydra im Lemma-Loop mit Fremdmodell (Runden 1-28)
+# Angriff 02 - Antihydra im Lemma-Loop mit Fremdmodell (Runden 1-33)
 
 Datum: 2026-09-14. Ausgangsbasis: `master` @ `a35a3d1`. Vorgeschichte: `attack-01.md`
 (V17: beidseitige Reduktions-Verifikation, Roh-TM-2^32-Lauf, Strukturjagd),
@@ -13,6 +13,13 @@ Der **Nachtrag 2026-09-14 (V22)** setzt den Loop bis Runde 28 fort
 (Counter-Engine, Rangkette bis d ≤ 12, nichtlineare Invariante; Basis `master`
 @ `71c89e1`). §§1-8 bleiben der eingefrorene V21-Stand; die Fortsetzung steht
 in §N.1 bis §N.7 am Dateiende.
+
+Der **Nachtrag 2026-09-14 (V23)** setzt den Loop bis Runde 33 fort (Runden
+29-33, 2026-09-14 09:25 bis 12:09; Basis `master` @ `d617207`): Falsifikation
+und Refit des (N)-Radius, C-Kernel mit Kreuzverifikation,
+Epoch-Quantor-Entscheidung samt Korrektur der (S)→H-Schlusskette in §4.9/§6.
+§N.1-§N.7 bleiben der eingefrorene V22-Stand; die Fortsetzung steht in §O.1
+bis §O.7 am Dateiende.
 
 **Kein Lösungsergebnis.** Antihydra bleibt offen. Alles hier ist endliche, exakt
 beschriftete Verifikation. Der Wert des Loops liegt in drei Dingen: (i) er hat
@@ -41,7 +48,7 @@ Regeln: Keine Astra-Aussage steht in diesem Bericht ohne Nachrechnung; wo eine Z
 nur aus einem Astra-Lauf stammt, ist sie als Astra-Aussage gekennzeichnet. Jede
 Runde endet mit einem endlichen Test, nie mit "gilt vermutlich".
 
-Umfang: Runden 1-18 (Nachtrag: Runden 19-28), 2026-09-13 18:55 bis 2026-09-14 00:23. Token-Budget: 10.000.000
+Umfang: Runden 1-18 (Nachträge: Runden 19-28 und 29-33), 2026-09-13 18:55 bis 2026-09-14 12:09. Token-Budget: 10.000.000
 veranschlagt; Stand Runde 15 verbraucht etwa 210.000 (rund 2%). Rohdaten: 17 der 18
 Antwortdateien `astra-antihydra-r{1,3,...,18}.json` (`r2` wurde nie gespeichert; die
 Lücke ist in `data/astra-antihydra-rounds/README.md` ausgewiesen). Die
@@ -300,6 +307,10 @@ Kandidaten bereitsteht.
   (S) erlaubt einzelne beliebig große (P)-Verletzungen, solange das normierte
   Gesamtbudget eingehalten wird; es ist damit das schwächste deterministische
   Ziel für denselben Orbit.
+- **Überholt (V23-Nachtrag, §O.4):** Die Folgerung `u ≥ 0,491226196… − 0,4 >
+  1/12` trägt nur die `1/12`-Barriere für den **Halt-Zähler** `C = 2E−O`; für
+  `H ≥ 0` im Zellinneren ist im Zellmittel-Bild `a > 3/11` nötig. Korrigierte
+  Fassung und vollständige Epoch-only-Reparatur: §O.4.
 - **Datenpunkt Out-Grad** (Verifikationsseite; in diesem Bericht nachgerechnet
   aus den 2^23-Daten): Der beobachtete 3-Byte-Graph hat die Gradverteilung
   `{1: 985683, 2: 30328, 3: 697, 4: 7}` (Summe 1.048.458 Kanten, identisch mit
@@ -375,6 +386,12 @@ Gesamtverlustbudget `(S) Σ_{h≥0} ℓ_{j,K+2h} ≤ 2/5` für `K ∈ {7,8}` (De
 §4.9). Aus den Seeds (`min u = 128772/262144 = 0,491226196…`) folgt daraus die
 Reserve-Nichtnegativität auf allen Skalen.
 
+**Überholt (V23-Nachtrag, §O.4).** Diese Schlussfolgerung ist unvollständig:
+(S) stützt die `1/12`-Schwelle nur für den Halt-Zähler `C = 2E−O`; für
+`H ≥ 0` im Zellinneren ist `a > 3/11` nötig. Vollständige Epoch-only-Reparatur
+(Gesamtverlust `< 0,2184989…` oder durchgehendes Epoch-(P) mit 500 plus Seeds
+beider Paritäten plus endlicher Anfangscheck) in §O.4.
+
 **Warum das der harte Engpass ist (Runde 18).** Die naheliegenden finiten
 Kompressionen sind ausgeschlossen: der 24-Bit-Zustand ist nicht autonom (das
 nächste Carry-Bit wird gebraucht), die direkte endliche Blockprojektion der
@@ -431,12 +448,13 @@ Endprodukt des Loops: die vollständige Lokalisierung der Lücke.
 | `tools/fast_orbit.py` | schneller Orbit-Generator (Transfer-Identität, w konfigurierbar) | `python3 yesdocs/formal-conjectures/tools/fast_orbit.py 8388608 -w 18 -o bits.bin` |
 | `tools/test_fast_orbit.py` | 11 Tests: Identität, Fast-vs-Naiv 2^14 (w=16/18), x_end, Statistik, CLI | `python3 -m unittest discover -s yesdocs/formal-conjectures/tools -p "test_fast_orbit.py"` |
 | `data/antihydra-wide92-cert.json` | Potentialbreite 92, Zeugenpfad 23 Knoten / -92 | Zertifikat (288 B, sha256 siehe Anker) |
-| `data/astra-antihydra-rounds/` | 27 Rohantworten R1, R3..R28 + Provenienz-README | Beweismaterial des Loops (r2 fehlt; R19-28 im Nachtrag) |
+| `data/astra-antihydra-rounds/` | 32 Rohantworten R1, R3..R33 + Provenienz-README | Beweismaterial des Loops (r2 fehlt; R19-28 im V22-Nachtrag, R29-33 im V23-Nachtrag) |
 | `data/attack-02-check.txt` | [COMMIT]/[COMPUTE]/[ARTIFACT]-Anker dieses Berichts | `python3 -m bemyself check --report yesdocs/formal-conjectures/data/attack-02-check.txt --repo . --strict --allow "python3 yesdocs/formal-conjectures/tools/fast_orbit.py"` |
 
 Das vollständige Verdikt-Protokoll steht in
 `data/attack-02-check.verdicts.txt` — V21-Stand: 26 CONFIRMED, 0 REFUTED,
 0 UNVERIFIABLE; mit den Ankern des V22-Nachtrags: 41 CONFIRMED, 0 REFUTED,
+0 UNVERIFIABLE; mit den Ankern des V23-Nachtrags: 46 CONFIRMED, 0 REFUTED,
 0 UNVERIFIABLE.
 
 **Re-Pin-Konvention (Tripwire).** Die Anker binden die genannten Dateien; wer
@@ -480,7 +498,7 @@ Prüfbefehl steht in `data/attack-02-check.txt`.
 [ARTIFACT: yesdocs/formal-conjectures/tools/fast_orbit.py -> 2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59]
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_fast_orbit.py -> 60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0]
 [ARTIFACT: yesdocs/formal-conjectures/data/antihydra-wide92-cert.json -> f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010]
-[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 893e8f9917cacfae558c9020d5be213aabf1b6a9201185443a4a498986794e1b]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> b05fac7fc3996b3d3b564c3dffec03dc5070906794642b02c2a4f44946956758]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r1.json -> 8fde219ecb93fc8017183af8df3b3552383ccf5f723f327077f8ec7b9cc91269]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r3.json -> 9ced79cd5afa6bdfbea60d61c2e10bd85d5105381ac0c15eca3aee22ca3b8ae1]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r4.json -> 8d233e61909cfa82b71d6fceb1cf41f9fbf41a3cea486c7380a74a6305f641c7]
@@ -782,3 +800,269 @@ steht in `data/attack-02-check.txt` (alte 26 Anker unverändert + diese).
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_deep_rank_chain.py -> 42e38106ec8ed9f532ea2e4befa06f3864921ddfa571d64a304546438020ad66]
 [ARTIFACT: yesdocs/formal-conjectures/data/deep-Cvalues-d12.json -> aef77bca04677b878db4984e9e3d31b4806718ad3f8129250d3a582d76e29b29]
 [ARTIFACT: yesdocs/formal-conjectures/data/r0-sweep-result.json -> 0117349e2ebd3c41293ddd181c470af68977a8afa74076d7daa7c7ac00639272]
+
+---
+
+## Nachtrag 2026-09-14 (V23): (N)-Radius falsifiziert und refittet, C-Kernel, Epoch-Quantor-Entscheidung
+
+Basis: `master` @ `d617207` (nach dem V22-Merge `5ee0048` und der
+C-Kernel-Serie einer Parallel-Session: `dcb66b4`, `4ca5534`, `33785e7`,
+`d617207`). Dieser Nachtrag setzt den in §§1-8 und §N.1-§N.7 eingefrorenen
+Stand fort (Runden 29-33, 2026-09-14 09:25 bis 12:09). Drei Ergebnisblöcke:
+(i) der in V22 eingefrorene (N)-Radius ist auf neuen Zellen **falsifiziert**;
+der Fensterkandidat `R²_cand = 0,014016590` hält über die vollen
+Skalenbereiche k = 4..17 (Holdout in k = 10..17 ohne neuen Rekord), (ii) ein
+**C-Kernel** ersetzt die Python-Engine als Messwerkzeug (gegen sie
+kreuzverifiziert: 1298 E-Werte, 1992 D-Zellen; T34 in 40 min statt 110 min),
+(iii) die **Epoch-Quantor-Entscheidung** (R33) präzisiert das Originalziel auf
+die vier Epoch-Sequenzen `j = 0..3` und **korrigiert die (S)→H-Schlusskette**
+aus §4.9/§6 (der alte Satz bleibt dort als überholt stehen). Rohdaten: fünf
+weitere Antwortdateien `astra-antihydra-r{29..33}.json` (Empfang 09:25-12:09).
+
+**Kein Lösungsergebnis.** `R²_cand` ist ein Fensterkandidat (Tiefe 34, k ≤ 17),
+kein bewiesener Radius; „Epoch-only" ist eine Quantoren-Präzisierung, kein
+Beweis; der C-Kernel rechnet nur (§N.2 gilt unverändert).
+
+### O.1 Rundenchronik R29-R33
+
+| Runde | Astra liefert | Verifikation (dieses Repo) | Ergebnis |
+|---|---|---|---|
+| R29 (09:25) | Horizont-/Dreiecksrechnung (`D(i,k)` braucht Zähler bis `(i+1)·2^{k+12}`, Tiefe-34-Maske deckt `k ≤ 22 − log₂(i+1)`); Datenwahl (max `Q`, min (N)-Marge, Eltern/Kind-Pakete); **exakte Energie-Identität** `z_P² = (8/9)(a²+b²) − (4/9)(a−b)²`; Payoff `|D| ≤ K·L^{2/3}`, `K = 4R·2^{14/3} ≈ 6,23`; Speicher `Θ(2^dep)`; Investitionsrangfolge | Energie-Identität exakt nachgerechnet (§O.7); Horizont/Maske mit den Wide-Läufen abgeglichen | Beschleunigungs-/Strategiepaket; C-Kernel und Wide-Läufe angestoßen |
+| R30 (09:45) | **exakter Induktionskern**: `t(i,k) := 2V(s(i,k+1)) − V(s(i,k))`, `(N) ⇔ t ≤ R²`; Defektfortpflanzung `t(i,k) = (8/9)(tL+tR) − (4/9)(2Δ₊−Δ₋)`; Eltern-Bedingung `2Δ₊ − Δ₋ + 2(δL+δR) ≥ (7/4)R²`; Seed-Lücke (19); Zertifikatsformat (Seed/Closure/Energiedefekt/Abstraktion); korrelationsfreie Invarianz unmöglich | Seed-Bedingung (19) auf dem T34-Sweep ausgeführt; T33-Indexliste = 148 statt 144 | Induktionskern fixiert; Seed-Lücke quantifiziert |
+| R31 (10:18) | Fix-k-Sättigung; elementare Seed-Schranke `E_{i,4} ≤ 625/9` und Seed/Radius-Entkopplung; Verstärkung `t_P ≤ (16/9)R²`; Masken-Korrektur `i_max(k) = 2^{20−k}−1`; radius-freie `B* = C/(1−λ)`; Zähler `C = 2E−O = (3H+n)/5` | Zerlegung (64,9) exakt (`(8/9)(tL+tR) = 0,005902`, `−(4/9)(2Δ₊−Δ₋) = −0,000252`; Kinder (128,8)/(129,8), Slacks +0,000738/+0,003922); (P)-Residuum max 0,4145 @(164,8) | Refit-Kandidat entsteht; Wide-Läufe angestoßen |
+| R32 (12:02) | Extremwertbild `u_max(N) ≈ 0,00125·log N + const`; Fenstermax ≠ Supremum; Indexformel `i_max^t(d,k) = 2^{d−k−14}−1`; Basis `t(i,4)` als Hauptengpass; Tautologie `M = Q + 2(δL+δR) − (7/4)R² = (9/4)(R² − t_P)`; Konstanten-Empfehlung (T35/36) | equal-N-Analyse (20 Subsamples à 500 Zellen): `u_max` stationär über k = 4..10; Holdout Wide-2 (k = 10..17) ohne neuen Rekord | **R²_cand = 0,014016590 fixiert** |
+| R33 (12:09) | Epoch-only als Originalquantor; `a_S = u* − 2/5 = 0,091226…`; die `1/12`-Schwelle betrifft nur den Halt-Zähler `C`; für `H ≥ 0` ist `a > 3/11` nötig; vollständige Epoch-only-Reparatur (Budget `< 0,2184989…` oder Epoch-(P) mit 500); (N) epoch-only; Haar-Schranke `sup_i t(i,4) = 16400/81`; Seed-Lücke K = 7 | Originaltext §4.9/§6 wörtlich abgeglichen (j-Index von Defekt/Verlust, kein All-i-Quantor); K = 7-Seeds nachträglich gerechnet (`r_{j,7}`, min u = 0,495041); Epoch-Loss-Tabelle aus T34 (Budgetnutzung 1,5-4 %) | Zielquantor präzisiert; **Doku-Korrektur für §4.9/§6** |
+
+### O.2 (N)-Radius: Falsifikation, Refit, volle Skalenabdeckung
+
+**Ausgangspunkt (V22).** Der V22-Nachtrag hatte `R²_alt =
+1309875575/347892350976 ≈ 0,0037651750` eingefroren, definiert durch
+Gleichheit an der Zelle `(14,4)` im Fenster `i ≤ 15` (88 bzw. 144 Zellen,
+§N.4). Als Aussage über dieses Fenster bleibt das korrekt; als globaler
+Kandidat ist der Radius widerlegt.
+
+**Falsifikation (T34-Sweep, zwei Engines).** Sechs von 1488 (N)-Zellen
+neuer i (i ≤ 255, außerhalb des 88er-Fensters) verletzen (N) mit `R²_alt`;
+Maximum `t(64,9) = 12592924675/2229025112064 = 0,0056495212… = 1,5005×R²_alt`;
+weitere Verletzungen `(45,8)` 1,340×, `(128,8)` 1,305×, `(166,10)` 1,124×,
+`(64,10)` 1,079×, `(31,8)` 1,028×; alle bei k = 8..10, i = 31..166 (am Rand
+des ersten Sweep-Fensters i ≤ 255). Auch die Seed-Bedingung
+(19) bricht: 6 von 252 i verletzen `R²_alt`, größtes i = 159 (0,004887995),
+dann 90, 69, 48, 176, 156.
+
+**Refit.** `R²_neu := t(64,9)`; damit 0 Verletzungen in allen 1488
+(N)-Zellen und allen 252 Seed-Zellen; `K_neu = 2^{20/3}·√R²_neu = 7,6361`;
+`max|z| = 0,057207 @z(85,9)`; `max Q = |D|/L^{2/3} = 4,3787 @(85,9)`.
+
+**Volle Skalenabdeckung (Wide-1/Wide-2, Tiefe 34).** Wide-1 (r-Skalen
+k = 4..13) liefert t-Zellen für k = 4..9 in vollen i-Bereichen (128.955
+t-Zellen), Wide-2 (r-Skalen k = 14..21) für k = 10..17; kombiniert 1048
+gemeinsame E-Werte ohne Mismatch. Fenstermaxima `T_k(∞)` (volle i-Bereiche;
+`argmax` nur für k ≤ 9 ausgewiesen):
+
+| k | T_k(∞) | u_k = (9/8)^{k−4}·T_k | argmax |
+|---|---|---|---|
+| 4 | 0,014016590 | 0,014017 | (7000,4) |
+| 5 | 0,011858531 | 0,013341 | (23922,5) |
+| 6 | 0,009807740 | 0,012413 | (12043,6) |
+| 7 | 0,009739088 | 0,013867 | (6021,7) |
+| 8 | 0,006442167 | 0,010319 | (2913,8) |
+| 9 | 0,005649521 | 0,010181 | (64,9) |
+| 10 | 0,005147605 | 0,010436 | — |
+| 11 | 0,003384064 | 0,007718 | — |
+| 12 | 0,003100498 | 0,007955 | — |
+| 13 | 0,001956859 | 0,005648 | — |
+| 14 | 0,001218397 | 0,003957 | — |
+| 15 | 0,000881787 | 0,003221 | — |
+| 16 | 0,000668170 | 0,002746 | — |
+| 17 | 0,000487942 | 0,002256 | — |
+
+Der Rekord ist exakt `T_4 = 304766525/21743271936` (Zelle (7000,4),
+`D = (980, 4900, −11305)`; aus dem Wide-Log nachgerechnet, §O.7);
+**`R²_cand = 0,014016590`, `K_cand = 12,03`**; `max|z| = 0,098267
+@z(27452,4)`; Seed-Maximum `E_{i,4} = 0,010779 @i = 14000 < R²_cand`.
+Es binden die Basisskalen k = 4..7; `u_k` ist über k = 4..10 quasi-konstant
+(0,0102-0,0140).
+
+**Holdout bestanden.** Wide-2 (k = 10..17) ohne neuen Rekord über `T_4`, also
+bleibt `R²_cand`. Das Extremwertbild `u_max(N) ≈ 0,00125·log N` (equal-N:
+`u_max ≈ 0,0076-0,0095` stationär über k = 4..10, 20 Subsamples à 500 Zellen)
+erklärt den `u`-Abfall für k ≥ 11 (0,008 → 0,002) als Zellzahleffekt.
+**Fenstermax ≠ Supremum:** Tiefe d erlaubt t-Zellen nur für
+`i ≤ i_max^t(d,k) = 2^{d−k−14}−1` (T34: k = 4 → 65535, k = 17 → 7).
+
+**Zähler, Residuen, Direktmessung.** Im vollen k = 4..9-Fenster verletzen 578
+Zellen `t ≤ R²_neu` und 2910 `t ≤ R²_alt`; gegen `R²_cand` keine. Residuen
+der R16-Ziele (alle i, Budget 1): (D−) k = 4..13 durchweg >1 (1,21-1,74;
+k = 4..11: 1,36-1,74; k = 12/13: 1,21/1,30);
+(P) k = 4: 1,46 / 5: 1,40 / 6: 1,04 / k ≥ 7: ≤ 0,92. Epoch-Zellen (j = 0..3):
+(P) max 0,55, (D−) max 0,66. (P)-Direktmessung: max `(−D)/(500·2^{3k/4}) =
+0,4145 @(164,8)` (Budget 1); `min D = −252180 @(15,18)`.
+
+### O.3 C-Kernel: zwei Engines, Kreuzverifikation, Wide-Läufe (Werkzeug)
+
+Die Engine `bemyself/experiments/antihydra_c.c` (C-Port des validierten
+Python-Kerns `antihydra_deep.py`: fixed-limb Leaf-Loop plus GMP-Patch-up nach
+dem mxdys-Blockverfahren) kam über `dcb66b4` ins Repo; eine Parallel-Session
+ergänzte `4ca5534` (w18-Sprung-Leaf; byte-identisch validiert, real nur ≈6 %
+Gewinn), `33785e7` (**Top-Cache** `--cache-out/--cache-in`, validiert über
+d24→25 und d27→28, gemessen 2,0×: 16,4 s → 8,1 s; Ladder D35 warm ≈45 min
+statt ≈85 min) und `d617207` (`run_jobs.sh`). Das instrumentierte
+Kostenmodell (Learnings #99378/#99380 der Parallel-Session): GMP-Multiplies
+≈75 % der Laufzeit (mulc ≈40-46 %, mulv ≈33-38 %), Leaf ≈16 %; alle
+Komponenten skalieren ≈2,2× je Tiefe, die Anteile bleiben über die Tiefen
+konstant. Dieser Nachtrag referenziert die Engine nur; Logs und Daten liegen
+im Projekt-Archiv `.yesmem/tmp/antihydra-2026-09-14/` (gitignored).
+
+Bauphasen-Verifikation: bit-identisch zur Python-Engine auf depth 16/20/22/24
+inklusive krummer Ziele; zwei per Diff gefundene Bugs (Shift-Carry-Richtung;
+Input-Overwrite: die Korrektur braucht Start UND Ende); Anker exakt: `2^22`
+(counter 2.093.612), `2^31` (1.073.720.884, Abweichung −20.940), `2^32`
+(2.147.493.851). **Kreuzvergleich der Tagesläufe:** 1298 E-Werte und 1992
+D-Zellen identisch (die D-Dumps `alphaK-D-values.json` (Python) und
+`alphaK-D-values-C.json` (C) sind byte-identisch, §O.7); C-T34 40 min (rc=0)
+gegen Python-T34 110 min. Der Grid-Modus `--grid k0 k1 m0 m1` erzeugt die
+Wide-Läufe (Wide-1 fertig 10:52, Wide-2 11:32, rc=0).
+
+### O.4 R33: Epoch-Quantor und Korrektur der (S)→H-Schlusskette
+
+**Entscheidung (Astra R33; hier am Originaltext verifiziert).** Defekt und
+Verlust des Originaltexts sind mit `j` indiziert (`p_{j,k}`, `ℓ_{j,k}`), und
+die R16-Ziele sind als Epoch-Vektor über die vier Sequenzen `j = 0..3`
+(`i = 4..7`) formuliert; ein Quantor über alle i steht dort nicht. Auch die
+Haar-Abschätzung summiert nur über vier j. Die in §O.2 gemessenen
+All-i-Verletzungen der 500-Budgets liegen damit **außerhalb des
+Originalziels**: im Haar-Modell treten All-i-Verletzungen von (P) mit 500 bei
+festem k = 6 fast sicher auf (unendlich viele disjunkte Paritätsfenster),
+ein All-i-Budget wäre nie sinnvoll.
+
+**Korrektur zu §4.9/§6 (der alte Satz bleibt als überholt stehen).** Die
+Aussage „(S) + Seeds ⇒ Reserve-Nichtnegativität auf allen Skalen" ist
+**unvollständig**. (S) mit Abzug 2/5 liefert `a_S = u* − 2/5 =
+0,091226196…`; die Schwelle `1/12` betrifft den **Halt-Zähler**
+`C(n) = 2E−O = (n+3H)/5` (Schritte +2/−1): `a > 1/12` plus endlicher
+Anfangscheck sichert `C ≥ 0`. Für **`H ≥ 0` im Zellinneren** ist dagegen bei
+reiner Zellmittel-Kontrolle im schlechtesten Fall (Zelle i = 4) die
+Mittelschwelle **`a > 3/11 ≈ 0,2727`** nötig; `a_S` liegt deutlich darunter.
+
+**Vollständige Epoch-only-Reparatur für H ≥ 0:** Gesamtverlust
+`Σ_h ℓ_{j,K+2h} < u* − 3/11 = 0,21849892356…` (beide Seed-Paritäten) **oder**
+durchgehendes Epoch-(P) mit `C_P = 500` (plus Seeds beider Paritäten plus
+endlichem Anfangscheck) ⇒ garantierter Mittelwert ≥ 0,367 > 3/11.
+Budgetabzüge beim Seed-Niveau `u*`: (P) 500 → ≈0,124 (Mittel 0,367);
+(P) 730 → ≈0,181 (0,310); (D−) 500 → ≈0,0521 (0,4391); (D−) 875 → ≈0,0912
+(0,4000). Alternative Reparatur ohne Seed-Wechsel: Viertelzellen-Verfeinerung
+(B = 16) mit `a > 3/41 ≈ 0,0732 < a_S`. Quantorenwarnung: die wörtliche
+disjunktive Form `∀k[(D−)_k ∨ (P)_k]` ist nicht mit einer durchgehenden Kette
+gleichwertig (eigenes Übergangslemma nötig).
+
+### O.5 (N) epoch-only, Seeds, epochale Verlusttabelle
+
+**l-Identität und epochales Budget (R33; in §O.7 nachgerechnet).** Mit
+`ℓ_{i,k} = (3/4)^{k−4}·[−z(i,k)]₊` liefert eine uniforme Schranke `|z| ≤ Z`
+nur auf den vier Epoch-Sequenzen `Σ_{h≥0} ℓ_{i,K+2h} ≤ (16/7)·Z·(3/4)^{K−4}`
+(K = 7: 27Z/28; K = 8: 81Z/112). Aus (N) folgt längs der Sequenz induktiv
+`|z_k| ≤ Z := max{R, |z_K|, |z_{K+1}|}` (aus `z_{k+2}² ≤ (R² + z_k²)/2`);
+(N) muss dafür nur entlang der Epoch-Sequenz gelten. **(N) ist nicht ihrem
+Wesen nach global.**
+
+**Summenbaum-Warnung (R33).** Ein Beweis durch Abstieg zur Basisskala k = 4
+braucht wachsende Indexmengen (Wurzelepoche auf Skala k: Blätter
+`i = 4·2^{k−4} … 8·2^{k−4}−1`; über alle k wächst die Vereinigung zu allen
+`i ≥ 4`). Das ist eine Verstärkung des Werkzeugs, nicht der Quantor des
+Ziels, und nur mit orbit-spezifischer Kompression sinnvoll.
+
+**Basis bei k = 4.** Haar-fast-sicher `sup_i t(i,4) = 16400/81` (extremales
+Fünfertupel `(−2,−2,−2,3,3)`, per Paritätswort-Bijektion durch einen Start
+realisierbar); keine für alle Starts gültige Carry-Bedingung kann das
+drücken. Für den festen Start 8 wäre eine kleine All-i-Schranke eine starke
+orbit-spezifische Besonderheit; der Rekord sitzt auf der Basisskala.
+
+**Seeds (frisch verifiziert, §O.7).** `r_{j,7} = (64886, 66261, 65256,
+65896)`, `min u = 0,4950408935546875`; `r_{j,8} = (130377, 128772, 130827,
+130847)`, `min u = 0,4912261962890625` (bindend); Bonus: K = 6 `min u =
+0,4848938`, K = 9 `min u = 0,4970531`. Beide Paritäten erreichen die
+Untergrenze `u* = 128772/262144`.
+
+**Epoch-Loss-Tabelle** (`ℓ_{j,k} = (3/4)^{k−4}·[−z(j,k)]₊`, gemessen aus den
+T34-Daten; Zeilen k = 4..7 aus einem frischen Engine-Lauf):
+
+| k | j=0 | j=1 | j=2 | j=3 |
+|---|---|---|---|---|
+| 4 | 0,03372192 | 0,03189087 | 0,00000000 | 0,02349854 |
+| 5 | 0,00740051 | 0,00000000 | 0,00000000 | 0,00000000 |
+| 6 | 0,00097275 | 0,00000000 | 0,00000000 | 0,00000000 |
+| 7 | 0,00000000 | 0,00774384 | 0,00081062 | 0,00101089 |
+| 8 | 0,00000000 | 0,00000000 | 0,00278473 | 0,00245094 |
+| 9 | 0,00585556 | 0,00000000 | 0,00000000 | 0,00174284 |
+| 10 | 0,00083685 | 0,00000000 | 0,00000000 | 0,00000000 |
+| 11 | 0,00081897 | 0,00000000 | 0,00000000 | 0,00000000 |
+| 12 | 0,00000000 | 0,00037998 | 0,00097483 | 0,00000000 |
+| 13 | 0,00000000 | 0,00000000 | 0,00052243 | 0,00037625 |
+| 14 | 0,00000000 | 0,00090972 | 0,00000000 | 0,00069477 |
+| 15 | 0,00000000 | 0,00031013 | 0,00000000 | 0,00013508 |
+| 16 | 0,00008373 | 0,00000000 | 0,00013568 | 0,00000000 |
+
+Kumulierte Budgets über die jeweilige Parität (partiell bis k = 16; je
+j = 0..3): K = 7: 0,00667453 / 0,00805397 / 0,00133306 / 0,00326507;
+K = 8: 0,00092058 / 0,00128970 / 0,00389524 / 0,00314571. Das ist eine
+Nutzung der Reparaturschranke 0,2184989…
+von **0,4-3,7 %** auf endlichem Fenster (K = 7: ≈0,6-3,7 %; K = 8:
+≈0,4-1,8 %). (P)-Epoch-Residuum derselben Daten: max 0,5525 @(4,4) (Budget 1).
+
+**Endbilanz (R33).** Der Beweisengpass ist präzisiert: eine unendliche,
+start-8-spezifische Kontrolle der **vier epochalen Verlustbudgets**, nicht
+notwendigerweise eine kleine uniforme All-i-Basisbarriere.
+
+### O.6 Grenzen des Nachtrags
+
+1. `R²_cand = 0,014016590` ist ein **Fensterkandidat** (Tiefe 34, k ≤ 17);
+   die `T_k(∞)` sind Fenstermaxima, keine Suprema; `u_max ≈ 0,00125·log N`
+   ist ein Fit, keine Schranke.
+2. Die V22-Aussage über das 88/144-Zellen-Fenster (i ≤ 15) bleibt mit
+   `R²_alt` korrekt; widerlegt ist nur der globale Anspruch. Der Refit ist
+   keine Aussage über alle i oder alle k.
+3. Epoch-Loss-Tabelle und 1,5-4 %-Nutzung sind Messungen (k ≤ 16);
+   Epoch-(P) mit 500 ist für Start 8 nicht bewiesen; „epoch-only" schließt
+   einen späteren All-i-Beweis nicht aus.
+4. Der C-Kernel ist ein Rechenwerkzeug; Profiling und Optimierungen stammen
+   aus der Parallel-Session (Learnings #99378/#99380) und sind hier nur
+   referenziert, nicht nachgerechnet.
+5. Kein Lösungsergebnis: Antihydra bleibt offen.
+
+### O.7 Artefakte und Kommandos des Nachtrags
+
+| Artefakt | Inhalt | Kommando / Quelle |
+|---|---|---|
+| `data/astra-antihydra-rounds/astra-antihydra-r{29..33}.json` | fünf neue Rohantworten (Empfang 09:25-12:09) | Beweismaterial; Anker unten |
+| `bemyself/experiments/antihydra_c.c` | C-Kernel (Leaf, GMP, Grid, Top-Cache) | Repo-Eigentum (`dcb66b4` + `4ca5534`/`33785e7`); hier nur referenziert |
+| `.yesmem/tmp/antihydra-2026-09-14/` (gitignored) | Wide-/αK-Logs, E/D-JSONs, R29-R33-Archiv | Rohdaten der Tabellen §O.2/§O.5 |
+
+#### Nachrechnung des Nachtrags (Stichproben)
+
+- **Seeds:** `r_{j,6}`, `r_{j,7}`, `r_{j,8}`, `r_{j,9}` frisch aus einem
+  Tiefe-22-Lauf der Engine (25 Ziele, 0,1 s): `r_{j,7}` und `r_{j,8}` exakt
+  wie angegeben, inklusive `min u`; K = 6: 0,4848938, K = 9: 0,4970531.
+- **Epoch-Loss-Tabelle:** Zeilen k = 4..7 frisch aus demselben Lauf
+  (identisch zur Tabelle), Zeilen k = 8..16 aus `alphaK-D-values-C.json`
+  (exakt); kumulierte Budgets K = 7/8 nachgerechnet.
+- **Rekordzellen:** `t(7000,4) = 304766525/21743271936`,
+  `t(23922,5) = 9282357875/782757789696`,
+  `t(12043,6) = 269897525/27518828544`, ferner k = 7..9 — aus den
+  E-Zählern des Wide-Logs exakt nachgerechnet; `t(64,9) =
+  12592924675/2229025112064` aus dem D-Dump.
+- **Energie-Identität:** `z_P² = (8/9)(a²+b²) − (4/9)(a−b)²` für fünf
+  zufällige rationale Paare exakt (0 Differenz).
+- **Kreuzverifikation:** die beiden D-Dumps (Python/C) sind byte-identisch
+  (`cmp` ohne Ausgabe).
+
+### Anker des V23-Nachtrags
+
+Die folgenden Marker binden die neuen Rohrunden; der Prüfbefehl steht in
+`data/attack-02-check.txt`.
+
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r29.json -> b3911166e33efca8b46d788ea0eb320b45dfa327c283c82c6a8284de6529804e]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r30.json -> bd6f6bbddc2c2264b8922a63d5b8b37daec73da10d834a3d455761bbb24f10e7]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r31.json -> 8083fdcc90b11e976a87ab90b6584b2d0b74ef40daf2dee747a9b479caca5357]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r32.json -> 1bc1fc59c3df075bc119a62415329010028357638bf7b9343ad476ab88a82670]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r33.json -> b191f302a6df3dec939e31451044128d4406dbd51c4bfcfa893cea89e8e04537]
