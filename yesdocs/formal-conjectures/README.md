@@ -469,10 +469,33 @@ zu den eingefrorenen Läufen, mit Tests) und die 17 Rohantworten des Loops.
 [ARTIFACT: yesdocs/formal-conjectures/tools/fast_orbit.py -> 2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59]
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_fast_orbit.py -> 60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0]
 [ARTIFACT: yesdocs/formal-conjectures/data/antihydra-wide92-cert.json -> f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010]
-[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 8e32c92ac90630436073e447dde5265fa295da47099d2fd46baa454314e7e3b9]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 893e8f9917cacfae558c9020d5be213aabf1b6a9201185443a4a498986794e1b]
 
 Die ausführbaren Prüfungen des Nachtrags bündelt `data/attack-02-check.txt`
 (u. a. `[COMPUTE]` auf `tools/fast_orbit.py`).
+
+**Nachtrag 2026-09-14 (V22, `attack-02.md` §N.1-§N.7).** Die Fortsetzung des
+Antihydra-Lemma-Loops (Runden 19-28, 2026-09-14 00:32-08:01) ist als Nachtrag in
+`attack-02.md` eingefroren: die Counter-Engine des Repos liefert exakte
+Blockzähler an beliebigen Checkpoints (Tiefe 28 in 83 s statt eines
+Bit-Laufs von geschätzten 8,5 h für 2^27), die orbit-spezifische lineare
+Kompression (L) ist für d ≤ 12 exakt ausgeschlossen (volle Spaltenränge mit
+Minor-Zeugen; die mod-2-Kandidatenrelation R0 ist widerlegt), und die
+nichtlineare Invariante (N) hält mit exakt eingefrorenem Radius
+R² = 1309875575/347892350976 auf allen geprüften Zellen (0 Verletzungen;
+Maximum exakt an (14,4)). Die α-Messung (0,4644) wird zur Zielform
+`|D| ≤ K_i·L^{2/3}` präzisiert. **Kein Lösungsergebnis**; Antihydra bleibt
+offen. Die zehn neuen Astra-Rohrunden r19-r28 liegen neben den V21-Antworten
+in `data/astra-antihydra-rounds/`. Artefakte gebunden:
+
+[ARTIFACT: yesdocs/formal-conjectures/tools/deep_rank_chain.py -> 1ecb70a639ac806f38ea87710c2cc198747a65eb251927965c2b0d0eabd25305]
+[ARTIFACT: yesdocs/formal-conjectures/tools/r0_sweep.py -> 328aa95ec45f91ab73800fe24b972e03735f3d81ef9281f6b183e8067cb8d9fc]
+[ARTIFACT: yesdocs/formal-conjectures/tools/test_deep_rank_chain.py -> 42e38106ec8ed9f532ea2e4befa06f3864921ddfa571d64a304546438020ad66]
+[ARTIFACT: yesdocs/formal-conjectures/data/deep-Cvalues-d12.json -> aef77bca04677b878db4984e9e3d31b4806718ad3f8129250d3a582d76e29b29]
+[ARTIFACT: yesdocs/formal-conjectures/data/r0-sweep-result.json -> 0117349e2ebd3c41293ddd181c470af68977a8afa74076d7daa7c7ac00639272]
+
+Die Anker dieses Nachtrags stehen in `data/attack-02-check.txt` (V21-Stand
+plus die neuen Zeilen).
 
 ### 3.3 Einordnung
 

@@ -1,4 +1,4 @@
-# Angriff 02 - Antihydra im Lemma-Loop mit Fremdmodell (Runden 1-18)
+# Angriff 02 - Antihydra im Lemma-Loop mit Fremdmodell (Runden 1-28)
 
 Datum: 2026-09-14. Ausgangsbasis: `master` @ `a35a3d1`. Vorgeschichte: `attack-01.md`
 (V17: beidseitige Reduktions-Verifikation, Roh-TM-2^32-Lauf, Strukturjagd),
@@ -8,6 +8,11 @@ Datum: 2026-09-14. Ausgangsbasis: `master` @ `a35a3d1`. Vorgeschichte: `attack-0
 Kandidat-Aussagen, die Verifikationsseite dieses Repos hat jede davon endlich
 nachgerechnet, widerlegt oder präzisiert; die Rohantworten liegen in
 `data/astra-antihydra-rounds/`.
+
+Der **Nachtrag 2026-09-14 (V22)** setzt den Loop bis Runde 28 fort
+(Counter-Engine, Rangkette bis d ≤ 12, nichtlineare Invariante; Basis `master`
+@ `71c89e1`). §§1-8 bleiben der eingefrorene V21-Stand; die Fortsetzung steht
+in §N.1 bis §N.7 am Dateiende.
 
 **Kein Lösungsergebnis.** Antihydra bleibt offen. Alles hier ist endliche, exakt
 beschriftete Verifikation. Der Wert des Loops liegt in drei Dingen: (i) er hat
@@ -36,7 +41,7 @@ Regeln: Keine Astra-Aussage steht in diesem Bericht ohne Nachrechnung; wo eine Z
 nur aus einem Astra-Lauf stammt, ist sie als Astra-Aussage gekennzeichnet. Jede
 Runde endet mit einem endlichen Test, nie mit "gilt vermutlich".
 
-Umfang: Runden 1-18, 2026-09-13 18:55 bis 2026-09-14 00:23. Token-Budget: 10.000.000
+Umfang: Runden 1-18 (Nachtrag: Runden 19-28), 2026-09-13 18:55 bis 2026-09-14 00:23. Token-Budget: 10.000.000
 veranschlagt; Stand Runde 15 verbraucht etwa 210.000 (rund 2%). Rohdaten: 17 der 18
 Antwortdateien `astra-antihydra-r{1,3,...,18}.json` (`r2` wurde nie gespeichert; die
 Lücke ist in `data/astra-antihydra-rounds/README.md` ausgewiesen). Die
@@ -426,11 +431,13 @@ Endprodukt des Loops: die vollständige Lokalisierung der Lücke.
 | `tools/fast_orbit.py` | schneller Orbit-Generator (Transfer-Identität, w konfigurierbar) | `python3 yesdocs/formal-conjectures/tools/fast_orbit.py 8388608 -w 18 -o bits.bin` |
 | `tools/test_fast_orbit.py` | 11 Tests: Identität, Fast-vs-Naiv 2^14 (w=16/18), x_end, Statistik, CLI | `python3 -m unittest discover -s yesdocs/formal-conjectures/tools -p "test_fast_orbit.py"` |
 | `data/antihydra-wide92-cert.json` | Potentialbreite 92, Zeugenpfad 23 Knoten / -92 | Zertifikat (288 B, sha256 siehe Anker) |
-| `data/astra-antihydra-rounds/` | 17 Rohantworten R1, R3..R18 + Provenienz-README | Beweismaterial des Loops (r2 fehlt) |
+| `data/astra-antihydra-rounds/` | 27 Rohantworten R1, R3..R28 + Provenienz-README | Beweismaterial des Loops (r2 fehlt; R19-28 im Nachtrag) |
 | `data/attack-02-check.txt` | [COMMIT]/[COMPUTE]/[ARTIFACT]-Anker dieses Berichts | `python3 -m bemyself check --report yesdocs/formal-conjectures/data/attack-02-check.txt --repo . --strict --allow "python3 yesdocs/formal-conjectures/tools/fast_orbit.py"` |
 
-Das vollständige Verdikt-Protokoll dieses Prüflaufs steht in
-`data/attack-02-check.verdicts.txt` (26 CONFIRMED, 0 REFUTED, 0 UNVERIFIABLE).
+Das vollständige Verdikt-Protokoll steht in
+`data/attack-02-check.verdicts.txt` — V21-Stand: 26 CONFIRMED, 0 REFUTED,
+0 UNVERIFIABLE; mit den Ankern des V22-Nachtrags: 41 CONFIRMED, 0 REFUTED,
+0 UNVERIFIABLE.
 
 **Re-Pin-Konvention (Tripwire).** Die Anker binden die genannten Dateien; wer
 eine davon ändert, zieht die betroffenen `[ARTIFACT]`-Digests in `README.md`,
@@ -473,7 +480,7 @@ Prüfbefehl steht in `data/attack-02-check.txt`.
 [ARTIFACT: yesdocs/formal-conjectures/tools/fast_orbit.py -> 2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59]
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_fast_orbit.py -> 60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0]
 [ARTIFACT: yesdocs/formal-conjectures/data/antihydra-wide92-cert.json -> f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010]
-[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 8e32c92ac90630436073e447dde5265fa295da47099d2fd46baa454314e7e3b9]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 893e8f9917cacfae558c9020d5be213aabf1b6a9201185443a4a498986794e1b]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r1.json -> 8fde219ecb93fc8017183af8df3b3552383ccf5f723f327077f8ec7b9cc91269]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r3.json -> 9ced79cd5afa6bdfbea60d61c2e10bd85d5105381ac0c15eca3aee22ca3b8ae1]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r4.json -> 8d233e61909cfa82b71d6fceb1cf41f9fbf41a3cea486c7380a74a6305f641c7]
@@ -491,3 +498,287 @@ Prüfbefehl steht in `data/attack-02-check.txt`.
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r16.json -> 124940a6c9d78ae0cb20c6e163feecef1764ed0dedbb65c36dd304a5bef6e7de]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r17.json -> 8c1f423bd8f8465a0c35ec47e9771abc60989d3fd931a220570d631158fb5b87]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json -> 92608fa3f985580b09105d789de4237fee7d7e461be0dd86accd7bc62c676c82]
+
+---
+
+## Nachtrag 2026-09-14 (V22): Counter-Engine, Rangkette bis d ≤ 12, nichtlineare Invariante
+
+Basis: `master` @ `71c89e1` (V21-Merge). Dieser Nachtrag setzt den in §§1-8
+eingefrorenen Stand fort (Runden 19-28, 2026-09-14 00:32 bis 08:01). Drei
+Ergebnisblöcke: (i) die **Counter-Engine** des Repos ersetzt den Bit-Generator
+als Messinstrument, (ii) die **orbit-spezifische lineare Kompression (L) ist
+für d ≤ 12 exakt ausgeschlossen** (und die mod-2-Kandidatenrelation R0 ist
+widerlegt), (iii) die **nichtlineare Invariante (N)** hält mit eingefrorenem
+exaktem Radius auf allen geprüften Zellen; die α-Messung (0,4644) wird zur
+priorisierten Zielform präzisiert. Rohdaten: zehn weitere Antwortdateien
+`astra-antihydra-r{19..28}.json` (Empfang 00:32-08:01).
+
+**Kein Lösungsergebnis.** Alle Aussagen sind endliche Zertifikate auf
+präfixweise exakten Läufen; „für beliebiges d ist (L) nicht bewiesen“ gilt
+für jede Ausschlusszeile dieses Nachtrags.
+
+### N.1 Rundenchronik R19-R28
+
+| Runde | Astra liefert | Verifikation (dieses Repo) | Ergebnis |
+|---|---|---|---|
+| R19 (00:32) | Summenbaum D = 5·Σq_n (q_n ∈ {−4..4}); Kandidat (L); Polyederzertifikat (M⁴/8)K ⊆ K; Haar-Martingal | D-Darstellung übernommen (konstante Terme heben sich exakt); 4×4-Rangtest: det ≡ 2 (mod 3), Werte identisch mit r19 | d ≤ 3 ausgeschlossen; (L) präzise formuliert |
+| R20 (00:45) | Bewertung des Ranganstiegs 4→5; Bellman-Potential-Format (endlicher gewichteter Zustandsgraph + summierbares Fehlerbudget); kumulierte normierte Defekte | 12×5-Matrix vollständig, ein ungerader 5×5-Minor; Rang 5 | d ≤ 4 ausgeschlossen |
+| R21 (01:24) | (L) ⇔ P(A)f = 0 (Summenoperator A f(i) = f(2i)+f(2i+1)); Haar-fast-sicher kein endliches (L); Vier-Kontrast-Zustand Δ_r | 7×6-Matrix: Rang 6; Bijektions-/Nullmengen-Argument nachvollzogen | d ≤ 5 ausgeschlossen |
+| R22 (03:36) | K6-Kongruenz h₆ ≡ Σ a_r h_r (mod 2) + 2-adischer Lift [h₀..h₅, g]; (N)-Testprotokoll (Training/Validierung, R_crit) | 2^26-Lauf: 8×7-Matrix Rang 7 über Q; K6 (eindeutige Relation h₆ ≡ h₃ mod 2, Zeilen 4..11) hält bis i = 12, verletzt ab i = 13 (1/4 im Fenster 12..15); Lift-Rang 6/7 | K6 widerlegt; d ≤ 6 ausgeschlossen; (N) spezifiziert |
+| R23 (03:40) | (N)-Konsistenz-Audit: max\|z\| = 0,0436 unvereinbar mit R² = 703,44; exakter Integer-Test; 508 Frontier-Zellen; Nicht-Nachfitten-Regel | Audit ergab einen eigenen Auswertungsfehler (fehlende None-Guards → stilles Index-Truncaten); Korrektur auf R² = 1309875575/347892350976; Extremzelle (14,4) exakt auditiert | früherer (N)-Fit war ein Artefakt; Radius exakt eingefroren |
+| R24 (03:44) | Bewertung der Korrektur; f-Identität z(i,4+m) = (2/3)^m·Σ_{r<2^m} f(2^m·i+r); (K_h)-Kriterium; Q-Wert; Gültigkeitsguard | 64 gültige Transitionen (2^26-Fenster): 0 Verletzungen unter dem exakten Radius | (N) auf Fitdaten bestätigt |
+| R25 (06:41) | Counter-Engine-Ökonomie; Rangkette bis d = 12 abschließen, dann pausieren; Brücke D(i,k)/5 = (A_{i,k+2} − 4A_{i,k})/3; verschachtelte Zeugen W_d(j); (N)-Sicherheitsabstände; α-Methodik | Brücke exakt (D ≡ 0 (mod 5), H = D/5 ganzzahlig nachgerechnet); Tiefen-Buchhaltung: Tiefe 33 für d = 12 nötig, nicht 40 | d ≤ 9 ausgeschlossen (Tiefe 29) |
+| R26 (07:00) | Baum allein erzwingt R0 nicht; Fortpflanzung R_{s+1}(i) = R_s(2i) ⊕ R_s(2i+1); Halbierte Spalte H̃_{·,8} = (H₈+H₂+H₃+H₄+H₆)/2 mit det H = 2·det H̃; XOR-Invariante J_N | Halbierungstest d = 10: transformierte Matrix mod 2 voll (11/11) → det ≡ 2 (mod 4); R0-Kern c₀ aus dem Rangbild extrahiert | 2-adischer Witness; R0-Widerlegung vorbereitet |
+| R27 (07:59) | Quotientenbild mod 2: W = span{r₄..r₁₅}, dim W = 11, dim 𝔽₂¹³/W = 2; Signaturen (1,0)/(0,1)/(1,1); Abschlussabsatz der linearen Route; α-Kalibrierung; Transfersperre (D sieht C-Geradenanteil nicht) | R0-Sweep (Tiefe 32): 0 für i ≤ 15, Treffer ab i = 16, 135/252 in i = 4..255; Zusatzzeilen {16,20} vervollständigen den mod-2-Rang; Signaturen i = 16..24 tabelliert | R0 widerlegt; d ≤ 12 ausgeschlossen (Tiefen bis 33); mod-2-Defekt ist fensterbedingt |
+| R28 (08:01) | Quotientenmechanismus für d = 12 vollständig bestätigt; Abschlussformulierung; Fortsetzungsalgorithmus d ≥ 13; α-Zielform als Priorität | d = 12 (Tiefe 33): Rang 13/13 über Q, mod 3/7/11/13 voll; ungerader 13×13-Minor (Zeilen 4..14,16,20) | d ≤ 12 ausgeschlossen; Rangkette pausiert |
+
+Zwei Runden verdienen — wie ihre Vorläufer R4/R5 in §3 — eine Hervorhebung:
+
+- **R23 war ein echter Fehler auf unserer Seite, von Astra entdeckt.** Der
+  gemeldete Fit-Radius R² = 703,44 war mit dem gemeldeten Maximum
+  max|z| = 0,0436 unvereinbar (jeder zulässige Radius muss
+  ≤ 3·max|z|² ≈ 0,0057 sein). Die Nachrechnung zeigte: unser C(i,k)-Helfer
+  ließ bei Indexüberläufen die None-Guards fallen, und Python-Slices
+  truncaten still — das Extremum war Müll. Der korrigierte Radius ist exakt
+  R² = 1309875575/347892350976, definiert durch Gleichheit an der Zelle
+  (14,4) (§N.4).
+- **R26-R28 war der Übergang von „Rangdefekt" zu einem vollständigen
+  Quotientenbild.** Der mod-2-Defekt der Spaltenmatrix ist kein Hindernis,
+  sondern ein zweidimensionaler Quotient mit drei Signaturen; zwei
+  verschiedene nichtverschwindende Signaturen (z. B. {16,20}) liefern
+  vollen Rang über 𝔽₂ und damit einen ganzzahligen Minor mit ungerader
+  Determinante (Astra R27).
+
+### N.2 Die Counter-Engine (Werkzeug)
+
+`bemyself/experiments/antihydra_deep.py` (seit V17 im Repo, 16 Tests) ist
+der exakte Tiefzähler: die Block-Divide-and-Conquer-Methode aus dem
+bbchallenge-Forum (mxdys) mit libgmp über ctypes (CPython-Fallback), gegen
+die naive Rekurrenz verifiziert. Im Loop wird die Checkpoint-Option
+(`--also <n>` / `extra_targets`) zum **Messinstrument**: die Engine liefert
+den Zähler 3E(n) − n an beliebigen Checkpoints n, ohne Paritätsbits zu
+materialisieren; aus den Blockendpunkt-Zählern folgen über
+E(n) = (counter(n) + n)/3 alle Berichtsgrößen C, D, H, z.
+
+Validierung (in diesem Nachtrag aus den eingefrorenen Bit-Dateien
+nachgerechnet): counter(3.145.728) = 1.569.705 und counter(2^22) = 2.093.612
+sind exakt gleich den aus den Bits gerechneten Werten (E(3.145.728) =
+1.571.811; E(2^22) = 2.095.972, der §4.2-Wert). Zusätzlich stimmen alle für
+die d=6-Matrix benötigten C(i,k) aus dem 2^26-Bitlauf und aus der Engine
+paarweise exakt überein.
+
+Messungen (Repo-Werkzeug `tools/deep_rank_chain.py`): d = 7 (Tiefe 27,
+185 Ziele): 40 s; d = 8 (Tiefe 28, 198 Ziele): 83 s; d = 9 (T 29, 211): 167 s;
+d = 10 (T 30, 224): 350 s; d = 11 (T 31, 237): 726 s; d = 12 (T 33, 263):
+3.217 s. Zum Vergleich der Bit-Generator: 2^25 brauchte 1.975 s, 2^26
+7.681 s (quadratisch skaliert — 2^27 hätte bei ≈ 8,5 h gelegen; der
+Bitlauf für 2^27, Start 03:31, wurde nicht abgewartet). Die Engine rechnet
+dieselbe Tiefe 28 in 83 s.
+
+### N.3 Rangkette: (L) ist für d ≤ 12 exakt ausgeschlossen
+
+Gegenstand ist die orbit-spezifische lineare Kompression
+
+    (L)  D(i,4+d) = Σ_{r<d} c_r·D(i,4+r)   für alle i ≥ 4
+
+mit von i und k unabhängigen rationalen Koeffizienten (nur für x₀ = 8
+behauptet, keine Aussage über andere Starts). Äquivalent (R21): P(A)f = 0
+für ein monisches Polynom P, mit f(i) = D(i,4)/5 und
+H_{i,m} = (A^m f)(i). Test: die (d+1)×(d+1)-Matrix H_{i,m} = D(i,4+m)/5,
+i = 4..4+d; voller Spaltenrang schließt (L) aus, und ein
+nichtverschwindender Minor modulo einer Primzahl ist ein exaktes
+vollständiges Zertifikat — er zählt über ℚ und ℝ.
+
+| d | Daten (Tiefe) | Rang über ℚ | mod 2 | Zeuge (natürlicher Minor, Zeilen 4..4+d) |
+|---|---|---|---|---|
+| 3 | 2^23 (R19) | 4/4 | 3/4 | det ≡ 2 (mod 3) |
+| 4 | 2^24 (R20) | 5/5 | 4/5 | det ≡ 1 (mod 3) |
+| 5 | 2^25 (R21) | 6/6 | 6/6 | det ≡ 6 (mod 7), ungerade |
+| 6 | 2^26 (03:25) | 7/7 | 6/7 | det ≡ 5 (mod 7) |
+| 7 | 27 | 8/8 | 7/8 | det ≡ 3 (mod 7) |
+| 8 | 28 | 9/9 | 7/9 | det ≡ 3 (mod 7) |
+| 9 | 29 | 10/10 | 9/10 | det ≡ 1 (mod 13) |
+| 10 | 30 | 11/11 | 10/11 | det ≡ 8 (mod 11) |
+| 11 | 31 | 12/12 | 11/12 | det ≡ 1 (mod 3) |
+| 12 | 33 | 13/13 | 12/13 | det ≡ 1 (mod 3), zugleich ≢ 0 (mod 7, 11, 13) |
+
+Alle zehn Zeilen sind aus dem eingefrorenen Dump `data/deep-Cvalues-d12.json`
+(Tiefe 33) nachgerechnet; d = 7 und d = 8 zusätzlich frisch mit
+`tools/deep_rank_chain.py` gerechnet (40 s / 83 s). **Korrektur zu einem
+Nacht-Log:** `antihydra-2p26-rank.log` meldet für d = 6 pauschal
+„Rang mod p: 6" für alle p ≤ 19; die mod-p-Schleife des damaligen Skripts
+lief nur über 6 der 7 Spalten (`range(6)`). Nachgerechnet aus den
+eingefrorenen Daten auf der 8×7-Nachtmatrix (Zeilen 4..11, dieselbe wie im
+damaligen Lauf): mod 3/7/11/13/17/19 voll (7/7), nur mod 2 hat den Defekt
+6/7; die 7×7-Tabellenmatrix desselben Absatzes hat mod 3 und mod 11
+ebenfalls den Defekt 6/7 (det = −2⁴·3²·5·11²·29789385120360739).
+
+**Das mod-2-Binnenbild bei d = 12** (nachgerechnet aus dem Dump): Die Zeilen
+r_i = H_{i,·} mod 2, i = 4..15, spannen einen 11-dimensionalen Raum auf; der
+Annihilator ist zweidimensional mit Basis
+
+    c₀ = (0,0,1,1,1,0,1,0,1,0,0,0,0)    [die alte R0-Relation: H₂+H₃+H₄+H₆+H₈ ≡ 0]
+    c₁ = (0,1,1,0,0,1,0,1,0,0,0,0,1)
+
+Die Signaturen s(i) = (r_i·c₀, r_i·c₁) für i = 16..24:
+(1,1), (0,1), (0,0), (0,0), (1,0), (1,1), (0,0), (1,0), (0,0). Zwei
+verschiedene nichtverschwindende Signaturen schließen den Quotienten:
+{16,20} = (1,1), (1,0) ist voll — die Zeilenmenge {4..14,16,20} ist über 𝔽₂
+unabhängig (13 Zeilen) und liefert den Minor mit ungerader Determinante;
+{16,21} = (1,1), (1,1) bleibt bei 12/13. **R0-Sweep** (`tools/r0_sweep.py`,
+Tiefe 32, i = 4..255; `data/r0-sweep-result.json`): R0(i) = 0 für alle
+i ≤ 15, Treffer R0(i) = 1 zuerst 16, 20, 21, 23; insgesamt 135 Treffer in
+252 getesteten Zeilen — die vermutete globale Relation R0 ist widerlegt, die
+Null-Verlängerung für i ≤ 15 ist ein endliches Fensterphänomen. Laufzeit der
+Sweep-Logik: ≈ 3 min bei Tiefe 29 (gemessen, i ≤ 24), der Default Tiefe 32
+liegt entsprechend länger; der Tiefe-33-Ranglauf derselben Engine brauchte
+3.217 s.
+
+**Halbierte Spalte** (R26): H̃_{·,8} = (H_{·,8}+H_{·,2}+H_{·,3}+H_{·,4}
++H_{·,6})/2 ist auf den Zeilen i ≤ 15 ganzzahlig (dort gilt c₀), und für
+jeden quadratischen Minor gilt det H = 2·det H̃. Nachrechnung: d = 9: Rang
+der transformierten Matrix mod 2 = 9/10; **d = 10: 11/11 voll** — der
+natürliche 11×11-Minor (Zeilen 4..14) hat 2-adische Bewertung 1, d. h.
+det ≡ 2 (mod 4); d = 11: 11/12; d = 12: 11/13 (nur 12 Zeilen mit
+ganzzahliger H̃-Spalte). Der mod-2-Defekt bei d = 10 ist also genau eine
+Zweierpotenz tief; für den vollen Rangnachweis bis d = 12 sind die
+Halbierungstests aber durch die Zusatzzeilen und die ungeraden Minoren
+überholt (R27).
+
+**Abschlussformulierung der linearen Route** (Astra R28, sinngemäß wörtlich
+übernommen):
+
+> Im untersuchten Spaltenmodell sind sämtliche nichttrivialen homogenen
+> 𝔽₂-Relationen mit Unterstützung in m = 0,...,12 ausgeschlossen. Ein
+> endliches Vollrangzertifikat liegt vor: Aus den Zeilen 4,...,15,16,20
+> lassen sich 13 unabhängige auswählen. Damit sind auch alle kleineren
+> Spaltenfenster abgedeckt. Eine Ausschließung für beliebiges d ist nicht
+> bewiesen.
+
+Bei ganzzahligen Originaleinträgen zertifiziert derselbe ungerade Minor auch
+Vollrang über ℚ bzw. ℝ. Astras längere Fassung (R27) ergänzt: die reine
+Rangketten-Verlängerung wird nicht weiter priorisiert; höhere Ordnungen und
+Beziehungen außerhalb des geprüften Ansatzes bleiben offen; eine quantitative
+Wachstumsschranke folgt aus den Rangresultaten nicht.
+
+### N.4 Die nichtlineare Invariante (N)
+
+Definitionen (Astra R22, eingefroren R23/R24): δ(i,k) = D(i,k)/(4·L_k);
+z(i,k) = (4/3)^{k−4}·δ(i,k); Zustand s(i,k) = (z(i,k), z(i,k+1));
+V(u,v) = u² + v². Die Ungleichung
+
+    (N)  V(s(i,k+1)) ≤ ½·V(s(i,k)) + ½·R²
+
+wird mit dem exakt eingefrorenen Radius
+
+    R² = 1309875575/347892350976  (≈ 0,0037651749…)
+
+getestet; die Anfangsbedingung V(s(i,4)) ≤ R² hält auf allen Zeilen i ≤ 15
+(nachgerechnet: Maximum V(s(6,4)) ≈ 0,0022674), und das Maximum T = R² wird
+exakt an (i,k) = (14,4) angenommen (Gleichheit, R23).
+Der rein ganzzahlige Test (R24): mit P(i,k) = −81·D(i,k)² + 36·D(i,k+1)²
++ 32·D(i,k+2)² gilt (N) ⟺ 4^{k−4}·P(i,k) ≤ 9^{k−4}·1309875575 — ohne jede
+Rundungsfrage. Die z-Rekursion (R24) ist exakt:
+
+    z(i,k+1) = (2/3)·(z(2i,k) + z(2i+1,k)).
+
+Zellenstand (aus `data/deep-Cvalues-d12.json`, Testcode
+`tools/test_deep_rank_chain.py`): im Fenster bis Tiefe 28 (k ≤ 10 für alle
+i ≤ 15, k = 11 für i ≤ 7) sind 88 Zellen valide, mit 0 Verletzungen; mit dem
+tieferen Datenstand (Tiefe 33, k = 4..15 für i ≤ 15) sind es 144 Zellen,
+weiterhin 0 Verletzungen — das Maximum bleibt exakt R² bei (14,4).
+
+Status: (N) ist ein endlicher Fit auf zusammenhängenden Zellen. Ein global
+bewiesenes (N) würde |z| ≤ R und damit die globale Schranke
+|D(i,k)| ≤ 65536·R·(3/2)^{k−4} liefern (R23); eine Verbindung zum Zielsatz
+(P)/(D−) aus §4.9 und die von Astra zusätzlich vorgeschlagenen Tests
+((K_h), Geschwisterkorrelation ρ, Frontier-Zellen auf 2^27) sind nicht Teil
+dieses Nachtrags.
+
+### N.5 α-Messung und Zielform (R27/R28)
+
+Least-Squares-Fit über 56 Punkte (i = 4..7, k = 4..17) von log₂|D(i,k)|
+gegen (k+10): Steigung **α = 0,4644** (Nachrechnung: 0,464390). Das ist im
+gemessenen Fenster unter der √L-Skala (halber Exponent 0,5), aber kein
+Beweis asymptotisch sub-√L-Wachstums: die 56 Werte sind nicht unabhängig,
+Log-Fits reagieren auf Nullnähen, und vier Zeilen kontrollieren nicht alle i
+(Astra R27). Astras Priorität (R27/R28) ist deshalb nicht, den Exponenten zu
+„beweisen“, sondern die **Zielform |D(i,k)| ≤ K_i·L_k^{2/3}** als präzises
+analytisches Teilproblem zu isolieren — mit sauberer Quantifizierung über i
+(festes i / feste endliche Zeilenmenge / Uniformität; K_i unabhängig von L).
+Der Abstand zu 3/4 ist reichlich; eine D-Schranke allein trägt kein
+Dichteziel (Transfersperre, R27: ein proportionaler C-Geradenanteil ist für
+D unsichtbar).
+
+Ein **α/K-Sweep auf Tiefe 34** (Zielraster m·2^{k+10} für m ≤ 256,
+k = 8..22; Treiber `/tmp/opencode/run-alphaK-sweep.py`, session-lokal)
+lief zum Freeze-Zeitpunkt dieses Nachtrags noch; sein Ergebnis wird bei
+Vorliegen separat nachgetragen.
+
+### N.6 Grenzen des Nachtrags
+
+1. (L) ist für d ≤ 12 **im geprüften Ansatz** ausgeschlossen (konstante
+   Koeffizienten, alle i ≥ 4); für beliebiges d ist nichts bewiesen.
+   Skalenabhängige Koeffizienten, Abschlüsse erst ab späterer Skala und
+   andere Observable sind nicht erfasst (R20).
+2. (N) ist auf 64/88/144 endlichen Zellen bestätigt, nicht bewiesen; der
+   Radius ist durch Gleichheit an (14,4) definiert; die Brücke zu (P) fehlt.
+3. α = 0,4644 ist eine Heuristik aus vier Zeilen.
+4. Die Counter-Engine ist ein Rechenwerkzeug: sie beschleunigt Messungen,
+   sie beweist nichts.
+5. R0 ist als globale Relation widerlegt; die Null-Verlängerung für i ≤ 15
+   bleibt ein endlicher Befund.
+6. Keine Lösungsaussage: Antihydra bleibt offen; die offene Kernaussage aus
+   §6 bleibt die Lücke.
+
+### N.7 Artefakte und Kommandos des Nachtrags
+
+| Artefakt | Inhalt | Kommando / Quelle |
+|---|---|---|
+| `tools/deep_rank_chain.py` | Rangkette aus Counter-Checkpoints (Tiefen 27-33) | `python3 yesdocs/formal-conjectures/tools/deep_rank_chain.py --d 7 --d 8` |
+| `tools/r0_sweep.py` | Fünfblock-Parität R0(i) (Tiefe 32) | `python3 yesdocs/formal-conjectures/tools/r0_sweep.py --out r0-sweep-result.json` |
+| `tools/test_deep_rank_chain.py` | 5 Tests (Extraktion, Rangkette d = 12, R0, (N)) | `python3 -m unittest discover -s yesdocs/formal-conjectures/tools -p "test_deep_rank_chain.py"` |
+| `data/deep-Cvalues-d12.json` | C(i,k)-Dump des d = 12-Laufs (Tiefe 33) | `deep_rank_chain.py --d 12 --out-dir <dir>` |
+| `data/r0-sweep-result.json` | Sweep-Ergebnis (135/252 Treffer) | siehe oben |
+| `data/astra-antihydra-rounds/` | 27 Rohantworten R1, R3..R28 + Provenienz-README | Beweismaterial des Loops (r2 fehlt) |
+
+#### Nachrechnung des Nachtrags (Stichproben aus dem eingefrorenen Dump)
+
+- Rangkette: alle zehn Rangzeilen (d = 3..12) aus `data/deep-Cvalues-d12.json`
+  nachgerechnet (Testcode); für d = 7 und d = 8 zusätzlich frisch gerechnet
+  (40 s bzw. 83 s, `tools/deep_rank_chain.py`).
+- mod-2-Binnenbild d = 12: Rang 11 der Zeilen 4..15, Annihilatorbasis c₀/c₁,
+  Signaturen i = 16..24, Zeilenmengen {4..14,16,20} (13 unabhängig) und
+  {4..15,16,21} (12/13) — alles aus dem Dump.
+- R0: Werte für i = 4..24 aus dem Dump; Abgleich mit
+  `data/r0-sweep-result.json` (Testcode).
+- (N): 88 Zellen (Tiefe-28-Fenster) und 144 Zellen (Tiefe 33),
+  0 Verletzungen, Maximum exakt R² bei (14,4); z-Rekursion an
+  verfügbaren Zellen exakt.
+- α: Least-Squares-Nachrechnung ergibt 0,464390 (56 Punkte, i = 4..7,
+  k = 4..17).
+- Counter-Validierung: Zähler bei n = 3.145.728 (1.569.705) und n = 2^22
+  (2.093.612) identisch mit den Bit-Werten; C(i,k) der d = 6-Matrix aus
+  Bits und Engine paarweise identisch.
+
+### Anker des Nachtrags
+
+Die folgenden Marker binden die Artefakte des Nachtrags; der Prüfbefehl
+steht in `data/attack-02-check.txt` (alte 26 Anker unverändert + diese).
+
+# V22-Nachtrag (2026-09-14): Rohrunden r19-r28 und Nachtrags-Artefakte
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r19.json -> aaed793a0de8d4d9e3811a2fec58a2f7ad5c62058f08ed600be915034ec42b33]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r20.json -> 0986afd01dd4ad3030f56ddc33a2ff2b73fefc9fd002d1570a3ddd022de078f5]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r21.json -> 1f3a72c779de370df940d6302f64712c85a76e6342cbb57c8d6c5549b0145cc3]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r22.json -> 8d3c506b547bb33e539555e67210b418e5519f65db7b5d97273e16346538989b]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r23.json -> 09762b9e3e4e00e1659f827f08d75e9371d846da10058f838bd6b73bf90e71fc]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r24.json -> b4ab27105ed508fc680c962830d9aa87b8bb6f6c98d12901a2f6226cdf049ae2]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r25.json -> 40f6f0c706c4d7e406ce69f72a446459d4e9022d5f3ff8aaa619da17ccaa62e0]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r26.json -> 789f9ddedd0a7d4f777632b51b5bf4a084cb9137f317f6d1ffbc11efe1e2d443]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r27.json -> a59d65f71008bb86293369e15ac81992635cba514346f74835d16d8f8214fb7d]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r28.json -> 5357605f44045e5b8fc97e164cd8f9feae97eac42fd721c730445466c95c198f]
+[ARTIFACT: yesdocs/formal-conjectures/tools/deep_rank_chain.py -> 1ecb70a639ac806f38ea87710c2cc198747a65eb251927965c2b0d0eabd25305]
+[ARTIFACT: yesdocs/formal-conjectures/tools/r0_sweep.py -> 328aa95ec45f91ab73800fe24b972e03735f3d81ef9281f6b183e8067cb8d9fc]
+[ARTIFACT: yesdocs/formal-conjectures/tools/test_deep_rank_chain.py -> 42e38106ec8ed9f532ea2e4befa06f3864921ddfa571d64a304546438020ad66]
+[ARTIFACT: yesdocs/formal-conjectures/data/deep-Cvalues-d12.json -> aef77bca04677b878db4984e9e3d31b4806718ad3f8129250d3a582d76e29b29]
+[ARTIFACT: yesdocs/formal-conjectures/data/r0-sweep-result.json -> 0117349e2ebd3c41293ddd181c470af68977a8afa74076d7daa7c7ac00639272]
