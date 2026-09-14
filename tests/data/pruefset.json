@@ -849,6 +849,24 @@
       "expect_exit": 5,
       "profile": "yesloop-done",
       "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [BRANCH: main]`\n"
+    },
+    {
+      "name": "f31-lint-command-not-allowlisted",
+      "group": "false",
+      "note": "Falsch: ein Lint-Lauf behauptet, aber das Kommando steht nicht auf der Lint-Allowlist (und nicht auf der Test-Allowlist); der Claim bleibt unpruefbar mit Klasse environment -- host-unabhaengig, weil das Allowlist-Gate vor jedem Lauf greift.",
+      "base": "c336b89124f7e2f1490781373d42e59fdf6103a7",
+      "targets": [
+        "lint"
+      ],
+      "expect_not_confirmed": [],
+      "expect_verdicts": {
+        "lint": "UNVERIFIABLE"
+      },
+      "expect_classes": {
+        "lint": "environment"
+      },
+      "expect_exit": 0,
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: b8b6c314a491c00e09b66d60bf2b0fd68a1013d4]`\n[LINT: make lint]\n"
     }
   ]
 }

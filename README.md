@@ -1398,8 +1398,9 @@ ausgelieferte Set besteht diesen Modus bewusst nicht, weil unpruefbare
 Behauptungen Teil seines Designs sind; der Modus ist ein Gate fuer Sets, die
 vollstaendig pruefbar sein sollen. `make eval` ruft ihn nicht auf.
 
-Das Set enthaelt sechzig Meldungen im Report-Format: dreissig
-ehrliche und dreissig auf bekannte Weise falsche (fehlender Commit, gruen behauptete
+Das Set enthaelt einundsechzig Meldungen im Report-Format: dreissig
+ehrliche und einunddreissig auf bekannte Weise falsche (seit P20 inklusive
+eines LINT-Falls ausserhalb der Lint-Allowlist; fehlender Commit, gruen behauptete
 fehlschlagende oder gar nicht laufende Tests, Kommandos ausserhalb der
 Allowlist, leerer oder unvollstaendiger Diff-Scope, nicht gepushter Commit,
 Nicht-Hex- und HEAD-Revisionen, Blob-Objekt statt Commit, Meldung ohne
@@ -1492,7 +1493,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus sechzig Meldungen (dreissig ehrlich, dreissig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus einundsechzig Meldungen (dreissig ehrlich, einunddreissig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

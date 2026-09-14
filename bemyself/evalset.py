@@ -264,7 +264,7 @@ def build_fixture(root):
 
 
 def standard_set(fixture):
-    """Return the standard sixty-message set (30 honest, 30 false).
+    """Return the standard sixty-one-message set (30 honest, 31 false).
 
     Each case records the message, the base revision for diff-scope checks,
     the claim kinds that carry the known falsity (``targets``), the verdicts
@@ -1132,6 +1132,19 @@ def standard_set(fixture):
             expect_verdicts={"profile": "UNVERIFIABLE"},
             expect_classes={"profile": "defect"},
             expect_exit=5,
+        ),
+        case(
+            "f31-lint-command-not-allowlisted",
+            "false",
+            "Falsch: ein Lint-Lauf behauptet, aber das Kommando steht nicht auf "
+            "der Lint-Allowlist (und nicht auf der Test-Allowlist); der Claim "
+            "bleibt unpruefbar mit Klasse environment -- host-unabhaengig, weil "
+            "das Allowlist-Gate vor jedem Lauf greift.",
+            done(payload("[DONE]", f"[COMMIT: {commits['fixed']}]"), "[LINT: make lint]"),
+            targets=["lint"],
+            expect_verdicts={"lint": "UNVERIFIABLE"},
+            expect_classes={"lint": "environment"},
+            expect_exit=0,
         ),
     ]
     return {
