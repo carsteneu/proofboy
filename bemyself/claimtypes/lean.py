@@ -154,7 +154,6 @@ _IMPORT_RE = re.compile(
 )
 _ERROR_RE = re.compile(r"\berror\b")
 _UNKNOWN_MODULE_RE = re.compile(r"unknown module prefix '([^']+)'")
-_SANDBOX_FAILURE_RE = re.compile(r"(?m)^bwrap: ")
 _READONLY_CACHE_RE = re.compile(r"(?i)read-?only file system")
 _ENV_FAILURE_RE = re.compile(
     r"(?i)(could not resolve host|unable to access|failed to fetch|"

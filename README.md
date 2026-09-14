@@ -77,18 +77,26 @@ dann die `--allow`-Eintraege der CLI). Die Quelle des Checks (`--report`,
 eine Behauptung kommt, entscheidet der Aufrufer, nie eine Projektdatei. Ein
 unbekannter Schluessel, ein falscher Typ oder ein ungueltiger Wert ist ein
 Usage-Fehler (Exit 2): ein Tippfehler in der Projektdatei darf nicht still
-nichts bewirken. Die Datei ist Daten, nie Code -- nichts wird ausgefuehrt,
-um sie zu lesen.
+nichts bewirken. Die Datei ist Daten, nie Code -- nichts wird ausgefuehrt, um sie zu lesen,
+und sie ist Operator-Eingabe, nie Repo-Eingabe: der Pfad kommt von der
+Kommandozeile, das Repo kann ihn nicht bestimmen und sich keine Config
+unterjubeln (kein Auto-Load). Zeigt der Operator den Pfad in einen
+Repo-Bereich, traegt die Config trotzdem seine Entscheidung -- wer das
+vermeiden will, laesst `sandbox`/`tools` dort weg (dieselbe Klasse wie
+`--tools`: der Host pinnt die Werkzeuge selbst).
 
 **Stack-Vorschlag (`--detect`):** `python3 -m bemyself check --detect --repo
 <pfad>` liest die Namen der Marker-Dateien an der Repo-Wurzel (`composer.json`,
 `phpunit.xml(.dist)`, `package.json`, `go.mod`, `Cargo.toml`,
 `pyproject.toml`, `setup.py`, `pytest.ini`, `tox.ini`, `Makefile`; nur
-regulaere Dateien, **keine Inhalte**, keine Symlink-Ziele, kein Git) und
+regulaere Dateien; ein Symlink auf eine existierende Datei zaehlt unter
+seinem Namen, aber es werden **keine Inhalte** gelesen und keinem
+Symlink-Ziel gefolgt, kein Git) und
 nennt die passenden Test- und `[LINT]`-Kommandos -- als Vorschlag fuer
 `--allow` bzw. die Projekt-Config. Die Schicht ist strikt verdiktneutral: mit
 einem Report laeuft das Ergebnis nur als `detected`-Feld (JSON) bzw. als
-Zusatzzeilen (Text) mit, die Behauptungen und der Exit-Code bleiben exakt wie
+Zusatzzeilen (Text) mit (ohne `--repo` gibt es nichts zu lesen, der
+Vorschlag entfaellt still), die Behauptungen und der Exit-Code bleiben exakt wie
 ohne `--detect` (ein Differentialtest pinnt das); ohne Report ist der Aufruf
 eine eigenstaendige Abfrage (Exit 0). Ein feindseliges Manifest kann die
 Erkennung nicht ausnutzen: es wird nie gelesen, nur gezaehlt.
@@ -981,7 +989,10 @@ Symfony-Konsolen-Linter (`php bin/console lint:twig`, `lint:yaml`,
 `lint:container`) und `composer validate`; `--allow` erweitert die
 Lint-Allowlist, aber nie
 gegenseitig mit der Test-Allowlist: ein `[LINT]`-Claim kann keinen
-Test-Runner ausfuehren und ein `[TESTS]`-Claim keinen Linter. Der Commit
+Test-Runner ausfuehren und die Test-Behauptung ("Tests run: ...") keinen
+Linter. Fuer die Standardlisten gilt das woertlich; `--allow`-Eintraege
+oeffnen ein Kommando in beiden Rollen (eine Rolle ohne Adapter bleibt
+dort `unpruefbar`). Der Commit
 kommt aus dem einen hash-foermigen `[COMMIT]`-Marker der Meldung; das
 Kommando laeuft in einem Wegwerf-Checkout mit derselben Maschinerie wie das
 Tests-Gate (Sandbox, Argument-Escape-Regeln, Ausgabelimits, Signatur der
@@ -1013,6 +1024,11 @@ aber ein Repository, das die Menge der gescannten Dateien ueber
 Konfiguration ausserhalb des Ziels umlenkt, ohne die Zahl zu aendern, liegt
 ausserhalb der Zusicherung. `lint:container` und `composer validate` melden
 keine Dateizahl; ihre Erfolgszeile wird nur an den Exit-Code 0 gebunden.
+Ein ziel-gebundener `php -l`-Lauf ohne Datei bleibt `unpruefbar` (er
+lintet stdin, nicht den Commit), und eine gezaehlte Menge von 0 Dateien
+bestaetigt nichts. Ein Konsolen-Linter ohne Ziel folgt den im Repo
+konfigurierten Pfaden -- diese Umlenkung steht ausserhalb der
+Ziel-Bindung (dokumentierte Grenze).
 Ein feindseliges Repository kann die Erkennung nur herabstufen, nie ein
 Urteil heben: die Erfolgszeile muss aus dem Lauf kommen, und eine
 Erfolgszeile ohne bestandenen Exit bleibt `unpruefbar`.
@@ -1302,7 +1318,7 @@ Durchgerechnetes PHP/Symfony-Beispiel (P20, ausgeliefert und getestet):
   `DEFAULT_COMMAND_ALLOWLIST`; Evidenz ist die PHPUnit-Zusammenfassung
   `OK (N tests, M assertions)` (Text) oder der `--teamcity`-Strom. Exit-Codes
   bleiben getrennt: 0 gruen, 1 Fehler, 2 Warnungen/Risky -- ein Lauf mit
-  Risky-Zaehlern bleibt mit den Zaehlern im Verdikt sichtbar. Fehlt `vendor/`
+  Risky-Zaehlern bleiben die Zaehler in der Ausgabe sichtbar. Fehlt `vendor/`
   im Wegwerf-Checkout, bleibt der Claim `unpruefbar` mit Klasse
   `environment`: fehlende Abhaengigkeiten sind kein Testfehler.
 - **`[LINT]`:** `php -l`, die Symfony-Konsolen-Linter (`bin/console`,

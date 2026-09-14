@@ -201,13 +201,38 @@ def check(claim, ctx):
             cause=Cause.ENVIRONMENT,
         )
     targets = _targets(argv, prefix_len)
+    if tool.binds_path and not targets:
+        # "php -l" lints stdin when no file is named: the run would check
+        # nothing from the checkout, so it can never confirm the claim.
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"{tool.name!r} needs a file target: without one the run "
+            "checks no file from the checkout",
+            cause=Cause.UNVERIFIABLE,
+        )
+    # The starter of the tool: a path token inside the matched prefix
+    # (bin/console), whether it stands alone or behind the php launcher.
+    launcher = next((token for token in argv[:prefix_len] if "/" in token), None)
     facts = {}
 
     def pre_run(checkout, command_desc):
+        # The same containment the tests gate enforces: an argument that
+        # resolves outside the checkout (a committed symlink to host code or
+        # a host directory) would run or scan something the commit does not
+        # contain -- a lint claim must never confirm from it.
+        escape = checks._symlink_escape(argv, checkout, strict=strict)
+        if escape is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command argument resolves outside the checkout: {escape!r}",
+                cause=Cause.DEFECT,
+            )
         # A repo-provided launcher (bin/console) must come from the checkout
         # and be executable; the tool's own absence is an environment gap.
-        launcher = argv[0]
-        if "/" in launcher:
+        if launcher is not None:
             path = os.path.join(checkout, launcher)
             if not os.path.isfile(path) or not os.access(path, os.X_OK):
                 return Result(
@@ -239,6 +264,19 @@ def check(claim, ctx):
                         cause=Cause.ENVIRONMENT,
                     )
                 count += found
+            if count == 0:
+                # The real linters report success for an empty target
+                # ("All 0 ... contain valid syntax."); a run that checks no
+                # file proves nothing, exactly like "0 passing" in the
+                # tests gate.
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    "",
+                    f"the lint target {targets[0]!r} holds no files for this tool; "
+                    "a run that checks nothing confirms nothing",
+                    cause=Cause.UNVERIFIABLE,
+                )
             facts["count"] = count
         return None
 

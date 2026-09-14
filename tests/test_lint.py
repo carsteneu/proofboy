@@ -170,6 +170,68 @@ class LintClaimTest(FixtureTestCase):
         self.assertIs(result.cause, Cause.UNVERIFIABLE)
         self.assertIn("no success line", result.reason)
 
+    # --- review findings (P20 Phase 5)
+    def test_a_symlinked_launcher_outside_the_checkout_is_unverifiable(self):
+        # The tests gate and the compute checker refuse a command argument
+        # that resolves outside the checkout; the lint path must hold the
+        # same line. A committed symlink points the launcher at host code.
+        repo, head = self.lint_repo(files={"src/app.php": "<?php echo 1;\n"})
+        host_script = os.path.join(self._tmp.name, "host-console")
+        with open(host_script, "w", encoding="utf-8") as handle:
+            handle.write("#!/bin/sh\nprintf ' [OK] The container was linted successfully\\n'\n")
+        os.chmod(host_script, 0o755)
+        os.unlink(os.path.join(repo.path, "bin", "console"))
+        os.symlink(host_script, os.path.join(repo.path, "bin", "console"))
+        head = self.commit_files(repo, {})
+        result = self.run_lint(repo, head, "bin/console lint:container")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
+        self.assertIn("outside the checkout", result.reason)
+
+    def test_a_symlinked_target_directory_outside_the_checkout_is_unverifiable(self):
+        # A committed templates/ symlink to a host directory would let the
+        # count binding be satisfied by files the commit does not contain.
+        repo, head = self.lint_repo(files={"src/app.php": "<?php echo 1;\n"})
+        host_dir = os.path.join(self._tmp.name, "host-templates")
+        os.makedirs(host_dir, exist_ok=True)
+        with open(os.path.join(host_dir, "a.twig"), "w", encoding="utf-8") as handle:
+            handle.write("{{ a }}\n")
+        os.symlink(host_dir, os.path.join(repo.path, "templates"))
+        head = self.commit_files(repo, {})
+        result = self.run_lint(repo, head, "bin/console lint:twig templates")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
+        self.assertIn("outside the checkout", result.reason)
+
+    def test_a_zero_file_count_is_no_evidence(self):
+        # "All 0 Twig files contain valid syntax." passes the count binding
+        # trivially; nothing was checked, so it must not confirm.
+        repo, head = self.lint_repo(files={"templates/keep.txt": "x\n"})
+        result = self.run_lint(repo, head, "bin/console lint:twig templates")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
+        self.assertIn("no files", result.reason)
+
+    def test_php_l_without_a_file_target_is_unverifiable(self):
+        # Real php -l lints stdin when no file is named: nothing from the
+        # checkout is checked, so the claim must not confirm.
+        repo, head = self.lint_repo(files={"src/app.php": "<?php echo 1;\n"})
+        with self.php_path():
+            result = self.run_lint(repo, head, "php -l")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
+        self.assertIn("file target", result.reason)
+
+    def test_the_php_launcher_form_checks_the_console_in_the_checkout(self):
+        # W2: "php bin/console ..." must not REFUTE when bin/console is
+        # missing from the commit -- the launcher is absent, not broken.
+        repo, head = self.lint_repo(files={"config/services.yaml": "services: {}\n"})
+        os.unlink(os.path.join(repo.path, "bin", "console"))
+        head = self.commit_files(repo, {})
+        direct = self.run_lint(repo, head, "bin/console lint:container")
+        self.assertIs(direct.verdict, Verdict.UNVERIFIABLE, direct.output)
+        self.assertIs(direct.cause, Cause.ENVIRONMENT)
+        with self.php_path():
+            raised = self.run_lint(repo, head, "php bin/console lint:container")
+        self.assertIs(raised.verdict, Verdict.UNVERIFIABLE, raised.output)
+        self.assertIs(raised.cause, Cause.ENVIRONMENT)
+
 
 if __name__ == "__main__":
     unittest.main()

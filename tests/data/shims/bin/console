@@ -35,10 +35,12 @@ def collect(targets, suffix):
 def lint(label, targets, suffix):
     value = mode()
     files = collect(targets, suffix)
-    if not files:
-        sys.stderr.write(" [ERROR] Please provide a filename or pipe content to STDIN.\n")
-        sys.exit(1)
     if value == "failures":
+        if not files:
+            print(f" [WARNING] 0 {label} files have valid syntax and 1 contain errors.")
+            print()
+            print(" [WARNING] 1 of 1 failed.")
+            sys.exit(1)
         broken = files[0]
         print(f" [WARNING] {len(files) - 1} {label} files have valid syntax and 1 contain errors.")
         print()
@@ -49,6 +51,9 @@ def lint(label, targets, suffix):
         print(" [WARNING] 1 of 1 failed.")
         sys.exit(1)
     reported = 99 if value == "misreport" else len(files)
+    # The real Symfony linters report success for an empty target too
+    # ("All 0 ... files contain valid syntax.", exit 0); the shim stays
+    # faithful and the checker owns the "0 files prove nothing" rule.
     print(f" [OK] All {reported} {label} files contain valid syntax.")
     sys.exit(0)
 
@@ -65,10 +70,11 @@ def main():
         scan = targets or ["config"]
         for suffix in (".yaml", ".yml"):
             files.extend(collect(scan, suffix))
-        if not files:
-            sys.stderr.write(" [ERROR] Please provide a filename or pipe content to STDIN.\n")
-            sys.exit(1)
         if value == "failures":
+            if not files:
+                print(" [WARNING] 0 YAML files have valid syntax and 1 contain errors.")
+                print(" [WARNING] 1 of 1 failed.")
+                sys.exit(1)
             print(f" [WARNING] {len(files) - 1} YAML files have valid syntax and 1 contain errors.")
             print()
             print(f" ERROR  in {files[0]}")

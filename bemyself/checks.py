@@ -118,7 +118,7 @@ _TOKEN_METACHARS = frozenset(" \t\n\r;&|$`<>(){}[]")
 _PYTHON_TUPLE_METACHARS = frozenset()
 _KNOWN_RUNNER_MODULES = ("unittest", "pytest", "nose2")
 _PYTHON_COMMAND_TOKENS = ("python", "python2", "python3", "pytest", "py.test")
-_WRAPPER_COMMAND_TOKENS = ("make", "npm", "yarn", "bun", "pnpm", "npx")
+_WRAPPER_COMMAND_TOKENS = ("make", "npm", "yarn", "bun", "pnpm", "npx", "composer")
 _SANITIZED_ENV_KEYS = (
     "GIT_DIR",
     "GIT_WORK_TREE",

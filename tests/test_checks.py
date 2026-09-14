@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself.checks import Ctx, _repo_command, run_claim
+from bemyself.checks import Ctx, _arg_escapes_checkout, _is_wrapper_command, _repo_command, run_claim
 from bemyself.model import Cause, Claim, Verdict
 
 from tests.fixtures import FixtureTestCase, _SHIMS, commit_probe, make_repo, merge_into_main
@@ -2013,11 +2013,21 @@ class PhpRunnerAdapterTest(FixtureTestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
         self.assertIs(result.cause, Cause.ENVIRONMENT)
 
-    def test_phpunit_risky_run_shows_the_skip_counters(self):
+    def test_phpunit_risky_run_shows_the_skip_counters_in_the_output(self):
         repo, head = self.repo_with_shim("risky", name="phpunit-counters")
         result = self.run_php(repo, head, "vendor/bin/phpunit", claimed_exit=2)
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
         self.assertIn("Skipped: 2", result.output)
+
+
+    # --- review findings (P20 Phase 5) -----------------------------------
+    def test_composer_gets_the_strict_wrapper_argument_rules(self):
+        # W3: composer hands script arguments to a shell like make/npm, so
+        # its arguments must not pass with the lax single-command rules.
+        self.assertTrue(_is_wrapper_command(["composer", "test"]))
+        self.assertTrue(_is_wrapper_command(["composer", "run", "test"]))
+        self.assertTrue(_arg_escapes_checkout("a; rm -rf x", strict=True))
+        self.assertFalse(_arg_escapes_checkout("a; rm -rf x", strict=False))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,9 @@
 
 A repository announces its stack through marker files at its root
 (``composer.json``, ``package.json``, ``go.mod``, ...). :func:`detect` reads
-their *names* -- never their content, never a symlink target, never git --
+their *names* (a regular file; a symlink on an existing file counts under
+its name, but neither contents nor the link target are read, and git is
+never consulted) --
 and derives which runners and lint commands a report for this project
 plausibly names, so a user can see what the verifier would accept before
 writing the claim.
