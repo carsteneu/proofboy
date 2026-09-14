@@ -1,20 +1,26 @@
 /* antihydra_c.c — deep counter run for the Antihydra walk (mxdys block method).
  *
  * Port of bemyself/experiments/antihydra_deep.py (validated Python engine) to C
- * with a fast fixed-limb leaf loop and libgmp for the patch-up corrections.
- * Leaf loop uses an 18-step jump table (w18): T^18(2^18 q + r) = 3^18 q + T18[r].
+ * with a fixed-limb leaf loop (w18 jump table) and libgmp for the patch-up
+ * corrections.  Optional top-correction cache for incremental deepening:
+ *   ./antihydra_c --depth 34 --cache-out c34.bin      (save top correction)
+ *   ./antihydra_c --depth 35 --cache-in c34.bin       (reuse the left half)
  *
  * Build (no gmp.h needed — prototypes declared below):
  *   gcc -O2 -o antihydra_c antihydra_c.c -l:libgmp.so.10
  *   (fallback: gcc -O2 -o antihydra_c antihydra_c.c /lib/x86_64-linux-gnu/libgmp.so.10)
  *
  * Usage:
- *   ./antihydra_c --depth 34 [--also STEP]...
+ *   ./antihydra_c --depth 34 [--also STEP]... [--grid k0 k1 m0 m1]
+ *                [--cache-out FILE] [--cache-in FILE]
  *
  * Output (stdout, same lines as the Python engine):
  *   steps=<n> counter=<c> deviation=<c - n/2>
  *   min_counter=<m>
  *   total_steps=<n>
+ *
+ * With --cache-in only the lines for steps > 2^(D-1) are emitted (the left
+ * half is the cached prefix); min_counter/total_steps are global.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +44,8 @@ extern void __gmpz_fdiv_q_2exp(mpz_ptr, mpz_ptr, unsigned long);
 extern void __gmpz_fdiv_r_2exp(mpz_ptr, mpz_ptr, unsigned long);
 extern void __gmpz_mul_2exp(mpz_ptr, mpz_ptr, unsigned long);
 extern unsigned long __gmpz_sizeinbase(mpz_ptr, int);
+extern size_t __gmpz_out_raw(void *stream, mpz_ptr op);
+extern size_t __gmpz_inp_raw(mpz_ptr x, void *stream);
 
 #define BASE_DEP 8          /* steps per leaf block: 2**8 = 256 */
 #define LIMBS 12            /* leaf buffer: 12*64 = 768 bits (leaf end < 2^406) */
@@ -57,6 +65,9 @@ static size_t n_targets = 0, i_target = 0;
 static uint64_t next_pow2 = 1;      /* next power-of-two checkpoint */
 
 static uint64_t last_emitted = 0;
+
+static const char *cache_out_path = NULL;
+static const char *cache_in_path = NULL;
 
 static void emit(uint64_t n) {
     if (n == last_emitted) return;      /* power-of-two / extra-target collision */
@@ -93,6 +104,37 @@ static void init_jump_table(void) {
         O18[r0] = (uint8_t)odds;
         M18[r0] = (int8_t)mn;
     }
+}
+
+/* ---- top-correction cache (left half of a depth-(d+1) block) ---- */
+#define CACHE_MAGIC "AHYC1\0\0\0"
+
+static void write_cache(const char *path, mpz_ptr c, uint64_t depth,
+                        int64_t odds, int64_t evens, int64_t mn) {
+    FILE *f = fopen(path, "wb");
+    if (!f) die("cannot open cache-out file");
+    if (fwrite(CACHE_MAGIC, 1, 8, f) != 8) die("cache write failed");
+    if (fwrite(&depth, 8, 1, f) != 1) die("cache write failed");
+    if (fwrite(&odds, 8, 1, f) != 1) die("cache write failed");
+    if (fwrite(&evens, 8, 1, f) != 1) die("cache write failed");
+    if (fwrite(&mn, 8, 1, f) != 1) die("cache write failed");
+    __gmpz_out_raw(f, c);
+    if (fclose(f)) die("cache write failed");
+}
+
+static void read_cache(const char *path, mpz_ptr c, uint64_t *depth,
+                       int64_t *odds, int64_t *evens, int64_t *mn) {
+    FILE *f = fopen(path, "rb");
+    if (!f) die("cannot open cache-in file");
+    char magic[8];
+    if (fread(magic, 1, 8, f) != 8 || memcmp(magic, CACHE_MAGIC, 8) != 0)
+        die("cache-in: bad magic");
+    if (fread(depth, 8, 1, f) != 1) die("cache-in: bad header");
+    if (fread(odds, 8, 1, f) != 1) die("cache-in: bad header");
+    if (fread(evens, 8, 1, f) != 1) die("cache-in: bad header");
+    if (fread(mn, 8, 1, f) != 1) die("cache-in: bad header");
+    if (__gmpz_inp_raw(c, f) == 0) die("cache-in: bad mpz payload");
+    fclose(f);
 }
 
 /* ---- leaf: run `end - steps_total` steps (split at checkpoint boundaries) ---- */
@@ -244,7 +286,11 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], "--grid") && i + 4 < argc) {
             gk0 = atoi(argv[++i]); gk1 = atoi(argv[++i]);
             gm0 = atoi(argv[++i]); gm1 = atoi(argv[++i]);
-        } else die("usage: antihydra_c --depth N [--also STEP...] [--grid k0 k1 m0 m1]");
+        } else if (!strcmp(argv[i], "--cache-out") && i + 1 < argc) {
+            cache_out_path = argv[++i];
+        } else if (!strcmp(argv[i], "--cache-in") && i + 1 < argc) {
+            cache_in_path = argv[++i];
+        } else die("usage: antihydra_c --depth N [--also STEP...] [--grid k0 k1 m0 m1] [--cache-out FILE] [--cache-in FILE]");
     }
     if (gk0 >= 0) {
         for (int k = gk0; k <= gk1; k++)
@@ -254,6 +300,7 @@ int main(int argc, char **argv) {
             }
     }
     if (D < BASE_DEP || D > MAX_DEPTH) die("depth out of range (8..40)");
+    if (cache_in_path && D <= BASE_DEP) die("cache-in needs depth > BASE_DEP");
 
     uint64_t top = 1ULL << D;
     /* filter + sort + dedup extra targets */
@@ -292,12 +339,46 @@ int main(int argc, char **argv) {
     mpz_t x, corr;
     __gmpz_init(x); __gmpz_init(corr);
     __gmpz_set_ui(x, 8);
-    block(x, D, 1, NULL, corr);
+
+    if (cache_in_path) {
+        /* Left half [0, 2^(D-1)) comes from the cache; the right half is
+         * computed fresh from v1 = phi^(2^(D-1))(8) = (8*3^(2^(D-1)) - c1) >> 2^(D-1). */
+        uint64_t cdep; int64_t codds, cevens, cmin;
+        mpz_t c1, c2, vtmp, v1c, tt;
+        __gmpz_init(c1); __gmpz_init(c2); __gmpz_init(vtmp);
+        __gmpz_init(v1c); __gmpz_init(tt);
+        read_cache(cache_in_path, c1, &cdep, &codds, &cevens, &cmin);
+        if (cdep + 1 != (uint64_t)D) die("cache depth mismatch (expected D-1)");
+        odds_total = codds; evens_total = cevens; minimum = cmin;
+        cur_counter = 2 * evens_total - odds_total;
+        steps_total = 1ULL << (D - 1);
+        while (i_target < n_targets && targets[i_target] <= steps_total) i_target++;
+        next_pow2 = 1ULL << D;      /* only the top boundary remains ahead */
+        __gmpz_mul_2exp(vtmp, pow3[D - 1], 3);            /* 8 * 3^(2^(D-1)) */
+        __gmpz_sub(vtmp, vtmp, c1);
+        __gmpz_fdiv_q_2exp(v1c, vtmp, (unsigned long)(1ULL << (D - 1)));
+        block(v1c, D - 1, 1, NULL, c2);
+        if (cache_out_path) {
+            __gmpz_mul(corr, c1, pow3[D - 1]);
+            __gmpz_mul_2exp(tt, c2, (unsigned long)(1ULL << (D - 1)));
+            __gmpz_add(corr, corr, tt);
+        }
+        __gmpz_clear(c1); __gmpz_clear(c2); __gmpz_clear(vtmp);
+        __gmpz_clear(v1c); __gmpz_clear(tt);
+    } else {
+        block(x, D, 1, NULL, corr);
+    }
     emit(top);
     printf("min_counter=%lld\n", (long long)minimum);
     printf("total_steps=%llu\n", (unsigned long long)steps_total);
+    if (cache_out_path)
+        write_cache(cache_out_path, corr, (uint64_t)D,
+                    odds_total, evens_total, minimum);
     __gmpz_clear(x); __gmpz_clear(corr);
-    fprintf(stderr, "# antihydra_c depth=%d targets=%zu elapsed=%.1fs\n",
-            D, n_targets, (double)(clock() - t0) / CLOCKS_PER_SEC);
+    fprintf(stderr, "# antihydra_c depth=%d targets=%zu%s%s elapsed=%.1fs\n",
+            D, n_targets,
+            cache_in_path ? " cache-in" : "",
+            cache_out_path ? " cache-out" : "",
+            (double)(clock() - t0) / CLOCKS_PER_SEC);
     return 0;
 }
