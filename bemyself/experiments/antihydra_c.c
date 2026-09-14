@@ -2,6 +2,7 @@
  *
  * Port of bemyself/experiments/antihydra_deep.py (validated Python engine) to C
  * with a fast fixed-limb leaf loop and libgmp for the patch-up corrections.
+ * Leaf loop uses an 18-step jump table (w18): T^18(2^18 q + r) = 3^18 q + T18[r].
  *
  * Build (no gmp.h needed — prototypes declared below):
  *   gcc -O2 -o antihydra_c antihydra_c.c -l:libgmp.so.10
@@ -68,6 +69,32 @@ static void emit(uint64_t n) {
 
 static void die(const char *msg) { fprintf(stderr, "%s\n", msg); exit(2); }
 
+/* ---- w18 jump table: T^18(2^18 q + r) = 3^18 q + T18[r] ------------------
+ * For i < 18, x_i = T^i(2^18 q + r) = 3^i * 2^(18-i) * q + T^i(r): the q term
+ * is even, so the parity word of the 18 steps (and hence counter/minimum
+ * deltas) depends only on r = x mod 2^18. */
+#define W 18
+#define WJ (1u << W)
+static uint32_t T18[WJ];
+static uint8_t  O18[WJ];            /* odds among the 18 steps */
+static int8_t   M18[WJ];            /* min cumulative (+2 even / -1 odd), <= 0 */
+static const uint64_t MUL3_18 = 387420489ULL;   /* 3**18 */
+
+static void init_jump_table(void) {
+    for (uint32_t r0 = 0; r0 < WJ; r0++) {
+        uint32_t v = r0;
+        int odds = 0, cum = 0, mn = 0;
+        for (int i = 0; i < W; i++) {
+            if (v & 1) { odds++; cum--; } else { cum += 2; }
+            if (cum < mn) mn = cum;
+            v += v >> 1;
+        }
+        T18[r0] = v;
+        O18[r0] = (uint8_t)odds;
+        M18[r0] = (int8_t)mn;
+    }
+}
+
 /* ---- leaf: run `end - steps_total` steps (split at checkpoint boundaries) ---- */
 static void run_leaf(mpz_ptr x_in, mpz_ptr x_end_out) {
     uint64_t l[LIMBS];
@@ -86,30 +113,63 @@ static void run_leaf(mpz_ptr x_in, mpz_ptr x_end_out) {
         if (i_target < n_targets && targets[i_target] < split) split = targets[i_target];
         if (split <= steps_total) split = steps_total + 1;  /* safety */
 
-        for (uint64_t s = steps_total; s < split; s++) {
-            if (l[0] & 1) {
-                odds_total++;
-                cur_counter--;
+        for (uint64_t s = steps_total; s < split; ) {
+            if (split - s >= W) {
+                /* one 18-step jump */
+                uint32_t r = (uint32_t)(l[0] & (WJ - 1u));
+                int odds = O18[r];
+                odds_total += odds;
+                evens_total += W - odds;
+                cur_counter += 36 - 3 * odds;
+                if (cur_counter + M18[r] < minimum) minimum = cur_counter + M18[r];
+                /* l = (l >> 18) * 3^18 + T18[r] */
+                int lim = active + 2;
+                if (lim > LIMBS) lim = LIMBS;
+                unsigned __int128 carry = T18[r];
+                int i = 0;
+                for (; i < lim; i++) {
+                    unsigned long long hi = (i + 1 < LIMBS) ? l[i + 1] : 0;
+                    unsigned long long q = (l[i] >> W) | (hi << (64 - W));
+                    unsigned __int128 acc = (unsigned __int128)q * MUL3_18 + carry;
+                    l[i] = (unsigned long long)acc;
+                    carry = acc >> 64;
+                }
+                if (carry) {
+                    if (i >= LIMBS) die("limb overflow in w18 jump");
+                    l[i] = (unsigned long long)carry;
+                    i++;
+                }
+                for (int j = i; j < LIMBS; j++) l[j] = 0;
+                active = LIMBS;
+                while (active > 1 && l[active - 1] == 0) active--;
+                if (active < NH) active++;
+                s += W;
             } else {
-                evens_total++;
-                cur_counter += 2;
+                if (l[0] & 1) {
+                    odds_total++;
+                    cur_counter--;
+                } else {
+                    evens_total++;
+                    cur_counter += 2;
+                }
+                if (cur_counter < minimum) minimum = cur_counter;
+                /* x = x + (x >> 1); s[i] = (l[i]>>1) | ((l[i+1]&1)<<63) */
+                unsigned long long ca = 0;
+                for (int i = 0; i < active; i++) {
+                    unsigned long long c = l[i];
+                    unsigned long long hi = (i + 1 < LIMBS) ? l[i + 1] : 0;
+                    unsigned long long shifted = (c >> 1) | ((hi & 1ULL) << 63);
+                    unsigned long long sum = c + shifted;
+                    unsigned long long c1 = (sum < c);
+                    unsigned long long sum2 = sum + ca;
+                    unsigned long long c2 = (sum2 < sum);
+                    ca = c1 | c2;
+                    l[i] = sum2;
+                }
+                if (ca && active < LIMBS) l[active] = ca;
+                if (active < NH && l[active - 1]) active++;
+                s++;
             }
-            if (cur_counter < minimum) minimum = cur_counter;
-            /* x = x + (x >> 1); s[i] = (l[i]>>1) | ((l[i+1]&1)<<63) */
-            unsigned long long ca = 0;
-            for (int i = 0; i < active; i++) {
-                unsigned long long c = l[i];
-                unsigned long long hi = (i + 1 < LIMBS) ? l[i + 1] : 0;
-                unsigned long long shifted = (c >> 1) | ((hi & 1ULL) << 63);
-                unsigned long long sum = c + shifted;
-                unsigned long long c1 = (sum < c);
-                unsigned long long sum2 = sum + ca;
-                unsigned long long c2 = (sum2 < sum);
-                ca = c1 | c2;
-                l[i] = sum2;
-            }
-            if (ca && active < LIMBS) l[active] = ca;
-            if (active < NH && l[active - 1]) active++;
         }
         steps_total = split;
         if (steps_total == next_pow2) {
@@ -206,6 +266,8 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < m; i++)
         if (u == 0 || targets[i] != targets[u - 1]) targets[u++] = targets[i];
     n_targets = u;
+
+    init_jump_table();
 
     /* pow3[k] = 3**(2**k) for k = BASE_DEP..D-1 by repeated squaring */
     pow3 = malloc(sizeof(mpz_t) * (D + 1));
