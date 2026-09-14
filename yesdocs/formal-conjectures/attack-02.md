@@ -845,8 +845,8 @@ Kandidat ist der Radius widerlegt.
 neuer i (i ≤ 255, außerhalb des 88er-Fensters) verletzen (N) mit `R²_alt`;
 Maximum `t(64,9) = 12592924675/2229025112064 = 0,0056495212… = 1,5005×R²_alt`;
 weitere Verletzungen `(45,8)` 1,340×, `(128,8)` 1,305×, `(166,10)` 1,124×,
-`(64,10)` 1,079×, `(31,8)` 1,028×; alle bei k = 8..10, i = 31..166
-(Außenkante des Dreiecks `(i+1)·2^{k+14} ≤ 2^34`). Auch die Seed-Bedingung
+`(64,10)` 1,079×, `(31,8)` 1,028×; alle bei k = 8..10, i = 31..166 (am Rand
+des ersten Sweep-Fensters i ≤ 255). Auch die Seed-Bedingung
 (19) bricht: 6 von 252 i verletzen `R²_alt`, größtes i = 159 (0,004887995),
 dann 90, 69, 48, 176, 156.
 
@@ -893,7 +893,8 @@ erklärt den `u`-Abfall für k ≥ 11 (0,008 → 0,002) als Zellzahleffekt.
 
 **Zähler, Residuen, Direktmessung.** Im vollen k = 4..9-Fenster verletzen 578
 Zellen `t ≤ R²_neu` und 2910 `t ≤ R²_alt`; gegen `R²_cand` keine. Residuen
-der R16-Ziele (alle i, Budget 1): (D−) k = 4..13 durchweg 1,36-1,74 (>1);
+der R16-Ziele (alle i, Budget 1): (D−) k = 4..13 durchweg >1 (1,21-1,74;
+k = 4..11: 1,36-1,74; k = 12/13: 1,21/1,30);
 (P) k = 4: 1,46 / 5: 1,40 / 6: 1,04 / k ≥ 7: ≤ 0,92. Epoch-Zellen (j = 0..3):
 (P) max 0,55, (D−) max 0,66. (P)-Direktmessung: max `(−D)/(500·2^{3k/4}) =
 0,4145 @(164,8)` (Budget 1); `min D = −252180 @(15,18)`.
@@ -1005,8 +1006,9 @@ T34-Daten; Zeilen k = 4..7 aus einem frischen Engine-Lauf):
 Kumulierte Budgets über die jeweilige Parität (partiell bis k = 16; je
 j = 0..3): K = 7: 0,00667453 / 0,00805397 / 0,00133306 / 0,00326507;
 K = 8: 0,00092058 / 0,00128970 / 0,00389524 / 0,00314571. Das ist eine
-Nutzung der Reparaturschranke 0,2184989… von **1,5-4 %** auf endlichem
-Fenster. (P)-Epoch-Residuum derselben Daten: max 0,5525 @(4,4) (Budget 1).
+Nutzung der Reparaturschranke 0,2184989…
+von **0,4-3,7 %** auf endlichem Fenster (K = 7: ≈0,6-3,7 %; K = 8:
+≈0,4-1,8 %). (P)-Epoch-Residuum derselben Daten: max 0,5525 @(4,4) (Budget 1).
 
 **Endbilanz (R33).** Der Beweisengpass ist präzisiert: eine unendliche,
 start-8-spezifische Kontrolle der **vier epochalen Verlustbudgets**, nicht
