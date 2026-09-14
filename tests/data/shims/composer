@@ -12,6 +12,18 @@ import sys
 
 def main():
     args = sys.argv[1:]
+    if args and args[0] == "validate":
+        try:
+            with open("fixture-mode.txt", encoding="utf-8") as handle:
+                value = handle.read().strip()
+        except OSError:
+            value = "ok"
+        if value == "failures":
+            print("./composer.json is invalid")
+            print("require.name : invalid value; expected string")
+            sys.exit(1)
+        print("./composer.json is valid")
+        sys.exit(0)
     if not args or args[0] != "test":
         sys.stderr.write("Composer version 2.7.7 2024-06-10 22:11:12\n")
         sys.exit(1)

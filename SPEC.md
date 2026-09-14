@@ -16,6 +16,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 - `[COLORING: k=<k> ; <farbziffern>]` (Schur-Faerbung: explizites k-Faerbungs-Zertifikat fuer `1..N`; belegt nur die untere Schranke `S(k) >= N`)
 - `[COMPUTE: <kommando> -> <sha256 des stdout>]` (Rechenzertifikat, gepinnter Commit)
 - `[LEAN: <pfad.lean> -> <satz>]` (formaler Beweis, gepinnter Commit)
+- `[LINT: <kommando>]` (Lint-Lauf auf dem gepinnten Commit: `php -l`, Symfony-Konsolen-Linter `lint:twig`, `lint:yaml`, `lint:container`, `composer validate`; Erfolgszeile an den Checkout gebunden)
 - `[ARTIFACT: <pfad> -> <sha256>]` (Datei-Digest unter der Artefakt-Wurzel)
 - "Tests run: <command> -> exit 0"
 - "Regression baseline: ..."

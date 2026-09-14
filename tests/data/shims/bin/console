@@ -48,7 +48,8 @@ def lint(label, targets, suffix):
         print()
         print(" [WARNING] 1 of 1 failed.")
         sys.exit(1)
-    print(f" [OK] All {len(files)} {label} files contain valid syntax.")
+    reported = 99 if value == "misreport" else len(files)
+    print(f" [OK] All {reported} {label} files contain valid syntax.")
     sys.exit(0)
 
 
@@ -60,8 +61,22 @@ def main():
     if command == "lint:twig":
         lint("Twig", targets or ["templates"], ".twig")
     if command == "lint:yaml":
-        lint("YAML", targets or ["config"], ".yaml")
-        lint("YAML", targets or ["config"], ".yml")
+        files = []
+        scan = targets or ["config"]
+        for suffix in (".yaml", ".yml"):
+            files.extend(collect(scan, suffix))
+        if not files:
+            sys.stderr.write(" [ERROR] Please provide a filename or pipe content to STDIN.\n")
+            sys.exit(1)
+        if value == "failures":
+            print(f" [WARNING] {len(files) - 1} YAML files have valid syntax and 1 contain errors.")
+            print()
+            print(f" ERROR  in {files[0]}")
+            print(" [WARNING] 1 of 1 failed.")
+            sys.exit(1)
+        reported = 99 if value == "misreport" else len(files)
+        print(f" [OK] All {reported} YAML files contain valid syntax.")
+        sys.exit(0)
     if command == "lint:container":
         if value == "missing-config":
             sys.stderr.write(" [ERROR] The container configuration is not readable.\n")

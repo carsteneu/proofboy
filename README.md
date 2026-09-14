@@ -929,6 +929,50 @@ nachgeprueft. Als `<satz>` zulaessig sind volle Lean-Namen mit
 Unicode-Buchstaben, Ziffern, Unterstrich, Punkten und abschliessendem
 `!`/`?`; alles andere bleibt `unpruefbar`.
 
+## Lint-Laeufe (`[LINT]`)
+
+`[LINT: <kommando>]` behauptet, dass ein Lint-Werkzeug auf dem geprueften
+Commit fehlerfrei durchlaeuft. Erlaubt sind `php -l <datei>`, die
+Symfony-Konsolen-Linter (`php bin/console lint:twig`, `lint:yaml`,
+`lint:container`) und `composer validate`; `--allow` erweitert die
+Lint-Allowlist, aber nie
+gegenseitig mit der Test-Allowlist: ein `[LINT]`-Claim kann keinen
+Test-Runner ausfuehren und ein `[TESTS]`-Claim keinen Linter. Der Commit
+kommt aus dem einen hash-foermigen `[COMMIT]`-Marker der Meldung; das
+Kommando laeuft in einem Wegwerf-Checkout mit derselben Maschinerie wie das
+Tests-Gate (Sandbox, Argument-Escape-Regeln, Ausgabelimits, Signatur der
+Umgebung).
+
+Beispiel:
+
+```
+[LINT: php -l src/Controller/BlogController.php] [COMMIT: 0123abc]
+```
+
+Urteile: `bestaetigt` nur mit der werkzeugeigenen Erfolgszeile
+(`No syntax errors detected in <datei>`, `All N Twig files contain valid
+syntax.`, `The container was linted successfully`, `./composer.json is
+valid`) -- Exit 0 allein ist kein Lint-Ergebnis und bleibt `unpruefbar`. Die
+Erfolgszeile ist an den Checkout gebunden: ein `php -l`, das eine andere
+Datei nennt als die gepruefte, und eine gemeldete Dateizahl, die nicht zu
+den Dateien unter dem Ziel passt, bleiben `unpruefbar` (der Lauf wurde
+umgeleitet -- eine umgeleitete Pruefung bestaetigt nichts). Ein
+gemeldeter Fehler ist `widerlegt`. Ein Ziel, das nicht im Commit liegt,
+oder ein fehlendes Werkzeug bzw. fehlende Abhaengigkeiten (kein `vendor/`)
+bleiben `unpruefbar` mit Klasse `environment` -- fehlende Umgebung ist kein
+Defekt und kein Lint-Fehler.
+
+**Grenzen:** Was `bestaetigt` heisst und was nicht -- der Linter hat die
+genannten Dateien unter dem Ziel gelesen und seine eigene Erfolgszeile
+ausgegeben; die Dateizahl bindet die Ausgabe an die Dateien des Checkouts,
+aber ein Repository, das die Menge der gescannten Dateien ueber
+Konfiguration ausserhalb des Ziels umlenkt, ohne die Zahl zu aendern, liegt
+ausserhalb der Zusicherung. `lint:container` und `composer validate` melden
+keine Dateizahl; ihre Erfolgszeile wird nur an den Exit-Code 0 gebunden.
+Ein feindseliges Repository kann die Erkennung nur herabstufen, nie ein
+Urteil heben: die Erfolgszeile muss aus dem Lauf kommen, und eine
+Erfolgszeile ohne bestandenen Exit bleibt `unpruefbar`.
+
 ## Merges (`[MERGE]`)
 
 `[MERGE: <branch>]` behauptet, dass der Commit der Meldung der Merge des

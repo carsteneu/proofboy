@@ -30,6 +30,21 @@ def main():
             )
             sys.stderr.write(f"Errors parsing {target}\n")
             sys.exit(255)
+        try:
+            with open("fixture-mode.txt", encoding="utf-8") as handle:
+                mode = handle.read().strip()
+        except OSError:
+            mode = "ok"
+        if mode == "redirect":
+            # A hijacked run that checked a different file than the claimed
+            # one: the success line must not confirm the claim.
+            print("No syntax errors detected in other.php")
+            sys.exit(0)
+        if mode == "silent":
+            # Exit 0 without the tool's own success line: an aborted run
+            # must not read as a clean lint.
+            print("Fatal error: out of memory (allocated 2097152)")
+            sys.exit(0)
         print(f"No syntax errors detected in {target}")
         sys.exit(0)
     if args and args[0] == "bin/console":

@@ -9,7 +9,7 @@ from unittest import mock
 from bemyself.checks import Ctx, _repo_command, run_claim
 from bemyself.model import Cause, Claim, Verdict
 
-from tests.fixtures import commit_probe, make_repo, merge_into_main
+from tests.fixtures import FixtureTestCase, _SHIMS, commit_probe, make_repo, merge_into_main
 
 
 def make_claim(kind, **fields):
@@ -1773,58 +1773,6 @@ class SandboxTest(unittest.TestCase):
         self.assertIsNone(result.sandboxed)
 
 
-class FixtureTestCase(unittest.TestCase):
-    """Shared fixture plumbing for the P20 evidence tests."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls._tmp = tempfile.TemporaryDirectory()
-        cls.repo = make_repo(os.path.join(cls._tmp.name, "fixture-base"))
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._tmp.cleanup()
-
-    def ctx(self, repo=None, **kw):
-        work = os.path.join(self._tmp.name, "work", self._testMethodName)
-        os.makedirs(work, exist_ok=True)
-        kw.setdefault("tmp_dir", work)
-        return Ctx(repo=repo or self.repo.path, **kw)
-
-    def commit_files(self, repo, files):
-        for name, content in files.items():
-            full = os.path.join(repo.path, name)
-            os.makedirs(os.path.dirname(full) or repo.path, exist_ok=True)
-            with open(full, "w", encoding="utf-8") as handle:
-                handle.write(content)
-        subprocess.run(
-            ["git", "-C", repo.path, "add", "-A"], check=True, capture_output=True
-        )
-        subprocess.run(
-            ["git", "-C", repo.path, "commit", "-q", "-m", "fixture"],
-            check=True,
-            capture_output=True,
-        )
-        return subprocess.run(
-            ["git", "-C", repo.path, "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-
-    @staticmethod
-    def evidence_text(reason):
-        """The part of a reason after the explicit evidence marker.
-
-        The reason quotes the report's command, and a hostile command can
-        contain the very counters it never produced -- so the tests must
-        read the evidence section, never the command echo.
-        """
-        marker = "evidence:"
-        if marker not in reason:
-            return ""
-        return reason.split(marker, 1)[1]
-
-
 class TestsGateEvidenceTest(FixtureTestCase):
     """P20: the evidence gate holds for every allowed runner.
 
@@ -1972,9 +1920,6 @@ class TestsGateEvidenceTest(FixtureTestCase):
             if line.startswith(key + "="):
                 return line.split("=", 1)[1].strip()
         return None
-
-
-_SHIMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "shims")
 
 
 class PhpRunnerAdapterTest(FixtureTestCase):

@@ -370,6 +370,7 @@ class UnknownMarkerTest(unittest.TestCase):
         "[COLORING: kaputt]",
         "[ARTIFACT: kaputt]",
         "[LEAN: kaputt]",
+        "[LINT: kaputt]",
         "[COMMIT: kaputt]",
         "[BRANCH: kaputt]",
         "[MERGE: kaputt]",
