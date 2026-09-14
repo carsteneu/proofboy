@@ -70,12 +70,12 @@ artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rou
 artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json has the claimed sha256 (16586 bytes)
     cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v22-nachtrag
     out: sha256=92608fa3f985580b09105d789de4237fee7d7e461be0dd86accd7bc62c676c82 bytes=16586
-artifact       CONFIRMED     yesdocs/formal-conjectures/attack-02.md has the claimed sha256 (54333 bytes)
+artifact       CONFIRMED     yesdocs/formal-conjectures/attack-02.md has the claimed sha256 (54815 bytes)
     cmd: sha256 of yesdocs/formal-conjectures/attack-02.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v22-nachtrag
-    out: sha256=ecbaec63723ed4b9da0abc954f6a1cb0a6282a0094fcea3c4f281e045f1eb47a bytes=54333
-artifact       CONFIRMED     yesdocs/formal-conjectures/README.md has the claimed sha256 (34636 bytes)
+    out: sha256=59096875a77cfb87d1e5c66582e628e0bc43321a38627cd7a4a2c0d912e4c4d7 bytes=54815
+artifact       CONFIRMED     yesdocs/formal-conjectures/README.md has the claimed sha256 (34741 bytes)
     cmd: sha256 of yesdocs/formal-conjectures/README.md under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v22-nachtrag
-    out: sha256=bf6bd49cb4d8cf72ff986e085f8b6f08283e19b5a576f395b672904cd8ecb14d bytes=34636
+    out: sha256=45880d4ad2a9a5e76cc4cc0c3d35680392f1428d1e48d897d4ed02107e11823e bytes=34741
 artifact       CONFIRMED     yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r19.json has the claimed sha256 (15572 bytes)
     cmd: sha256 of yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r19.json under /home/carsten/projects/bemyself/.worktrees/yesloop-bemyself-v22-nachtrag
     out: sha256=aaed793a0de8d4d9e3811a2fec58a2f7ad5c62058f08ed600be915034ec42b33 bytes=15572

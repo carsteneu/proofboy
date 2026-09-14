@@ -524,7 +524,7 @@ für jede Ausschlusszeile dieses Nachtrags.
 | R19 (00:32) | Summenbaum D = 5·Σq_n (q_n ∈ {−4..4}); Kandidat (L); Polyederzertifikat (M⁴/8)K ⊆ K; Haar-Martingal | D-Darstellung übernommen (konstante Terme heben sich exakt); 4×4-Rangtest: det ≡ 2 (mod 3), Werte identisch mit r19 | d ≤ 3 ausgeschlossen; (L) präzise formuliert |
 | R20 (00:45) | Bewertung des Ranganstiegs 4→5; Bellman-Potential-Format (endlicher gewichteter Zustandsgraph + summierbares Fehlerbudget); kumulierte normierte Defekte | 12×5-Matrix vollständig, ein ungerader 5×5-Minor; Rang 5 | d ≤ 4 ausgeschlossen |
 | R21 (01:24) | (L) ⇔ P(A)f = 0 (Summenoperator A f(i) = f(2i)+f(2i+1)); Haar-fast-sicher kein endliches (L); Vier-Kontrast-Zustand Δ_r | 7×6-Matrix: Rang 6; Bijektions-/Nullmengen-Argument nachvollzogen | d ≤ 5 ausgeschlossen |
-| R22 (03:36) | K6-Kongruenz h₆ ≡ Σ a_r h_r (mod 2) + 2-adischer Lift [h₀..h₅, g]; (N)-Testprotokoll (Training/Validierung, R_crit) | 2^26-Lauf: 8×7-Matrix Rang 7 über Q; K6 an i = 12..15 verletzt; Lift-Rang 6/7 | K6 widerlegt; d ≤ 6 ausgeschlossen; (N) spezifiziert |
+| R22 (03:36) | K6-Kongruenz h₆ ≡ Σ a_r h_r (mod 2) + 2-adischer Lift [h₀..h₅, g]; (N)-Testprotokoll (Training/Validierung, R_crit) | 2^26-Lauf: 8×7-Matrix Rang 7 über Q; K6 (eindeutige Relation h₆ ≡ h₃ mod 2, Zeilen 4..11) hält bis i = 12, verletzt ab i = 13 (1/4 im Fenster 12..15); Lift-Rang 6/7 | K6 widerlegt; d ≤ 6 ausgeschlossen; (N) spezifiziert |
 | R23 (03:40) | (N)-Konsistenz-Audit: max\|z\| = 0,0436 unvereinbar mit R² = 703,44; exakter Integer-Test; 508 Frontier-Zellen; Nicht-Nachfitten-Regel | Audit ergab einen eigenen Auswertungsfehler (fehlende None-Guards → stilles Index-Truncaten); Korrektur auf R² = 1309875575/347892350976; Extremzelle (14,4) exakt auditiert | früherer (N)-Fit war ein Artefakt; Radius exakt eingefroren |
 | R24 (03:44) | Bewertung der Korrektur; f-Identität z(i,4+m) = (2/3)^m·Σ_{r<2^m} f(2^m·i+r); (K_h)-Kriterium; Q-Wert; Gültigkeitsguard | 64 gültige Transitionen (2^26-Fenster): 0 Verletzungen unter dem exakten Radius | (N) auf Fitdaten bestätigt |
 | R25 (06:41) | Counter-Engine-Ökonomie; Rangkette bis d = 12 abschließen, dann pausieren; Brücke D(i,k)/5 = (A_{i,k+2} − 4A_{i,k})/3; verschachtelte Zeugen W_d(j); (N)-Sicherheitsabstände; α-Methodik | Brücke exakt (D ≡ 0 (mod 5), H = D/5 ganzzahlig nachgerechnet); Tiefen-Buchhaltung: Tiefe 33 für d = 12 nötig, nicht 40 | d ≤ 9 ausgeschlossen (Tiefe 29) |
@@ -551,7 +551,7 @@ Zwei Runden verdienen — wie ihre Vorläufer R4/R5 in §3 — eine Hervorhebung
 
 ### N.2 Die Counter-Engine (Werkzeug)
 
-`bemyself/experiments/antihydra_deep.py` (seit V17 im Repo, 12 Tests) ist
+`bemyself/experiments/antihydra_deep.py` (seit V17 im Repo, 16 Tests) ist
 der exakte Tiefzähler: die Block-Divide-and-Conquer-Methode aus dem
 bbchallenge-Forum (mxdys) mit libgmp über ctypes (CPython-Fallback), gegen
 die naive Rekurrenz verifiziert. Im Loop wird die Checkpoint-Option
@@ -608,8 +608,10 @@ Alle zehn Zeilen sind aus dem eingefrorenen Dump `data/deep-Cvalues-d12.json`
 Nacht-Log:** `antihydra-2p26-rank.log` meldet für d = 6 pauschal
 „Rang mod p: 6" für alle p ≤ 19; die mod-p-Schleife des damaligen Skripts
 lief nur über 6 der 7 Spalten (`range(6)`). Nachgerechnet aus den
-eingefrorenen Daten: mod 3/7/11/13/17/19 voll (7/7), nur mod 2 hat den
-Defekt 6/7.
+eingefrorenen Daten auf der 8×7-Nachtmatrix (Zeilen 4..11, dieselbe wie im
+damaligen Lauf): mod 3/7/11/13/17/19 voll (7/7), nur mod 2 hat den Defekt
+6/7; die 7×7-Tabellenmatrix desselben Absatzes hat mod 3 und mod 11
+ebenfalls den Defekt 6/7 (det = −2⁴·3²·5·11²·29789385120360739).
 
 **Das mod-2-Binnenbild bei d = 12** (nachgerechnet aus dem Dump): Die Zeilen
 r_i = H_{i,·} mod 2, i = 4..15, spannen einen 11-dimensionalen Raum auf; der
@@ -627,7 +629,10 @@ unabhängig (13 Zeilen) und liefert den Minor mit ungerader Determinante;
 Tiefe 32, i = 4..255; `data/r0-sweep-result.json`): R0(i) = 0 für alle
 i ≤ 15, Treffer R0(i) = 1 zuerst 16, 20, 21, 23; insgesamt 135 Treffer in
 252 getesteten Zeilen — die vermutete globale Relation R0 ist widerlegt, die
-Null-Verlängerung für i ≤ 15 ist ein endliches Fensterphänomen.
+Null-Verlängerung für i ≤ 15 ist ein endliches Fensterphänomen. Laufzeit der
+Sweep-Logik: ≈ 3 min bei Tiefe 29 (gemessen, i ≤ 24), der Default Tiefe 32
+liegt entsprechend länger; der Tiefe-33-Ranglauf derselben Engine brauchte
+3.217 s.
 
 **Halbierte Spalte** (R26): H̃_{·,8} = (H_{·,8}+H_{·,2}+H_{·,3}+H_{·,4}
 +H_{·,6})/2 ist auf den Zeilen i ≤ 15 ganzzahlig (dort gilt c₀), und für

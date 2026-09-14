@@ -4,8 +4,10 @@
 #   python3 -m bemyself check --report yesdocs/formal-conjectures/data/attack-02-check.txt \
 #     --repo . --strict --allow "python3 yesdocs/formal-conjectures/tools/fast_orbit.py"
 #
-# Der [COMMIT]-Pin ist der Artefakt-Commit (Werkzeug + Daten, ohne den Bericht);
+# Der [COMMIT]-Pin 7c0c128 ist der V21-Artefakt-Commit (fast_orbit.py + Daten);
 # [COMPUTE] laeuft in einem Checkout genau dieses Commits im bwrap-Sandkasten.
+# Die V22-Nachtrags-Artefakte (Rohrunden r19-r28, deep_rank_chain.py, r0_sweep.py,
+# Testdatei, Daten-Dumps) sind ausschliesslich per [ARTIFACT] gepinnt.
 # Die [ARTIFACT]-Digests pinnen die eingefrorenen Dateien in diesem Repo.
 # V22-Nachtrag (2026-09-14): Re-Pins von attack-02.md, README.md und dem
 # Runden-README sowie 15 neue Artefakte (Block "V22-Nachtrag" am Dateiende).
@@ -41,10 +43,10 @@
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json -> 92608fa3f985580b09105d789de4237fee7d7e461be0dd86accd7bc62c676c82]
 
 # Der Bericht selbst (Hash nach Einfuegen des [COMMIT]-Pins)
-[ARTIFACT: yesdocs/formal-conjectures/attack-02.md -> ecbaec63723ed4b9da0abc954f6a1cb0a6282a0094fcea3c4f281e045f1eb47a]
+[ARTIFACT: yesdocs/formal-conjectures/attack-02.md -> 59096875a77cfb87d1e5c66582e628e0bc43321a38627cd7a4a2c0d912e4c4d7]
 
 # Referenzdokumentation dieses Repos
-[ARTIFACT: yesdocs/formal-conjectures/README.md -> bf6bd49cb4d8cf72ff986e085f8b6f08283e19b5a576f395b672904cd8ecb14d]
+[ARTIFACT: yesdocs/formal-conjectures/README.md -> 45880d4ad2a9a5e76cc4cc0c3d35680392f1428d1e48d897d4ed02107e11823e]
 
 # V22-Nachtrag (2026-09-14): Rohrunden r19-r28 und Nachtrags-Artefakte
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r19.json -> aaed793a0de8d4d9e3811a2fec58a2f7ad5c62058f08ed600be915034ec42b33]

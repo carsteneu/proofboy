@@ -485,7 +485,8 @@ nichtlineare Invariante (N) hält mit exakt eingefrorenem Radius
 R² = 1309875575/347892350976 auf allen geprüften Zellen (0 Verletzungen;
 Maximum exakt an (14,4)). Die α-Messung (0,4644) wird zur Zielform
 `|D| ≤ K_i·L^{2/3}` präzisiert. **Kein Lösungsergebnis**; Antihydra bleibt
-offen. Artefakte gebunden:
+offen. Die zehn neuen Astra-Rohrunden r19-r28 liegen neben den V21-Antworten
+in `data/astra-antihydra-rounds/`. Artefakte gebunden:
 
 [ARTIFACT: yesdocs/formal-conjectures/tools/deep_rank_chain.py -> 1ecb70a639ac806f38ea87710c2cc198747a65eb251927965c2b0d0eabd25305]
 [ARTIFACT: yesdocs/formal-conjectures/tools/r0_sweep.py -> 328aa95ec45f91ab73800fe24b972e03735f3d81ef9281f6b183e8067cb8d9fc]
