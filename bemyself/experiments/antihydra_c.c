@@ -12,6 +12,7 @@
  *
  * Usage:
  *   ./antihydra_c --depth 34 [--also STEP]... [--grid k0 k1 m0 m1]
+ *                [--emit-states KMIN KMAX]   (needs D >= KMAX+13)
  *                [--cache-out FILE] [--cache-in FILE]
  *
  * Output (stdout, same lines as the Python engine):
@@ -44,6 +45,9 @@ extern void __gmpz_fdiv_q_2exp(mpz_ptr, mpz_ptr, unsigned long);
 extern void __gmpz_fdiv_r_2exp(mpz_ptr, mpz_ptr, unsigned long);
 extern void __gmpz_mul_2exp(mpz_ptr, mpz_ptr, unsigned long);
 extern unsigned long __gmpz_sizeinbase(mpz_ptr, int);
+extern char *__gmpz_get_str(char *, int, mpz_ptr);
+extern int __gmpz_tstbit(mpz_ptr, unsigned long);
+extern unsigned long __gmpz_get_ui(mpz_ptr);
 extern size_t __gmpz_out_raw(void *stream, mpz_ptr op);
 extern size_t __gmpz_inp_raw(mpz_ptr x, void *stream);
 
@@ -68,6 +72,7 @@ static uint64_t last_emitted = 0;
 
 static const char *cache_out_path = NULL;
 static const char *cache_in_path = NULL;
+static int emit_kmin = -1, emit_kmax = -1;
 
 static void emit(uint64_t n) {
     if (n == last_emitted) return;      /* power-of-two / extra-target collision */
@@ -268,6 +273,53 @@ static void block(mpz_ptr x, int dep, int last, mpz_ptr value_out, mpz_ptr corr_
     __gmpz_clear(xe);
 }
 
+/* ---- boundary-state diagnostics (--emit-states): exact x_n reports ------ */
+static void emit_state(long long k, int j, uint64_t n, mpz_ptr x) {
+    unsigned long bits = __gmpz_sizeinbase(x, 2);
+    mpz_t t, v, u;
+    __gmpz_init(t); __gmpz_init(v); __gmpz_init(u);
+    char *b64 = malloc(2100), *b256 = malloc(2100), *b1024 = malloc(2100);
+    char *b4096 = malloc(2100), *btop = malloc(2100);
+    __gmpz_fdiv_r_2exp(t, x, 64);    __gmpz_get_str(b64, 16, t);
+    __gmpz_fdiv_r_2exp(t, x, 256);   __gmpz_get_str(b256, 16, t);
+    __gmpz_fdiv_r_2exp(t, x, 1024);  __gmpz_get_str(b1024, 16, t);
+    __gmpz_fdiv_r_2exp(t, x, 4096);  __gmpz_get_str(b4096, 16, t);
+    if (bits > 256) __gmpz_fdiv_q_2exp(t, x, bits - 256); else __gmpz_set(t, x);
+    __gmpz_get_str(btop, 16, t);
+    /* carry word of 3*x on 32-bit limbs, low 128 limbs (R35 3.4C) */
+    static char carry[160];
+    uint64_t a[128];
+    __gmpz_fdiv_r_2exp(v, x, 4096);
+    for (int h = 0; h < 128; h++) {
+        __gmpz_fdiv_r_2exp(u, v, 32);
+        a[h] = (uint64_t)__gmpz_get_ui(u);
+        __gmpz_fdiv_q_2exp(v, v, 32);
+    }
+    uint64_t c = 0; int nnz = 0, run = 0, maxrun = 0;
+    for (int h = 0; h < 128; h++) {
+        uint64_t uu = 3 * a[h] + c;
+        c = uu >> 32;
+        carry[h] = (char)('0' + (int)c);
+        if (c) { nnz++; run++; if (run > maxrun) maxrun = run; } else run = 0;
+    }
+    carry[128] = 0;
+    /* next 512 step parities, derived from x mod 2^1024 */
+    static char par[520];
+    __gmpz_fdiv_r_2exp(v, x, 1024);
+    for (int i = 0; i < 512; i++) {
+        par[i] = (char)('0' + (__gmpz_tstbit(v, 0) ? 1 : 0));
+        __gmpz_fdiv_q_2exp(u, v, 1);
+        __gmpz_add(v, v, u);
+        __gmpz_fdiv_r_2exp(v, v, 1024);
+    }
+    par[512] = 0;
+    printf("state k=%lld j=%d n=%llu bits=%lu low64=0x%s low256=0x%s low1024=0x%s low4096=0x%s top256=0x%s carries=%s carry_nnz=%d carry_maxrun=%d parity=%s\n",
+           k, j, (unsigned long long)n, bits, b64, b256, b1024, b4096, btop,
+           carry, nnz, maxrun, par);
+    free(b64); free(b256); free(b1024); free(b4096); free(btop);
+    __gmpz_clear(t); __gmpz_clear(v); __gmpz_clear(u);
+}
+
 static int cmp_u64(const void *a, const void *b) {
     uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
     return (x > y) - (x < y);
@@ -290,6 +342,9 @@ int main(int argc, char **argv) {
             cache_out_path = argv[++i];
         } else if (!strcmp(argv[i], "--cache-in") && i + 1 < argc) {
             cache_in_path = argv[++i];
+        } else if (!strcmp(argv[i], "--emit-states") && i + 2 < argc) {
+            emit_kmin = atoi(argv[++i]);
+            emit_kmax = atoi(argv[++i]);
         } else die("usage: antihydra_c --depth N [--also STEP...] [--grid k0 k1 m0 m1] [--cache-out FILE] [--cache-in FILE]");
     }
     if (gk0 >= 0) {
@@ -301,6 +356,11 @@ int main(int argc, char **argv) {
     }
     if (D < BASE_DEP || D > MAX_DEPTH) die("depth out of range (8..40)");
     if (cache_in_path && D <= BASE_DEP) die("cache-in needs depth > BASE_DEP");
+    if (emit_kmax >= 0) {
+        if (emit_kmin < 0 || emit_kmax < emit_kmin || (long long)D < (long long)emit_kmax + 13)
+            die("emit-states needs 0 <= kmin <= kmax and depth D >= kmax+13");
+        if (cache_in_path || cache_out_path) die("emit-states cannot be combined with cache options");
+    }
 
     uint64_t top = 1ULL << D;
     /* filter + sort + dedup extra targets */
@@ -340,6 +400,33 @@ int main(int argc, char **argv) {
     __gmpz_init(x); __gmpz_init(corr);
     __gmpz_set_ui(x, 8);
 
+    if (emit_kmax >= 0) {
+        /* boundary-state walk: exact x_n at n = (4+j)L_k (R35 3.4B) */
+        mpz_t v, c;
+        __gmpz_init(v); __gmpz_init(c);
+        uint64_t n = 0;
+        block(x, emit_kmin + 12, 0, v, c);       /* reach 4L_kmin = 2^(kmin+12) */
+        __gmpz_set(x, v);
+        n = 1ULL << (emit_kmin + 12);
+        emit_state(emit_kmin, 0, n, x);
+        for (int k = emit_kmin; k <= emit_kmax; k++) {
+            for (int j = 1; j <= 4; j++) {
+                block(x, k + 10, 0, v, c);       /* next epoch boundary */
+                __gmpz_set(x, v);
+                n += 1ULL << (k + 10);
+                emit_state(k, j, n, x);
+            }
+            if (k < emit_kmax) emit_state(k + 1, 0, n, x);  /* 8L_k = 4L_(k+1) */
+        }
+        if (n != steps_total) die("emit-states walk/bookkeeping mismatch");
+        printf("min_counter=%lld\n", (long long)minimum);
+        printf("total_steps=%llu\n", (unsigned long long)steps_total);
+        __gmpz_clear(v); __gmpz_clear(c);
+        __gmpz_clear(x); __gmpz_clear(corr);
+        fprintf(stderr, "# antihydra_c emit-states kmin=%d kmax=%d elapsed=%.1fs\n",
+                emit_kmin, emit_kmax, (double)(clock() - t0) / CLOCKS_PER_SEC);
+        return 0;
+    }
     if (cache_in_path) {
         /* Left half [0, 2^(D-1)) comes from the cache; the right half is
          * computed fresh from v1 = phi^(2^(D-1))(8) = (8*3^(2^(D-1)) - c1) >> 2^(D-1). */
