@@ -469,7 +469,7 @@ zu den eingefrorenen Läufen, mit Tests) und die 17 Rohantworten des Loops.
 [ARTIFACT: yesdocs/formal-conjectures/tools/fast_orbit.py -> 2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59]
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_fast_orbit.py -> 60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0]
 [ARTIFACT: yesdocs/formal-conjectures/data/antihydra-wide92-cert.json -> f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010]
-[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 893e8f9917cacfae558c9020d5be213aabf1b6a9201185443a4a498986794e1b]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> b05fac7fc3996b3d3b564c3dffec03dc5070906794642b02c2a4f44946956758]
 
 Die ausführbaren Prüfungen des Nachtrags bündelt `data/attack-02-check.txt`
 (u. a. `[COMPUTE]` auf `tools/fast_orbit.py`).
@@ -496,6 +496,24 @@ in `data/astra-antihydra-rounds/`. Artefakte gebunden:
 
 Die Anker dieses Nachtrags stehen in `data/attack-02-check.txt` (V21-Stand
 plus die neuen Zeilen).
+
+**Nachtrag 2026-09-14 (V23, `attack-02.md` §O.1-§O.7).** Die zweite
+Fortsetzung des Antihydra-Lemma-Loops (Runden 29-33, 2026-09-14 09:25-12:09)
+ist als Nachtrag in `attack-02.md` eingefroren: der in V22 eingefrorene
+(N)-Radius ist auf neuen Zellen **falsifiziert** (Maximum 1,5005× bei
+(64,9)); der Fensterkandidat `R²_cand = 0,014016590` hält über die vollen
+Skalenbereiche k = 4..17 (Holdout k = 10..17 ohne neuen Rekord). Der
+C-Kernel des Repos rechnet die Tiefe-34-Läufe in 40 min statt 110 min und ist
+gegen die Python-Engine kreuzverifiziert (1298 E-Werte, 1992 D-Zellen,
+Anker 2^31/2^32 exakt); die rohen Wide-/αK-Logs liegen im Projekt-Archiv
+`.yesmem/tmp/antihydra-2026-09-14/` (gitignored). Die
+**Epoch-Quantor-Entscheidung** (R33) präzisiert das Originalziel auf die vier
+Epoch-Sequenzen und **korrigiert die (S)→H-Schlusskette** aus §4.9/§6:
+(S) trägt die 1/12-Schwelle nur für den Halt-Zähler C; H ≥ 0 braucht a > 3/11
+(vollständige Epoch-only-Reparatur im Nachtrag §O.4). **Kein
+Lösungsergebnis**; Antihydra bleibt offen. Die fünf neuen Astra-Rohrunden
+r29-r33 liegen in `data/astra-antihydra-rounds/`; ihre Anker stehen in
+`data/attack-02-check.txt`.
 
 ### 3.3 Einordnung
 

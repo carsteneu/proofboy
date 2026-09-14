@@ -1,4 +1,4 @@
-# Angriff 02 - Anker-Bericht (V21+V22, 2026-09-14)
+# Angriff 02 - Anker-Bericht (V21+V22+V23, 2026-09-14)
 #
 # Verifikation:
 #   python3 -m bemyself check --report yesdocs/formal-conjectures/data/attack-02-check.txt \
@@ -11,6 +11,10 @@
 # Die [ARTIFACT]-Digests pinnen die eingefrorenen Dateien in diesem Repo.
 # V22-Nachtrag (2026-09-14): Re-Pins von attack-02.md, README.md und dem
 # Runden-README sowie 15 neue Artefakte (Block "V22-Nachtrag" am Dateiende).
+# V23-Nachtrag (2026-09-14): Re-Pins derselben drei Dokumente sowie 5 neue
+# Rohrunden r29-r33 (Block "V23-Nachtrag" am Dateiende); die Engine
+# (bemyself/experiments/antihydra_c.c) ist Repo-Eigentum und wird nur im
+# Nachtragstext referenziert, nicht gepinnt.
 
 [COMMIT: 7c0c1288d5328ee066db52dbd17e58e28fae04f8]
 
@@ -23,7 +27,7 @@
 [ARTIFACT: yesdocs/formal-conjectures/tools/fast_orbit.py -> 2847c491937a83fad673fddb665cd5352dd2066a125a55356ef4be00c5101e59]
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_fast_orbit.py -> 60ae388d4a3ab926681a61d50852e45e5f82ecc4241bec9637bf1ebd80c86cc0]
 [ARTIFACT: yesdocs/formal-conjectures/data/antihydra-wide92-cert.json -> f28e9fcabcc45aa6a421423527af345005b19f6df18de34d6d02cef4c4eb5010]
-[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> 893e8f9917cacfae558c9020d5be213aabf1b6a9201185443a4a498986794e1b]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/README.md -> b05fac7fc3996b3d3b564c3dffec03dc5070906794642b02c2a4f44946956758]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r1.json -> 8fde219ecb93fc8017183af8df3b3552383ccf5f723f327077f8ec7b9cc91269]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r3.json -> 9ced79cd5afa6bdfbea60d61c2e10bd85d5105381ac0c15eca3aee22ca3b8ae1]
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r4.json -> 8d233e61909cfa82b71d6fceb1cf41f9fbf41a3cea486c7380a74a6305f641c7]
@@ -43,10 +47,10 @@
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r18.json -> 92608fa3f985580b09105d789de4237fee7d7e461be0dd86accd7bc62c676c82]
 
 # Der Bericht selbst (Hash nach Einfuegen des [COMMIT]-Pins)
-[ARTIFACT: yesdocs/formal-conjectures/attack-02.md -> 59096875a77cfb87d1e5c66582e628e0bc43321a38627cd7a4a2c0d912e4c4d7]
+[ARTIFACT: yesdocs/formal-conjectures/attack-02.md -> 659c0431f337f6a319563993f66d989d1d1365f27dc31ca7d3626b005062d5a4]
 
 # Referenzdokumentation dieses Repos
-[ARTIFACT: yesdocs/formal-conjectures/README.md -> 45880d4ad2a9a5e76cc4cc0c3d35680392f1428d1e48d897d4ed02107e11823e]
+[ARTIFACT: yesdocs/formal-conjectures/README.md -> 114d3b1e9e61ebeca32078505a81d0ecaaad694045a535c59e5517c44060119a]
 
 # V22-Nachtrag (2026-09-14): Rohrunden r19-r28 und Nachtrags-Artefakte
 [ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r19.json -> aaed793a0de8d4d9e3811a2fec58a2f7ad5c62058f08ed600be915034ec42b33]
@@ -64,3 +68,10 @@
 [ARTIFACT: yesdocs/formal-conjectures/tools/test_deep_rank_chain.py -> 42e38106ec8ed9f532ea2e4befa06f3864921ddfa571d64a304546438020ad66]
 [ARTIFACT: yesdocs/formal-conjectures/data/deep-Cvalues-d12.json -> aef77bca04677b878db4984e9e3d31b4806718ad3f8129250d3a582d76e29b29]
 [ARTIFACT: yesdocs/formal-conjectures/data/r0-sweep-result.json -> 0117349e2ebd3c41293ddd181c470af68977a8afa74076d7daa7c7ac00639272]
+
+# V23-Nachtrag (2026-09-14): Rohrunden r29-r33 (C-Kernel-Aera, Epoch-Entscheidung)
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r29.json -> b3911166e33efca8b46d788ea0eb320b45dfa327c283c82c6a8284de6529804e]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r30.json -> bd6f6bbddc2c2264b8922a63d5b8b37daec73da10d834a3d455761bbb24f10e7]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r31.json -> 8083fdcc90b11e976a87ab90b6584b2d0b74ef40daf2dee747a9b479caca5357]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r32.json -> 1bc1fc59c3df075bc119a62415329010028357638bf7b9343ad476ab88a82670]
+[ARTIFACT: yesdocs/formal-conjectures/data/astra-antihydra-rounds/astra-antihydra-r33.json -> b191f302a6df3dec939e31451044128d4406dbd51c4bfcfa893cea89e8e04537]
