@@ -12,6 +12,7 @@
  *
  * Usage:
  *   ./antihydra_c --depth 34 [--also STEP]... [--grid k0 k1 m0 m1]
+ *                [--h-stats KMIN KMAX]    (needs D >= KMAX+14)
  *                [--emit-states KMIN KMAX]   (needs D >= KMAX+13)
  *                [--cache-out FILE] [--cache-in FILE]
  *
@@ -73,6 +74,14 @@ static uint64_t last_emitted = 0;
 static const char *cache_out_path = NULL;
 static const char *cache_in_path = NULL;
 static int emit_kmin = -1, emit_kmax = -1;
+static int hs_kmin = -1, hs_kmax = -1;
+static uint8_t *rec_buf = NULL;
+static uint64_t rec_lo = 0, rec_hi = 0;
+
+static inline void rec_bit(uint64_t s, int parity) {
+    uint64_t b = s - rec_lo;
+    if (parity) rec_buf[b >> 3] |= (uint8_t)(1u << (b & 7));
+}
 
 static void emit(uint64_t n) {
     if (n == last_emitted) return;      /* power-of-two / extra-target collision */
@@ -92,22 +101,24 @@ static void die(const char *msg) { fprintf(stderr, "%s\n", msg); exit(2); }
 #define W 18
 #define WJ (1u << W)
 static uint32_t T18[WJ];
+static uint32_t P18[WJ];            /* bit i = parity (1=odd) of the value at step i */
 static uint8_t  O18[WJ];            /* odds among the 18 steps */
 static int8_t   M18[WJ];            /* min cumulative (+2 even / -1 odd), <= 0 */
 static const uint64_t MUL3_18 = 387420489ULL;   /* 3**18 */
 
 static void init_jump_table(void) {
     for (uint32_t r0 = 0; r0 < WJ; r0++) {
-        uint32_t v = r0;
+        uint32_t v = r0, pm = 0;
         int odds = 0, cum = 0, mn = 0;
         for (int i = 0; i < W; i++) {
-            if (v & 1) { odds++; cum--; } else { cum += 2; }
+            if (v & 1) { odds++; cum--; pm |= (1u << i); } else { cum += 2; }
             if (cum < mn) mn = cum;
             v += v >> 1;
         }
         T18[r0] = v;
         O18[r0] = (uint8_t)odds;
         M18[r0] = (int8_t)mn;
+        P18[r0] = pm;
     }
 }
 
@@ -164,6 +175,13 @@ static void run_leaf(mpz_ptr x_in, mpz_ptr x_end_out) {
             if (split - s >= W) {
                 /* one 18-step jump */
                 uint32_t r = (uint32_t)(l[0] & (WJ - 1u));
+                if (rec_buf) {
+                    uint32_t mk = P18[r];
+                    for (int ri = 0; ri < W; ri++) {
+                        uint64_t ss = s + (uint64_t)ri;
+                        if (ss >= rec_lo && ss < rec_hi) rec_bit(ss, (int)((mk >> ri) & 1u));
+                    }
+                }
                 int odds = O18[r];
                 odds_total += odds;
                 evens_total += W - odds;
@@ -192,6 +210,7 @@ static void run_leaf(mpz_ptr x_in, mpz_ptr x_end_out) {
                 if (active < NH) active++;
                 s += W;
             } else {
+                if (rec_buf && s >= rec_lo && s < rec_hi) rec_bit(s, (int)(l[0] & 1));
                 if (l[0] & 1) {
                     odds_total++;
                     cur_counter--;
@@ -345,7 +364,10 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], "--emit-states") && i + 2 < argc) {
             emit_kmin = atoi(argv[++i]);
             emit_kmax = atoi(argv[++i]);
-        } else die("usage: antihydra_c --depth N [--also STEP...] [--grid k0 k1 m0 m1] [--cache-out FILE] [--cache-in FILE]");
+        } else if (!strcmp(argv[i], "--h-stats") && i + 2 < argc) {
+            hs_kmin = atoi(argv[++i]);
+            hs_kmax = atoi(argv[++i]);
+        } else die("usage: antihydra_c --depth N [--also STEP...] [--grid k0 k1 m0 m1] [--cache-out FILE] [--cache-in FILE] [--emit-states KMIN KMAX] [--h-stats KMIN KMAX]");
     }
     if (gk0 >= 0) {
         for (int k = gk0; k <= gk1; k++)
@@ -360,6 +382,12 @@ int main(int argc, char **argv) {
         if (emit_kmin < 0 || emit_kmax < emit_kmin || (long long)D < (long long)emit_kmax + 13)
             die("emit-states needs 0 <= kmin <= kmax and depth D >= kmax+13");
         if (cache_in_path || cache_out_path) die("emit-states cannot be combined with cache options");
+    }
+    if (hs_kmax >= 0) {
+        if (hs_kmin < 0 || hs_kmax < hs_kmin || (long long)D < (long long)hs_kmax + 14)
+            die("h-stats needs 0 <= kmin <= kmax and depth D >= kmax+14");
+        if (cache_in_path || cache_out_path || emit_kmax >= 0)
+            die("h-stats cannot be combined with cache/emit-states options");
     }
 
     uint64_t top = 1ULL << D;
@@ -400,6 +428,65 @@ int main(int argc, char **argv) {
     __gmpz_init(x); __gmpz_init(corr);
     __gmpz_set_ui(x, 8);
 
+    if (hs_kmax >= 0) {
+        /* pattern-statistics walk: 3-bit pattern (f(t),f(2t),f(2t+1)) per epoch block */
+        uint64_t T = 1ULL << (hs_kmax + 14);
+        rec_lo = 1ULL << (hs_kmin + 12);
+        rec_hi = T;
+        rec_buf = calloc((size_t)((T - rec_lo) / 8 + 2), 1);
+        if (!rec_buf) die("h-stats buffer allocation failed");
+        mpz_t v, ch;
+        __gmpz_init(v); __gmpz_init(ch);
+        block(x, hs_kmin + 12, 0, v, ch);
+        __gmpz_set(x, v);
+        for (int m = hs_kmin + 12; m <= hs_kmax + 13; m++) {
+            block(x, m, 0, v, ch);
+            __gmpz_set(x, v);
+        }
+        if (steps_total != T) die("h-stats walk/bookkeeping mismatch");
+        static const int hvs[6] = {120, 54, -12, 10, -56, -122};
+        for (int k = hs_kmin; k <= hs_kmax; k++) {
+            uint64_t L1 = 4ULL << (k + 10);
+            uint64_t base = 4ULL << (k + 10);
+            long long cnt[6] = {0,0,0,0,0,0};
+            long long pat[8] = {0,0,0,0,0,0,0,0};
+            long long S1 = 0, S2 = 0;
+            for (uint64_t t = base; t < base + L1; t++) {
+                uint64_t i1 = t - rec_lo, i2 = 2*t - rec_lo, i3 = 2*t + 1 - rec_lo;
+                int p1 = (rec_buf[i1 >> 3] >> (i1 & 7)) & 1;
+                int p2 = (rec_buf[i2 >> 3] >> (i2 & 7)) & 1;
+                int p3 = (rec_buf[i3 >> 3] >> (i3 & 7)) & 1;
+                pat[p1 | (p2 << 1) | (p3 << 2)]++;
+                int f1 = p1 ? -1 : 1, f2 = p2 ? -1 : 1, f3 = p3 ? -1 : 1;
+                long long h = 55LL*f1 - 33LL*(f2+f3) - 1;
+                int idx;
+                if      (h == 120) idx = 0;
+                else if (h == 54)  idx = 1;
+                else if (h == -12) idx = 2;
+                else if (h == 10)  idx = 3;
+                else if (h == -56) idx = 4;
+                else if (h == -122) idx = 5;
+                else { die("h value outside the six-value set"); idx = 0; }
+                cnt[idx]++;
+                S1 += f1; S2 += f2 + f3;
+            }
+            long long Dsum = 0;
+            for (int z = 0; z < 6; z++) Dsum += cnt[z] * (long long)hvs[z];
+            if (Dsum != 55*S1 - 33*S2 - (long long)L1) die("h-stats internal consistency failed");
+            printf("hstats k=%d L1=%llu D=%lld mean_h=%.6f S1=%lld S2=%lld hist{120:%lld,54:%lld,-12:%lld,10:%lld,-56:%lld,-122:%lld}\n",
+                   k, (unsigned long long)L1, Dsum, (double)Dsum/(double)L1, S1, S2,
+                   cnt[0], cnt[1], cnt[2], cnt[3], cnt[4], cnt[5]);
+            printf("hstats-pat k=%d p1+2p2+4p3(1=odd): [%lld %lld %lld %lld %lld %lld %lld %lld]\n",
+                   k, pat[0], pat[1], pat[2], pat[3], pat[4], pat[5], pat[6], pat[7]);
+        }
+        printf("min_counter=%lld\n", (long long)minimum);
+        printf("total_steps=%llu\n", (unsigned long long)steps_total);
+        __gmpz_clear(v); __gmpz_clear(ch);
+        __gmpz_clear(x); __gmpz_clear(corr);
+        fprintf(stderr, "# antihydra_c h-stats kmin=%d kmax=%d elapsed=%.1fs\n",
+                hs_kmin, hs_kmax, (double)(clock() - t0) / CLOCKS_PER_SEC);
+        return 0;
+    }
     if (emit_kmax >= 0) {
         /* boundary-state walk: exact x_n at n = (4+j)L_k (R35 3.4B) */
         mpz_t v, c;
