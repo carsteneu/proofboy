@@ -1,14 +1,15 @@
-# Astra-Rohdaten — Antihydra-Lemma-Loop, Runden 1-18
+# Astra-Rohdaten — Antihydra-Lemma-Loop, Runden 1-28
 
 Rohantworten des externen Modells `gpt-6-astra` (Reasoning-Effort `high`) aus
 dem Lemma-Loop vom 2026-09-13/14, wie empfangen und unter `/tmp/opencode`
 gespeichert (keine Nachbearbeitung; der Antworttext steht in
 `choices[0].message.content`, `usage` und `model` im jeweiligen JSON).
 
-Es existieren 17 der 18 Antwortdateien; `astra-antihydra-r2.json` wurde nie
+Es existieren 27 der 28 Antwortdateien; `astra-antihydra-r2.json` wurde nie
 gespeichert. Die Dateien sind das Beweismaterial des Loops: Jede im Bericht
 zitierte Astra-Aussage stammt aus einer dieser Antworten (und jede davon
-wurde ihrerseits endlich nachgerechnet — siehe `attack-02.md` §2/§3).
+wurde ihrerseits endlich nachgerechnet — siehe `attack-02.md` §2/§3 und den
+Nachtrag §N.1).
 
 | Datei | Empfangen (2026-09-13/14) | Inhalt (Kurzform) |
 |---|---|---|
@@ -29,8 +30,19 @@ wurde ihrerseits endlich nachgerechnet — siehe `attack-02.md` §2/§3).
 | `astra-antihydra-r16.json` | 00:13 (09-14) | R16: präzises Minimalziel (D−)/(P); (P) strikt schwächer; probabilistisches Haar-Theorem; Budgetbedingung (S) |
 | `astra-antihydra-r17.json` | 00:17 (09-14) | R17: algebraischer Defektvektor (R^16); Kriterium für eine geschlossene Defektrekursion |
 | `astra-antihydra-r18.json` | 00:23 (09-14) | R18: exakte Carry-Rekursion; Paritätswort-Bijektion; Vier-Skalen-Rekursion; Nicht-Abgeschlossenheit; Endbilanz |
+| `astra-antihydra-r19.json` | 00:32 | R19: Summenbaum D = 5*Sum(q_n) (q_n beschränkt); Kandidat (L); Rangtest d>=4 (det ungleich 0 mod 3); Polyederzertifikat (M^4/8)K in K |
+| `astra-antihydra-r20.json` | 00:45 | R20: Ranganstieg 4->5 schließt d<=4 aus; Bellman-Potential-Format (endlicher Zustandsgraph + summierbares Fehlerbudget) |
+| `astra-antihydra-r21.json` | 01:24 | R21: Rang 6 der 7x6-Matrix schließt d<=5 aus; (L) <=> P(A)f=0; Haar-fast-sicher; Vier-Kontrast-Zustand |
+| `astra-antihydra-r22.json` | 03:36 | R22: K6-Kongruenz + 2-adischer Lift; (N)-Testprotokoll (Training/Validierung, R_crit); Ende der Dimensionseskalation |
+| `astra-antihydra-r23.json` | 03:40 | R23: (N)-Konsistenz-Audit (R^2=703,44 unvereinbar mit max|z|=0,0436); exakter Integer-Test; 508 Frontier-Zellen; Nicht-Nachfitten-Regel |
+| `astra-antihydra-r24.json` | 03:44 | R24: Korrektur bewertet — (N) auf 64 Transitionen bestätigt; f-Identität; (K_h); Q=b^2+2c^2-a^2<=R^2; Gültigkeitsguard |
+| `astra-antihydra-r25.json` | 06:41 | R25: Counter-Engine-Ökonomie; Rangkette bis d=12 abschließen; Brücke D/5=(A_{k+2}-4A_k)/3; verschachtelte Zeugen W_d(j); alpha-Methodik; Tiefen-Buchhaltung |
+| `astra-antihydra-r26.json` | 07:00 | R26: R0 nicht aus dem Blockbaum beweisbar; Fortpflanzung R_{s+1}=R_s(2i) xor R_s(2i+1); Halbierte Spalte (2-adischer Witness); XOR-Invariante J_N |
+| `astra-antihydra-r27.json` | 07:59 | R27: Quotientenbild mod 2 (dim W=11, Signaturen (1,0)/(0,1)/(1,1)); Abschlussabsatz der linearen Route; alpha-Kalibrierung; Transfersperre |
+| `astra-antihydra-r28.json` | 08:01 | R28: Quotientenmechanismus für d=12 bestätigt; Abschlussformulierung; Fortsetzungsalgorithmus d>=13; alpha-Zielform |D|<=K_i*L^(2/3) |
 
-Die korrespondierenden Verifikationsläufe (`R2` … `R18`, unser Teil) stehen als
+Die korrespondierenden Verifikationsläufe (`R2` … `R28`, unser Teil) stehen als
 Protokoll in der Conveyor-Seite `bemyself-conveyor` (2026-09-13/14, Einträge
-18:58–00:23) und verdichtet in `attack-02.md`. Digests aller Dateien:
-`data/attack-02-check.txt`.
+18:58–08:01) und verdichtet in `attack-02.md` (Runden 1-18) sowie dessen
+Nachtrag (Runden 19-28: Counter-Engine, Rangkette d<=12, nichtlineare
+Invariante). Digests aller Dateien: `data/attack-02-check.txt`.
