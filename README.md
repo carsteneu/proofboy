@@ -204,7 +204,11 @@ eine gekappte Ausgabe ergibt `unpruefbar`.
 
 Ein `tests_green`-Urteil verlangt positive Evidenz im Output
 (Testzusammenfassung); ein Kommando, das nur mit Exit 0 endet, keine
-Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Fehlt das im
+Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Das
+bestaetigende Urteil nennt die Evidenzzeile und die Skip-/Pending-Zaehler aus
+der Ausgabe (`evidence: ...; counters: 2 skipped`), damit ein gruenes Urteil
+nicht wie "alles lief" liest -- Legacy-Suiten verstecken sich in Skips.
+Fehlt das im
 Kommando genannte Runner-Modul, bleibt der Lauf ebenfalls `unpruefbar`; die
 Ausgabe eines Wrapper-Kommandos dagegen gilt als repo-kontrolliert und aendert
 ein Urteil nicht. Schattiert der

@@ -67,6 +67,13 @@ _TEST_EVIDENCE_PATTERNS = (
     re.compile(r"^\s*(?:pass|fail)\s+[1-9]\d*$", re.IGNORECASE | re.MULTILINE),
 )
 _WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
+# Legacy suites hide in skips: a "3 passed, 2 skipped" line must not read
+# like a clean "3 passed". These counters ride along in the verdict text
+# (display only -- they never influence the verdict itself).
+_SKIP_COUNTER_RE = re.compile(
+    r"\b[1-9]\d* (?:skipped|pending|ignored|incomplete)\b|\bskipped=[1-9]\d*",
+    re.IGNORECASE,
+)
 _MISSING_MODULE_RE = re.compile(r"No module named '?([A-Za-z_][\w.]*)'?")
 _URL_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.-]*://")
 # Option names that make a runner interpret the value as code or config.
@@ -430,6 +437,38 @@ def _display_name(name):
 
 def _claims_no_tests(output):
     return any(pattern.search(output) for pattern in _NO_TESTS_PATTERNS)
+
+
+def _evidence_summary(output):
+    """The positive test evidence in one line, with its counters appended.
+
+    The first line that carries an evidence pattern is shown, followed by
+    the skip/pending/ignored counters found in the output (deduplicated,
+    bounded). A counter the evidence line already carries is not repeated.
+    Display text only: it makes a green verdict readable -- "3 passed,
+    2 skipped" must not look like "3 passed" -- and never feeds a verdict.
+    """
+    line = ""
+    for candidate in output.splitlines():
+        stripped = candidate.strip()
+        if stripped and _shows_test_evidence(stripped):
+            line = stripped[:160]
+            break
+    counters = []
+    for match in _SKIP_COUNTER_RE.finditer(output):
+        token = match.group(0)
+        if any(token.lower() == seen.lower() for seen in counters):
+            continue
+        counters.append(token)
+        if len(counters) >= 4:
+            break
+    counters = [token for token in counters if token.lower() not in line.lower()]
+    pieces = []
+    if line:
+        pieces.append(f"evidence: {line}")
+    if counters:
+        pieces.append("counters: " + ", ".join(counters))
+    return "; ".join(pieces)
 
 
 def _test_env(checkout):
@@ -1073,7 +1112,15 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 # Exiting 0 is not proof that tests ran: require a positive
                 # test summary, and treat "no tests" output as unverifiable.
                 if _shows_test_evidence(raw_output):
-                    pass
+                    return Result(
+                        Verdict.CONFIRMED,
+                        command_desc,
+                        output,
+                        f"{command_str!r} exited {returncode} as claimed; "
+                        + _evidence_summary(raw_output)
+                        + note_suffix,
+                        sandboxed=sandboxed,
+                    )
                 elif _claims_no_tests(raw_output):
                     return Result(
                         Verdict.UNVERIFIABLE,
