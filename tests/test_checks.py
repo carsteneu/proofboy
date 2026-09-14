@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 
 from bemyself.checks import Ctx, _repo_command, run_claim
-from bemyself.model import Claim, Verdict
+from bemyself.model import Cause, Claim, Verdict
 
 from tests.fixtures import commit_probe, make_repo, merge_into_main
 
@@ -1773,19 +1773,13 @@ class SandboxTest(unittest.TestCase):
         self.assertIsNone(result.sandboxed)
 
 
-class TestsGateEvidenceTest(unittest.TestCase):
-    """P20: the evidence gate holds for every allowed runner.
-
-    A green claim is CONFIRMED only with positive evidence that tests ran
-    (#96819); the counters that legacy suites hide in -- skips, pending,
-    ignored -- must be visible in the verdict text, and a wrapper
-    (make/npm/...) is followed through to the inner run.
-    """
+class FixtureTestCase(unittest.TestCase):
+    """Shared fixture plumbing for the P20 evidence tests."""
 
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.repo = make_repo(os.path.join(cls._tmp.name, "evidence"))
+        cls.repo = make_repo(os.path.join(cls._tmp.name, "fixture-base"))
 
     @classmethod
     def tearDownClass(cls):
@@ -1797,20 +1791,10 @@ class TestsGateEvidenceTest(unittest.TestCase):
         kw.setdefault("tmp_dir", work)
         return Ctx(repo=repo or self.repo.path, **kw)
 
-    def run_script(self, source, repo=None, commit=None):
-        return run_claim(
-            make_claim(
-                "tests_green",
-                command=f'python3 -c "{source}"',
-                claimed_exit=0,
-                commit=commit or self.repo["good"],
-            ),
-            self.ctx(repo, allowlist=("python3 -c",)),
-        )
-
     def commit_files(self, repo, files):
         for name, content in files.items():
             full = os.path.join(repo.path, name)
+            os.makedirs(os.path.dirname(full) or repo.path, exist_ok=True)
             with open(full, "w", encoding="utf-8") as handle:
                 handle.write(content)
         subprocess.run(
@@ -1827,7 +1811,6 @@ class TestsGateEvidenceTest(unittest.TestCase):
             text=True,
         ).stdout.strip()
 
-    # --- skip counters in the verdict text --------------------------------
     @staticmethod
     def evidence_text(reason):
         """The part of a reason after the explicit evidence marker.
@@ -1841,6 +1824,28 @@ class TestsGateEvidenceTest(unittest.TestCase):
             return ""
         return reason.split(marker, 1)[1]
 
+
+class TestsGateEvidenceTest(FixtureTestCase):
+    """P20: the evidence gate holds for every allowed runner.
+
+    A green claim is CONFIRMED only with positive evidence that tests ran
+    (#96819); the counters that legacy suites hide in -- skips, pending,
+    ignored -- must be visible in the verdict text, and a wrapper
+    (make/npm/...) is followed through to the inner run.
+    """
+
+    def run_script(self, source, repo=None, commit=None):
+        return run_claim(
+            make_claim(
+                "tests_green",
+                command=f'python3 -c "{source}"',
+                claimed_exit=0,
+                commit=commit or self.repo["good"],
+            ),
+            self.ctx(repo, allowlist=("python3 -c",)),
+        )
+
+    # --- skip counters in the verdict text --------------------------------
     def test_skip_counters_are_visible_in_the_confirmed_reason(self):
         result = self.run_script("print('3 passed, 2 skipped in 0.12s')")
         self.assertIs(result.verdict, Verdict.CONFIRMED)
@@ -1967,6 +1972,107 @@ class TestsGateEvidenceTest(unittest.TestCase):
             if line.startswith(key + "="):
                 return line.split("=", 1)[1].strip()
         return None
+
+
+_SHIMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "shims")
+
+
+class PhpRunnerAdapterTest(FixtureTestCase):
+    """P20: the PHP runner adapter (phpunit, composer test).
+
+    No PHP on this host: the fixture repos carry honest shims that emit the
+    exact formats of the real runners (PHPUnit text/TeamCity, composer's
+    script wrapper). The checker must confirm only on the runner's evidence,
+    separate exit codes 0/1/2, and classify missing dependencies (vendor/)
+    as an environment gap -- never as a defect.
+    """
+
+    def repo_with_shim(self, mode="ok", with_phpunit=True, extra=None, name=None):
+        repo = make_repo(os.path.join(self._tmp.name, name or ("php-" + self._testMethodName)))
+        shutil.copytree(_SHIMS, repo.path, dirs_exist_ok=True)
+        if not with_phpunit:
+            os.unlink(os.path.join(repo.path, "vendor", "bin", "phpunit"))
+        files = {"fixture-mode.txt": mode + "\n"}
+        files.update(extra or {})
+        return repo, self.commit_files(repo, files)
+
+    def run_php(self, repo, head, command, claimed_exit=0):
+        return run_claim(
+            make_claim(
+                "tests_green" if claimed_exit == 0 else "tests_exit",
+                command=command,
+                claimed_exit=claimed_exit,
+                commit=head,
+            ),
+            self.ctx(repo.path),
+        )
+
+    def test_phpunit_ok_is_confirmed_with_evidence(self):
+        repo, head = self.repo_with_shim("ok")
+        result = self.run_php(repo, head, "vendor/bin/phpunit")
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIn("OK (2 tests, 3 assertions)", self.evidence_text(result.reason))
+
+    def test_phpunit_failure_is_refuted_for_claimed_zero(self):
+        repo, head = self.repo_with_shim("failures")
+        result = self.run_php(repo, head, "vendor/bin/phpunit")
+        self.assertIs(result.verdict, Verdict.REFUTED, result.output)
+
+    def test_phpunit_failure_confirms_its_own_exit_one(self):
+        repo, head = self.repo_with_shim("failures")
+        result = self.run_php(repo, head, "vendor/bin/phpunit", claimed_exit=1)
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+
+    def test_phpunit_risky_exit_two_is_a_distinct_code(self):
+        repo, head = self.repo_with_shim("risky")
+        # Exit 2 (warnings/risky) must not confirm a green claim...
+        self.assertIs(
+            self.run_php(repo, head, "vendor/bin/phpunit").verdict, Verdict.REFUTED
+        )
+        # ...but it is a claimable outcome of its own.
+        self.assertIs(
+            self.run_php(repo, head, "vendor/bin/phpunit", claimed_exit=2).verdict,
+            Verdict.CONFIRMED,
+        )
+
+    def test_phpunit_teamcity_output_is_evidence(self):
+        repo, head = self.repo_with_shim("ok")
+        result = self.run_php(repo, head, "vendor/bin/phpunit --teamcity")
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIn("teamcity", self.evidence_text(result.reason))
+        self.assertIn("testFinished", self.evidence_text(result.reason))
+
+    def test_composer_test_is_followed_to_phpunit(self):
+        repo, head = self.repo_with_shim("ok", name="composer-ok")
+        with mock.patch.dict(
+            os.environ, {"PATH": repo.path + os.pathsep + os.environ.get("PATH", "")}
+        ):
+            result = self.run_php(repo, head, "composer test")
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIn("OK (2 tests, 3 assertions)", self.evidence_text(result.reason))
+
+    def test_phpunit_without_dependencies_is_an_environment_gap(self):
+        repo, head = self.repo_with_shim("missing-deps", name="phpunit-nodeps")
+        result = self.run_php(repo, head, "vendor/bin/phpunit")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
+        self.assertIs(result.cause, Cause.ENVIRONMENT)
+
+    def test_composer_test_without_vendor_is_an_environment_gap(self):
+        repo, head = self.repo_with_shim(
+            "ok", with_phpunit=False, name="composer-novendor"
+        )
+        with mock.patch.dict(
+            os.environ, {"PATH": repo.path + os.pathsep + os.environ.get("PATH", "")}
+        ):
+            result = self.run_php(repo, head, "composer test")
+        self.assertIs(result.verdict, Verdict.UNVERIFIABLE, result.output)
+        self.assertIs(result.cause, Cause.ENVIRONMENT)
+
+    def test_phpunit_risky_run_shows_the_skip_counters(self):
+        repo, head = self.repo_with_shim("risky", name="phpunit-counters")
+        result = self.run_php(repo, head, "vendor/bin/phpunit", claimed_exit=2)
+        self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
+        self.assertIn("Skipped: 2", result.output)
 
 
 if __name__ == "__main__":

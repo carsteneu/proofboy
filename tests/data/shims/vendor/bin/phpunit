@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Ehrlicher PHPUnit-Shim: erzeugt exakt die Ausgabeformate des echten Runners.
+
+Kein PHP am Host (P20-Randbedingung): Der Shim erzeugt die Formate, die der
+Pruefer erkennen muss -- das Textformat "OK (N tests, M assertions)", das
+TeamCity-Format und die Exit-Codes 0/1/2. Gesteuert wird er ueber
+fixture-mode.txt im Arbeitsverzeichnis (ok|failures|risky|missing-deps);
+fehlt die Datei, gilt "ok".
+"""
+import sys
+
+
+def mode():
+    try:
+        with open("fixture-mode.txt", encoding="utf-8") as handle:
+            return handle.read().strip() or "ok"
+    except OSError:
+        return "ok"
+
+
+def teamcity(value):
+    print("##teamcity[testSuiteStarted name='FixtureTest']")
+    if value == "failures":
+        print("##teamcity[testStarted name='test_adds']")
+        print(
+            "##teamcity[testFailed name='test_adds' message='Failed asserting that 3 matches expected 2.']"
+        )
+        print("##teamcity[testFinished name='test_adds' duration='4']")
+        sys.exit(1)
+    print("##teamcity[testStarted name='test_adds']")
+    print("##teamcity[testFinished name='test_adds' duration='4']")
+    print("##teamcity[testStarted name='test_subtracts']")
+    print("##teamcity[testFinished name='test_subtracts' duration='2']")
+    print("##teamcity[testSuiteFinished name='FixtureTest']")
+    sys.exit(0)
+
+
+def main():
+    value = mode()
+    if value == "missing-deps":
+        sys.stderr.write(
+            'PHP Fatal error:  Uncaught Error: Class "PHPUnit\\TextUI\\Application" '
+            "not found in /checkout/vendor/autoload.php:24\n"
+        )
+        sys.exit(255)
+    if "--teamcity" in sys.argv[1:]:
+        teamcity(value)
+    print("PHPUnit 9.6.13 by Sebastian Bergmann and contributors.")
+    print()
+    if value == "failures":
+        print("F.                                                                  2 / 2 (100%)")
+        print()
+        print("Time: 00:00.011, Memory: 6.00 MB")
+        print()
+        print("There was 1 failure:")
+        print()
+        print("1) FixtureTest::test_adds")
+        print("Failed asserting that 3 matches expected 2.")
+        print()
+        print("FAILURES!")
+        print("Tests: 2, Assertions: 3, Failures: 1.")
+        sys.exit(1)
+    if value == "risky":
+        print("RS.                                                                2 / 3 (100%)")
+        print()
+        print("Time: 00:00.011, Memory: 6.00 MB")
+        print()
+        print("OK, but incomplete, skipped, or risky tests!")
+        print("Tests: 3, Assertions: 5, Risky: 1, Skipped: 2.")
+        sys.exit(2)
+    print("..                                                                  2 / 2 (100%)")
+    print()
+    print("Time: 00:00.011, Memory: 6.00 MB")
+    print()
+    print("OK (2 tests, 3 assertions)")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

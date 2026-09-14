@@ -189,7 +189,12 @@ usage-Fehler (Exit 2) ohne JSON-Ausgabe.
 ## Grenzen
 
 Testkommandos aus der Meldung laufen nur, wenn sie auf einer Whitelist stehen,
-und nur in einem Wegwerf-Checkout des behaupteten Commits. Argumente, die aus
+und nur in einem Wegwerf-Checkout des behaupteten Commits. Erlaubt sind
+standardmaessig die Python-Runner (`python3 -m unittest`, `pytest`), `go test`,
+`cargo test`, `npm`/`yarn`/`bun`-Testlaeufe, `node --test`, `make test` /
+`make check` sowie die PHP-Runner `phpunit`, `bin/phpunit`,
+`vendor/bin/phpunit` und `composer test`; `--allow "praefix"` erweitert die
+Liste. Argumente, die aus
 dem Checkout herauszeigen, werden abgelehnt: absolute Pfade, `..` in jeder
 Form, code-tragende Optionen wie `make --eval` oder `cargo --config` (auch
 abgekuerzt), Shell-Syntax in Options- und Variablenwerten (`TESTS=...`), und
@@ -204,14 +209,22 @@ eine gekappte Ausgabe ergibt `unpruefbar`.
 
 Ein `tests_green`-Urteil verlangt positive Evidenz im Output
 (Testzusammenfassung); ein Kommando, das nur mit Exit 0 endet, keine
-Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Das
-bestaetigende Urteil nennt die Evidenzzeile und die Skip-/Pending-Zaehler aus
-der Ausgabe (`evidence: ...; counters: 2 skipped`), damit ein gruenes Urteil
-nicht wie "alles lief" liest -- Legacy-Suiten verstecken sich in Skips.
+Testsignale zeigt oder "0 passing" meldet, bleibt `unpruefbar`. Die Evidenz
+wird fuer die Formate von unittest ("Ran N tests"), pytest ("N passed"), go
+("ok <pkg>"), cargo ("test result: ok. N passed"), node:test (TAP "ok N -"),
+jest/vitest ("Tests: N passed"), mocha ("N passing") und PHPUnit (Text
+"OK (N tests, M assertions)" oder `--teamcity`-Strom) erkannt; ein
+Wrapper-Kommando (make/npm/composer) wird bis zum inneren Lauf verfolgt.
+Das bestaetigende Urteil nennt die Evidenzzeile und die Skip-/Pending-Zaehler
+aus der Ausgabe (`evidence: ...; counters: 2 skipped`), damit ein gruenes
+Urteil nicht wie "alles lief" liest -- Legacy-Suiten verstecken sich in Skips.
 Fehlt das im
 Kommando genannte Runner-Modul, bleibt der Lauf ebenfalls `unpruefbar`; die
 Ausgabe eines Wrapper-Kommandos dagegen gilt als repo-kontrolliert und aendert
-ein Urteil nicht. Schattiert der
+ein Urteil nicht. Ein PHP-Runner, dessen Abhaengigkeiten im Checkout fehlen
+(kein `vendor/`, kein `composer install`), bleibt `unpruefbar` mit Klasse
+`environment` -- fehlende Umgebung ist kein Defekt und kein Testfehler.
+Schattiert der
 behauptete Commit den Testrunner oder ein Modul, das er beim Start importiert
 (etwa ein eigenes `unittest.py` oder `difflib.py`), bleibt der Lauf ebenfalls
 `unpruefbar`.

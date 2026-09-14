@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Ehrlicher Symfony-Console-Shim fuer lint:twig, lint:yaml, lint:container.
+
+Erzeugt die echten Symfony-7-Formate: Erfolg " [OK] All N Twig files contain
+valid syntax." (Exit 0); bei Fehlern die WARNING-Zeile plus ERROR-Zeile je
+Datei (Exit 1); lint:container meldet " [OK] The container was linted
+successfully: ..." (Exit 0), Compile-Fehler Exit 1, nicht ladbare Konfiguration
+Exit 2. Gesteuert ueber fixture-mode.txt (ok|failures|missing-config).
+"""
+import os
+import sys
+
+
+def mode():
+    try:
+        with open("fixture-mode.txt", encoding="utf-8") as handle:
+            return handle.read().strip() or "ok"
+    except OSError:
+        return "ok"
+
+
+def collect(targets, suffix):
+    files = []
+    for target in targets:
+        if os.path.isfile(target):
+            files.append(target)
+        elif os.path.isdir(target):
+            for root, _dirs, names in os.walk(target):
+                for name in sorted(names):
+                    if name.endswith(suffix):
+                        files.append(os.path.join(root, name))
+    return files
+
+
+def lint(label, targets, suffix):
+    value = mode()
+    files = collect(targets, suffix)
+    if not files:
+        sys.stderr.write(" [ERROR] Please provide a filename or pipe content to STDIN.\n")
+        sys.exit(1)
+    if value == "failures":
+        broken = files[0]
+        print(f" [WARNING] {len(files) - 1} {label} files have valid syntax and 1 contain errors.")
+        print()
+        print(f" ERROR  in {broken} (line 3)")
+        print()
+        print("   >> 1  {{ broken(")
+        print()
+        print(" [WARNING] 1 of 1 failed.")
+        sys.exit(1)
+    print(f" [OK] All {len(files)} {label} files contain valid syntax.")
+    sys.exit(0)
+
+
+def main():
+    args = sys.argv[1:]
+    command = args[0] if args else ""
+    targets = [a for a in args[1:] if not a.startswith("-")]
+    value = mode()
+    if command == "lint:twig":
+        lint("Twig", targets or ["templates"], ".twig")
+    if command == "lint:yaml":
+        lint("YAML", targets or ["config"], ".yaml")
+        lint("YAML", targets or ["config"], ".yml")
+    if command == "lint:container":
+        if value == "missing-config":
+            sys.stderr.write(" [ERROR] The container configuration is not readable.\n")
+            sys.exit(2)
+        if value == "failures":
+            sys.stderr.write(
+                " [ERROR] Cannot autowire service \"App\\Service\\Broken\": "
+                "argument \"$missing\" of method \"__construct()\" is type-hinted "
+                "\"App\\Missing\\Thing\", you should configure its value explicitly.\n"
+            )
+            sys.exit(1)
+        print(
+            " [OK] The container was linted successfully: all services are injected "
+            "with values that are compatible with their type declarations."
+        )
+        sys.exit(0)
+    sys.stderr.write(f"Command \"{command}\" is not defined.\n")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

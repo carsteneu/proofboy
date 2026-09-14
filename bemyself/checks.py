@@ -65,6 +65,10 @@ _TEST_EVIDENCE_PATTERNS = (
     re.compile(r"^(?:ok|FAIL)\s+\S", re.MULTILINE),
     re.compile(r"^--- (?:PASS|FAIL):", re.MULTILINE),
     re.compile(r"^\s*(?:pass|fail)\s+[1-9]\d*$", re.IGNORECASE | re.MULTILINE),
+    # PHPUnit: the text summary ("OK (2 tests, 3 assertions)") and the
+    # machine-readable TeamCity stream (one testFinished per executed test).
+    re.compile(r"\bOK \([1-9]\d* tests?, \d+ assertions?\)"),
+    re.compile(r"^##teamcity\[testFinished\b", re.MULTILINE),
 )
 _WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
 # Legacy suites hide in skips: a "3 passed, 2 skipped" line must not read
@@ -75,6 +79,17 @@ _SKIP_COUNTER_RE = re.compile(
     re.IGNORECASE,
 )
 _MISSING_MODULE_RE = re.compile(r"No module named '?([A-Za-z_][\w.]*)'?")
+# "Runner present, its dependencies absent": the throwaway checkout has no
+# vendor/ (no composer install). These are the startup failures of the real
+# tools, not test outcomes.
+_MISSING_DEPENDENCY_PATTERNS = (
+    re.compile(r"Failed opening required '?[^'\s]*vendor/autoload\.php", re.IGNORECASE),
+    re.compile(r"vendor/autoload\.php[^\n]*Failed to open stream", re.IGNORECASE),
+    re.compile(r"Could not open input file: [^\s]*phpunit", re.IGNORECASE),
+    re.compile(r'Class "PHPUnit\\', re.IGNORECASE),
+    re.compile(r"please run .{0,40}composer install", re.IGNORECASE),
+    re.compile(r"try running .{0,40}composer install", re.IGNORECASE),
+)
 _URL_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.-]*://")
 # Option names that make a runner interpret the value as code or config.
 _DANGEROUS_OPTION_NAMES = frozenset(
@@ -131,6 +146,14 @@ DEFAULT_COMMAND_ALLOWLIST = (
     "node --test",
     "make test",
     "make check",
+    # PHP-family runners (P20). The runner itself is a project artifact
+    # (vendor/), like node_modules: the checkout decides what runs, which is
+    # the documented boundary of this gate, not a hole of the allowlist.
+    "phpunit",
+    "bin/phpunit",
+    "vendor/bin/phpunit",
+    "composer test",
+    "composer run test",
 )
 
 
@@ -437,6 +460,24 @@ def _display_name(name):
 
 def _claims_no_tests(output):
     return any(pattern.search(output) for pattern in _NO_TESTS_PATTERNS)
+
+
+def _missing_dependency(argv, output):
+    """True when a PHP-family runner's dependencies are visibly absent.
+
+    A checkout without vendor/ is an environment gap (no composer install),
+    never a defect and never a confirmation. The output is repo-controlled,
+    so the phrases only count when the command itself is a PHP-family
+    runner and no test evidence exists; a repo can print such a phrase to
+    downgrade a REFUTED to UNVERIFIABLE, which the README documents as a
+    boundary (like the missing Python runner module).
+    """
+    if not argv or _shows_test_evidence(output):
+        return False
+    tool = os.path.basename(argv[0])
+    if tool not in ("composer", "phpunit") and not tool.startswith("php"):
+        return False
+    return any(pattern.search(output) for pattern in _MISSING_DEPENDENCY_PATTERNS)
 
 
 def _evidence_summary(output):
@@ -1166,6 +1207,20 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                     sandboxed=sandboxed,
                     cause=Cause.ENVIRONMENT,
                 )
+        # A PHP-family runner whose dependencies are absent from the checkout
+        # (no vendor/, no composer install) is an environment gap: the run
+        # says nothing about the code, so it must not read as a test failure.
+        if _missing_dependency(argv, raw_output):
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                output,
+                "the runner's dependencies are missing in the checkout "
+                "(no vendor/, no composer install); the run stopped before any test"
+                + note_suffix,
+                sandboxed=sandboxed,
+                cause=Cause.ENVIRONMENT,
+            )
         if _WRITE_LIMIT_RE.search(raw_output):
             return Result(
                 Verdict.UNVERIFIABLE,

@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Ehrlicher PHP-Shim: Syntaxcheck (-l) und Durchreichen an bin/console.
+
+"php -l <datei>" gibt bei gueltiger Datei "No syntax errors detected in
+<datei>" (Exit 0) aus; enthaelt die Datei die Marke SYNTAX-ERROR, kommt die
+echte Parse-error-Form (Exit 255). "php bin/console <args>" reicht an den
+Console-Shim durch.
+"""
+import os
+import subprocess
+import sys
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "-l":
+        if len(args) < 2:
+            sys.stderr.write("Usage: php [options] [-f] <file>\n")
+            sys.exit(1)
+        target = args[1]
+        try:
+            with open(target, encoding="utf-8", errors="replace") as handle:
+                source = handle.read()
+        except OSError:
+            sys.stderr.write(f"Could not open input file: {target}\n")
+            sys.exit(1)
+        if "SYNTAX-ERROR" in source:
+            sys.stderr.write(
+                f'PHP Parse error:  syntax error, unexpected token "}}" in {target} on line 3\n'
+            )
+            sys.stderr.write(f"Errors parsing {target}\n")
+            sys.exit(255)
+        print(f"No syntax errors detected in {target}")
+        sys.exit(0)
+    if args and args[0] == "bin/console":
+        proc = subprocess.run([sys.executable, "bin/console", *args[1:]])
+        sys.exit(proc.returncode)
+    if args and (args[0] == "-v" or args[0] == "--version"):
+        print("PHP 8.3.9 (cli) (built: Jul  2 2024 10:12:34) (NTS)")
+        sys.exit(0)
+    sys.stderr.write("Usage: php [options] [-f] <file> [--] [args...]\n")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
