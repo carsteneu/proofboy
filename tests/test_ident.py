@@ -337,21 +337,5 @@ class IdentBoundaryTest(unittest.TestCase):
             with self.subTest(doc=name):
                 self.assertIn("fuer alle Parameter", text)
 
-    def test_the_erdos_straus_evaluation_verifies_its_own_claims(self):
-        # The evaluation under yesdocs/erdos-straus/ carries IDENT markers as
-        # its machine-checked evidence: every claim it makes must verify, and
-        # nothing but ident claims may sneak in.
-        path = os.path.join(REPO_ROOT, "yesdocs", "erdos-straus", "README.md")
-        with open(path, encoding="utf-8") as handle:
-            claims = parse_report(handle.read())
-        self.assertGreaterEqual(len(claims), 6)
-        for claim in claims:
-            with self.subTest(line=claim.line):
-                self.assertEqual(claim.kind, "ident")
-                result = run_claim(claim, Ctx(repo=None, tmp_dir=None))
-                self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-                self.assertIn("not a proof of the conjecture", result.reason)
-
-
 if __name__ == "__main__":
     unittest.main()

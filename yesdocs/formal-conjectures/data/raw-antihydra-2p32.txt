@@ -1,9 +1,0 @@
-# Antihydra Roh-TM-Kreuzlauf (unabhaengiges Orakel), 2026-09-13
-# Kommando: python3 -u -m bemyself.turing 1RB1RA_0LC1LE_1LD1LC_1LA0LB_1LF1RE_---0RA 4294967296
-# Repo-Stand: 1788507828b44e72d03b0b8fb55869a5cc993788 (Worktree yesloop-bemyself-v17-bmo-attack)
-# Einordnung: Bounded-Lauf; 'halts=False' belegt nur: kein Halt innerhalb der Schrittzahl.
-halts=False steps=4294967296 score=86040
-
-real	6m57,311s
-user	6m57,191s
-sys	0m0,051s

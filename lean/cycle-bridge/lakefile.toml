@@ -1,6 +1,0 @@
-name = "cycle-bridge"
-version = "0.1.0"
-defaultTargets = ["CycleBridge"]
-
-[[lean_lib]]
-name = "CycleBridge"

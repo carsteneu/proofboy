@@ -1,4 +1,0 @@
-# structure probes (exact finite checks; no proofs of the open statements)
-antihydra.random_walk_solution=phi**(n+1) exact in Z[phi] n=0..200 mismatches=none (1 + phi**3 == 2*phi and P(n-1)+P(n+2) == 2*P(n), P(-1)=1)
-bmo1.backward_tree.levels=18 nodes=262144 hits_2_eq_m_plus_b=none invariant_m_gt_b_violations=0 wiki_closest_entries_checked=10 mismatches=['level 8: closest below slope 699/401 (generated at level 8) != wiki 669/401', 'level 19: outside the checked window', 'level 20: outside the checked window']
-bmo1.backward_tree.closest_distance_by_level=0b:1 1a:2 1b:1 2a:2 2b:0.8 3a:0.143 3b:0.8 4a:0.143 4b:0.63 5a:0.143 5b:0.341 6a:0.132 6b:0.101 7a:0.064 7b:0.101 8a:0.0535 8b:0.0549 9a:0.0492 9b:0.00768 10a:0.0261 10b:0.00768 11a:0.00213 11b:0.00768 12a:0.00213 12b:0.00537 13a:0.00213 13b:0.00281 14a:0.00213 14b:0.000817 15a:0.000614 15b:0.000763 16a:0.000614 16b:0.000379 17a:5.76e-06 17b:0.000206 18a:5.76e-06 18b:0.000107

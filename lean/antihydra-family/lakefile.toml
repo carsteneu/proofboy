@@ -1,6 +1,0 @@
-name = "antihydra-family"
-version = "0.1.0"
-defaultTargets = ["Antihydra"]
-
-[[lean_lib]]
-name = "Antihydra"

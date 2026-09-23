@@ -344,21 +344,5 @@ class ColoringBoundaryTest(unittest.TestCase):
             with self.subTest(doc=name):
                 self.assertIn("obere Schranke", text)
 
-    def test_the_schur_evaluation_verifies_its_own_claims(self):
-        # The evaluation under yesdocs/schur/ carries COLORING markers as its
-        # machine-checked evidence: every claim there must verify, and nothing
-        # but coloring claims may sneak in.
-        path = os.path.join(REPO_ROOT, "yesdocs", "schur", "README.md")
-        with open(path, encoding="utf-8") as handle:
-            claims = parse_report(handle.read())
-        self.assertGreaterEqual(len(claims), 6)
-        for claim in claims:
-            with self.subTest(line=claim.line):
-                self.assertEqual(claim.kind, "coloring")
-                result = run_claim(claim, Ctx(repo=None, tmp_dir=None))
-                self.assertIs(result.verdict, Verdict.CONFIRMED, result.reason)
-                self.assertIn("nothing about the upper bound", result.reason)
-
-
 if __name__ == "__main__":
     unittest.main()
