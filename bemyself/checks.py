@@ -65,9 +65,31 @@ _TEST_EVIDENCE_PATTERNS = (
     re.compile(r"^(?:ok|FAIL)\s+\S", re.MULTILINE),
     re.compile(r"^--- (?:PASS|FAIL):", re.MULTILINE),
     re.compile(r"^\s*(?:pass|fail)\s+[1-9]\d*$", re.IGNORECASE | re.MULTILINE),
+    # PHPUnit: the text summary ("OK (2 tests, 3 assertions)") and the
+    # machine-readable TeamCity stream (one testFinished per executed test).
+    re.compile(r"\bOK \([1-9]\d* tests?, \d+ assertions?\)"),
+    re.compile(r"^##teamcity\[testFinished\b", re.MULTILINE),
 )
 _WRITE_LIMIT_RE = re.compile(r"\[Errno 27\]|File too large")
+# Legacy suites hide in skips: a "3 passed, 2 skipped" line must not read
+# like a clean "3 passed". These counters ride along in the verdict text
+# (display only -- they never influence the verdict itself).
+_SKIP_COUNTER_RE = re.compile(
+    r"\b[1-9]\d* (?:skipped|pending|ignored|incomplete)\b|\bskipped=[1-9]\d*",
+    re.IGNORECASE,
+)
 _MISSING_MODULE_RE = re.compile(r"No module named '?([A-Za-z_][\w.]*)'?")
+# "Runner present, its dependencies absent": the throwaway checkout has no
+# vendor/ (no composer install). These are the startup failures of the real
+# tools, not test outcomes.
+_MISSING_DEPENDENCY_PATTERNS = (
+    re.compile(r"Failed opening required '?[^'\s]*vendor/autoload\.php", re.IGNORECASE),
+    re.compile(r"vendor/autoload\.php[^\n]*Failed to open stream", re.IGNORECASE),
+    re.compile(r"Could not open input file: [^\s]*phpunit", re.IGNORECASE),
+    re.compile(r'Class "PHPUnit\\', re.IGNORECASE),
+    re.compile(r"please run .{0,40}composer install", re.IGNORECASE),
+    re.compile(r"try running .{0,40}composer install", re.IGNORECASE),
+)
 _URL_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.-]*://")
 # Option names that make a runner interpret the value as code or config.
 _DANGEROUS_OPTION_NAMES = frozenset(
@@ -96,7 +118,7 @@ _TOKEN_METACHARS = frozenset(" \t\n\r;&|$`<>(){}[]")
 _PYTHON_TUPLE_METACHARS = frozenset()
 _KNOWN_RUNNER_MODULES = ("unittest", "pytest", "nose2")
 _PYTHON_COMMAND_TOKENS = ("python", "python2", "python3", "pytest", "py.test")
-_WRAPPER_COMMAND_TOKENS = ("make", "npm", "yarn", "bun", "pnpm", "npx")
+_WRAPPER_COMMAND_TOKENS = ("make", "npm", "yarn", "bun", "pnpm", "npx", "composer")
 _SANITIZED_ENV_KEYS = (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -124,6 +146,14 @@ DEFAULT_COMMAND_ALLOWLIST = (
     "node --test",
     "make test",
     "make check",
+    # PHP-family runners (P20). The runner itself is a project artifact
+    # (vendor/), like node_modules: the checkout decides what runs, which is
+    # the documented boundary of this gate, not a hole of the allowlist.
+    "phpunit",
+    "bin/phpunit",
+    "vendor/bin/phpunit",
+    "composer test",
+    "composer run test",
 )
 
 
@@ -430,6 +460,56 @@ def _display_name(name):
 
 def _claims_no_tests(output):
     return any(pattern.search(output) for pattern in _NO_TESTS_PATTERNS)
+
+
+def _missing_dependency(argv, output):
+    """True when a PHP-family runner's dependencies are visibly absent.
+
+    A checkout without vendor/ is an environment gap (no composer install),
+    never a defect and never a confirmation. The output is repo-controlled,
+    so the phrases only count when the command itself is a PHP-family
+    runner and no test evidence exists; a repo can print such a phrase to
+    downgrade a REFUTED to UNVERIFIABLE, which the README documents as a
+    boundary (like the missing Python runner module).
+    """
+    if not argv or _shows_test_evidence(output):
+        return False
+    tool = os.path.basename(argv[0])
+    if tool not in ("composer", "phpunit") and not tool.startswith("php"):
+        return False
+    return any(pattern.search(output) for pattern in _MISSING_DEPENDENCY_PATTERNS)
+
+
+def _evidence_summary(output):
+    """The positive test evidence in one line, with its counters appended.
+
+    The first line that carries an evidence pattern is shown, followed by
+    the skip/pending/ignored counters found in the output (deduplicated,
+    bounded). A counter the evidence line already carries is not repeated.
+    Display text only: it makes a green verdict readable -- "3 passed,
+    2 skipped" must not look like "3 passed" -- and never feeds a verdict.
+    """
+    line = ""
+    for candidate in output.splitlines():
+        stripped = candidate.strip()
+        if stripped and _shows_test_evidence(stripped):
+            line = stripped[:160]
+            break
+    counters = []
+    for match in _SKIP_COUNTER_RE.finditer(output):
+        token = match.group(0)
+        if any(token.lower() == seen.lower() for seen in counters):
+            continue
+        counters.append(token)
+        if len(counters) >= 4:
+            break
+    counters = [token for token in counters if token.lower() not in line.lower()]
+    pieces = []
+    if line:
+        pieces.append(f"evidence: {line}")
+    if counters:
+        pieces.append("counters: " + ", ".join(counters))
+    return "; ".join(pieces)
 
 
 def _test_env(checkout):
@@ -829,31 +909,16 @@ def check_diff_scope(claim: Claim, ctx: Ctx) -> Result:
     )
 
 
-@needs_repo
-def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
-    guard = _repo_guard(ctx)
-    if guard is not None:
-        return guard
-    command_str = claim.fields["command"]
-    claimed_exit = claim.fields["claimed_exit"]
-    value = claim.fields.get("commit")
-    if not value:
-        return Result(
-            Verdict.UNVERIFIABLE,
-            command=command_str,
-            reason="no commit hash to check out for the test run",
-            cause=Cause.DEFECT,
-        )
-    commit = _resolve_commit(ctx, value)
-    if commit is None:
-        return Result(
-            Verdict.UNVERIFIABLE,
-            command=command_str,
-            reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
-            cause=Cause.UNVERIFIABLE,
-        )
-    if not _is_allowed(command_str, ctx.allowlist):
-        return Result(
+def _prepare_command(command_str, allowlist):
+    """Validate a report command: ``(argv, strict, Result|None)``.
+
+    Shared by every checker that runs a report command: the allowlist gate,
+    the argv parse and the escape rules (absolute paths, ``..``, symlink
+    targets outside the checkout) are the same everywhere; only the
+    allowlist differs. ``argv`` is None when the third element is a Result.
+    """
+    if not _is_allowed(command_str, allowlist):
+        return None, False, Result(
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"command is not in the allowlist: {command_str!r}",
@@ -862,14 +927,14 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
     try:
         argv = shlex.split(command_str)
     except ValueError as exc:
-        return Result(
+        return None, False, Result(
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"could not parse command: {exc}",
             cause=Cause.DEFECT,
         )
     if not argv:
-        return Result(
+        return None, False, Result(
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason="empty command",
@@ -880,13 +945,55 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
     if escaping:
         # Only the cwd is confined; an argument pointing outside the fresh
         # checkout would run code the verified commit never contained.
-        return Result(
+        return None, strict, Result(
             Verdict.UNVERIFIABLE,
             command=command_str,
             reason=f"unsafe command argument: {escaping[0]!r}",
             cause=Cause.DEFECT,
         )
+    return argv, strict, None
 
+
+class _RunOutcome:
+    """The observable outcome of one sandboxed run in a throwaway checkout.
+
+    ``checkout`` is the directory the command ran in; the caller may use it
+    for path comparisons after the run (it is already removed by then, so
+    only its string is meaningful). ``sandboxed`` stays None when the run
+    never started.
+    """
+
+    __slots__ = (
+        "command_desc",
+        "checkout",
+        "returncode",
+        "raw_output",
+        "output",
+        "sandboxed",
+        "note_suffix",
+    )
+
+    def __init__(self, command_desc, checkout, returncode, raw_output, output, sandboxed, note_suffix):
+        self.command_desc = command_desc
+        self.checkout = checkout
+        self.returncode = returncode
+        self.raw_output = raw_output
+        self.output = output
+        self.sandboxed = sandboxed
+        self.note_suffix = note_suffix
+
+
+def _run_in_checkout(ctx, command_str, commit, argv, strict, pre_run=None):
+    """Run ``argv`` in a throwaway checkout of ``commit``, sandboxed.
+
+    The shared engine of the command-running checkers (tests, lint): the
+    sandbox decision, the clone + checkout of the claimed commit, the
+    optional ``pre_run(checkout, command_desc)`` hook (returning a Result
+    aborts the run), the sandbox probe, the run itself and the capped
+    read-back of its output all live here once. Returns a Result for every
+    failure before or while starting the run, else a :class:`_RunOutcome`
+    (with the checkout already cleaned up).
+    """
     # require is a hard gate: when no bwrap is on PATH the command is never
     # run, not even unsandboxed -- a fallback would be silent by construction.
     mode = ctx.sandbox
@@ -907,7 +1014,6 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
             "refusing to run the command unsandboxed",
             cause=Cause.ENVIRONMENT,
         )
-
     try:
         os.makedirs(ctx.tmp_dir, exist_ok=True)
         checkout = tempfile.mkdtemp(prefix="checkout-", dir=ctx.tmp_dir)
@@ -951,24 +1057,10 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 reason=f"could not check out {commit}",
                 cause=Cause.UNVERIFIABLE,
             )
-        shadow = _shadowed_module(checkout, argv)
-        if shadow is not None:
-            return Result(
-                Verdict.UNVERIFIABLE,
-                command_desc,
-                "",
-                f"the checkout shadows the {shadow!r} module; the runner would not be the real one",
-                cause=Cause.ENVIRONMENT,
-            )
-        escape = _symlink_escape(argv, checkout, strict=strict)
-        if escape is not None:
-            return Result(
-                Verdict.UNVERIFIABLE,
-                command_desc,
-                "",
-                f"command argument resolves outside the checkout: {escape!r}",
-                cause=Cause.DEFECT,
-            )
+        if pre_run is not None:
+            abort = pre_run(checkout, command_desc)
+            if abort is not None:
+                return abort
         # A bwrap that exists but cannot start a sandbox is not usable; the
         # probe must pass before the command runs, or require stays hard and
         # auto falls back with an explicit note instead of misreporting the
@@ -1026,6 +1118,17 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 f"command not found: {exc}" + note_suffix,
                 cause=Cause.ENVIRONMENT,
             )
+        except PermissionError as exc:
+            # A repo-provided runner (bin/console, vendor/bin/phpunit) whose
+            # exec bit is unset: the command never ran, so it says nothing
+            # about the code.
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command not executable: {exc}" + note_suffix,
+                cause=Cause.ENVIRONMENT,
+            )
         try:
             returncode = proc.wait(timeout=TEST_TIMEOUT)
         except subprocess.TimeoutExpired:
@@ -1068,72 +1171,8 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
                 sandboxed=sandboxed,
                 cause=Cause.LIMIT,
             )
-        if returncode == claimed_exit:
-            if claim.kind == "tests_green":
-                # Exiting 0 is not proof that tests ran: require a positive
-                # test summary, and treat "no tests" output as unverifiable.
-                if _shows_test_evidence(raw_output):
-                    pass
-                elif _claims_no_tests(raw_output):
-                    return Result(
-                        Verdict.UNVERIFIABLE,
-                        command_desc,
-                        output,
-                        "the command exited 0 but reported that no tests were executed" + note_suffix,
-                        sandboxed=sandboxed,
-                        cause=Cause.UNVERIFIABLE,
-                    )
-                else:
-                    return Result(
-                        Verdict.UNVERIFIABLE,
-                        command_desc,
-                        output,
-                        "the command exited 0 but its output shows no evidence that tests ran" + note_suffix,
-                        sandboxed=sandboxed,
-                        cause=Cause.UNVERIFIABLE,
-                    )
-            return Result(
-                Verdict.CONFIRMED,
-                command_desc,
-                output,
-                f"{command_str!r} exited {returncode} as claimed" + note_suffix, sandboxed=sandboxed,
-            )
-        # A missing runner module is an environment gap, not evidence that the
-        # tests failed -- but only when the report's own command names it.
-        # Child output is repo-controlled and must not be able to turn a
-        # REFUTED into an UNVERIFIABLE by printing the phrase.
-        missing_match = _MISSING_MODULE_RE.search(raw_output)
-        if missing_match is not None:
-            missing = missing_match.group(1).split(".")[0]
-            runner_module = None
-            for index, arg in enumerate(argv[:-1]):
-                if arg == "-m":
-                    runner_module = argv[index + 1].split(".")[0]
-                    break
-            if runner_module is not None and missing == runner_module:
-                return Result(
-                    Verdict.UNVERIFIABLE,
-                    command_desc,
-                    output,
-                    f"the runner module {missing!r} is not available in this environment" + note_suffix,
-                    sandboxed=sandboxed,
-                    cause=Cause.ENVIRONMENT,
-                )
-        if _WRITE_LIMIT_RE.search(raw_output):
-            return Result(
-                Verdict.UNVERIFIABLE,
-                command_desc,
-                output,
-                f"the run hit the per-file write limit of {MAX_LOG_BYTES} bytes "
-                "(built-in limit); its outcome cannot be verified" + note_suffix,
-                sandboxed=sandboxed,
-                cause=Cause.LIMIT,
-            )
-        return Result(
-            Verdict.REFUTED,
-            command_desc,
-            output,
-            f"claimed exit {claimed_exit}, actually exited {returncode}" + note_suffix, sandboxed=sandboxed,
+        return _RunOutcome(
+            command_desc, checkout, returncode, raw_output, output, sandboxed, note_suffix
         )
     finally:
         if log is not None:
@@ -1152,6 +1191,161 @@ def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
         except OSError:
             pass
 
+
+@needs_repo
+def check_tests_green(claim: Claim, ctx: Ctx) -> Result:
+    guard = _repo_guard(ctx)
+    if guard is not None:
+        return guard
+    command_str = claim.fields["command"]
+    claimed_exit = claim.fields["claimed_exit"]
+    value = claim.fields.get("commit")
+    if not value:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason="no commit hash to check out for the test run",
+            cause=Cause.DEFECT,
+        )
+    commit = _resolve_commit(ctx, value)
+    if commit is None:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command=command_str,
+            reason=f"commit {value!r} does not resolve to a commit in {ctx.repo}",
+            cause=Cause.UNVERIFIABLE,
+        )
+    argv, strict, problem = _prepare_command(command_str, ctx.allowlist)
+    if problem is not None:
+        return problem
+
+    def pre_run(checkout, command_desc):
+        shadow = _shadowed_module(checkout, argv)
+        if shadow is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"the checkout shadows the {shadow!r} module; the runner would not be the real one",
+                cause=Cause.ENVIRONMENT,
+            )
+        escape = _symlink_escape(argv, checkout, strict=strict)
+        if escape is not None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                "",
+                f"command argument resolves outside the checkout: {escape!r}",
+                cause=Cause.DEFECT,
+            )
+        return None
+
+    outcome = _run_in_checkout(ctx, command_str, commit, argv, strict, pre_run=pre_run)
+    if isinstance(outcome, Result):
+        return outcome
+    return _tests_verdict(claim, claimed_exit, argv, outcome)
+
+
+def _tests_verdict(claim, claimed_exit, argv, outcome):
+    """The verdict of a completed tests run: green or an exit claim."""
+    returncode = outcome.returncode
+    raw_output = outcome.raw_output
+    output = outcome.output
+    command_desc = outcome.command_desc
+    note_suffix = outcome.note_suffix
+    sandboxed = outcome.sandboxed
+    command_str = claim.fields["command"]
+    if returncode == claimed_exit:
+        if claim.kind == "tests_green":
+            # Exiting 0 is not proof that tests ran: require a positive
+            # test summary, and treat "no tests" output as unverifiable.
+            if _shows_test_evidence(raw_output):
+                return Result(
+                    Verdict.CONFIRMED,
+                    command_desc,
+                    output,
+                    f"{command_str!r} exited {returncode} as claimed; "
+                    + _evidence_summary(raw_output)
+                    + note_suffix,
+                    sandboxed=sandboxed,
+                )
+            elif _claims_no_tests(raw_output):
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    output,
+                    "the command exited 0 but reported that no tests were executed" + note_suffix,
+                    sandboxed=sandboxed,
+                    cause=Cause.UNVERIFIABLE,
+                )
+            else:
+                return Result(
+                    Verdict.UNVERIFIABLE,
+                    command_desc,
+                    output,
+                    "the command exited 0 but its output shows no evidence that tests ran" + note_suffix,
+                    sandboxed=sandboxed,
+                    cause=Cause.UNVERIFIABLE,
+                )
+        return Result(
+            Verdict.CONFIRMED,
+            command_desc,
+            output,
+            f"{command_str!r} exited {returncode} as claimed" + note_suffix,
+            sandboxed=sandboxed,
+        )
+    # A missing runner module is an environment gap, not evidence that the
+    # tests failed -- but only when the report's own command names it.
+    # Child output is repo-controlled and must not be able to turn a
+    # REFUTED into an UNVERIFIABLE by printing the phrase.
+    missing_match = _MISSING_MODULE_RE.search(raw_output)
+    if missing_match is not None:
+        missing = missing_match.group(1).split(".")[0]
+        runner_module = None
+        for index, arg in enumerate(argv[:-1]):
+            if arg == "-m":
+                runner_module = argv[index + 1].split(".")[0]
+                break
+        if runner_module is not None and missing == runner_module:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command_desc,
+                output,
+                f"the runner module {missing!r} is not available in this environment" + note_suffix,
+                sandboxed=sandboxed,
+                cause=Cause.ENVIRONMENT,
+            )
+    # A PHP-family runner whose dependencies are absent from the checkout
+    # (no vendor/, no composer install) is an environment gap: the run
+    # says nothing about the code, so it must not read as a test failure.
+    if _missing_dependency(argv, raw_output):
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command_desc,
+            output,
+            "the runner's dependencies are missing in the checkout "
+            "(no vendor/, no composer install); the run stopped before any test"
+            + note_suffix,
+            sandboxed=sandboxed,
+            cause=Cause.ENVIRONMENT,
+        )
+    if _WRITE_LIMIT_RE.search(raw_output):
+        return Result(
+            Verdict.UNVERIFIABLE,
+            command_desc,
+            output,
+            f"the run hit the per-file write limit of {MAX_LOG_BYTES} bytes "
+            "(built-in limit); its outcome cannot be verified" + note_suffix,
+            sandboxed=sandboxed,
+            cause=Cause.LIMIT,
+        )
+    return Result(
+        Verdict.REFUTED,
+        command_desc,
+        output,
+        f"claimed exit {claimed_exit}, actually exited {returncode}" + note_suffix,
+        sandboxed=sandboxed,
+    )
 
 # The report values of a [MERGE] marker that name no branch: a yesloop DONE
 # payload uses [MERGE: no|pending-PR|blocked-PR] as a status token, and a

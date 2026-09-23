@@ -137,12 +137,14 @@ class StandardSetTest(unittest.TestCase):
 
     def test_case_count_and_groups(self):
         cases = self.cases()
-        self.assertEqual(len(cases), 60)
+        # 30 honest, 31 false since P20 added the [LINT] false case (the set
+        # grows deliberately; the count assertion keeps a change visible).
+        self.assertEqual(len(cases), 61)
         groups = [case["group"] for case in cases]
         self.assertEqual(groups.count("genuine"), 30)
-        self.assertEqual(groups.count("false"), 30)
+        self.assertEqual(groups.count("false"), 31)
         names = [case["name"] for case in cases]
-        self.assertEqual(len(set(names)), 60)
+        self.assertEqual(len(set(names)), 61)
 
     def test_every_case_carries_report_and_base(self):
         commits = set(self.fixture.commits.values())

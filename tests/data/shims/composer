@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Ehrlicher Composer-Shim: fuehrt das Script "test" aus wie composer.
+
+Zeigt die Script-Zeile an, reicht die Ausgabe des inneren Runners durch und
+setzt den Exit-Code des Scripts um. Fehlt vendor/bin/phpunit, meldet er das
+mit der echten Composer-Meldung ("Could not open input file: ...").
+"""
+import os
+import subprocess
+import sys
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "validate":
+        try:
+            with open("fixture-mode.txt", encoding="utf-8") as handle:
+                value = handle.read().strip()
+        except OSError:
+            value = "ok"
+        if value == "failures":
+            print("./composer.json is invalid")
+            print("require.name : invalid value; expected string")
+            sys.exit(1)
+        print("./composer.json is valid")
+        sys.exit(0)
+    if not args or args[0] != "test":
+        sys.stderr.write("Composer version 2.7.7 2024-06-10 22:11:12\n")
+        sys.exit(1)
+    print("> vendor/bin/phpunit")
+    if not os.path.exists("vendor/bin/phpunit"):
+        print("Could not open input file: vendor/bin/phpunit")
+        sys.stderr.write(
+            "Script vendor/bin/phpunit handling the test event returned with error code 1\n"
+        )
+        sys.exit(1)
+    proc = subprocess.run(["./vendor/bin/phpunit", *args[1:]])
+    if proc.returncode != 0:
+        sys.stderr.write(
+            "Script vendor/bin/phpunit handling the test event "
+            f"returned with error code {proc.returncode}\n"
+        )
+    sys.exit(proc.returncode)
+
+
+if __name__ == "__main__":
+    main()

@@ -154,7 +154,6 @@ _IMPORT_RE = re.compile(
 )
 _ERROR_RE = re.compile(r"\berror\b")
 _UNKNOWN_MODULE_RE = re.compile(r"unknown module prefix '([^']+)'")
-_SANDBOX_FAILURE_RE = re.compile(r"(?m)^bwrap: ")
 _READONLY_CACHE_RE = re.compile(r"(?i)read-?only file system")
 _ENV_FAILURE_RE = re.compile(
     r"(?i)(could not resolve host|unable to access|failed to fetch|"
@@ -171,6 +170,25 @@ _QUERY_ERROR_RE = re.compile(r"\ABEMYSELF-LEAN-ERROR (?P<detail>.*)\Z")
 # An axiom name that means "this proof was not kernel-checked": `lcProof` is
 # what an `unsafe` declaration's dependency list carries.
 _LC_PROOF = re.compile(r"(?:\A|\.)lcProof\Z")
+
+
+def _is_sandbox_failure(output):
+    """True when the output *is* a bwrap startup failure and nothing else.
+
+    bwrap fails before the tool starts, so a genuine sandbox failure is the
+    whole output: bwrap's own lines, nothing else. A repository can print a
+    ``bwrap: ...`` line through visible code execution (an imported module's
+    ``#eval`` is outside the execution policy), and such a line must not
+    re-label a run that produced real tool output -- requiring the line to
+    be the entire output keeps it from doing so. The remaining corner (a run
+    whose whole output is exactly one forged bwrap line) can still only
+    *downgrade* a verdict to UNVERIFIABLE and can never lift one; the
+    README documents that boundary.
+    """
+    lines = [line for line in output.splitlines() if line.strip()]
+    if not lines:
+        return False
+    return all(line.startswith("bwrap: ") for line in lines)
 # A toolchain request in elan's ``authority/name:version`` form. Path-like
 # values never pass: elan would execute a path, and a repository asks for a
 # toolchain, it does not choose one.
@@ -1192,7 +1210,7 @@ def check(claim, ctx):
             )
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
-            if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+            if sandboxed and _is_sandbox_failure(combined):
                 return unverifiable(
                     run,
                     shown,
@@ -1293,7 +1311,7 @@ def check(claim, ctx):
                 )
             if run.returncode != 0:
                 combined = run.head + "\n" + run.tail
-                if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+                if sandboxed and _is_sandbox_failure(combined):
                     return unverifiable(
                         run,
                         shown,
@@ -1378,7 +1396,7 @@ def check(claim, ctx):
             if run.returncode != 0:
                 combined = run.head + "\n" + run.tail
                 first = _first_error_line(combined)
-                if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+                if sandboxed and _is_sandbox_failure(combined):
                     return unverifiable(
                         run,
                         shown,
@@ -1567,7 +1585,7 @@ def check(claim, ctx):
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
             first = _first_error_line(combined)
-            if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+            if sandboxed and _is_sandbox_failure(combined):
                 return unverifiable(
                     run,
                     shown,
@@ -1649,7 +1667,7 @@ def check(claim, ctx):
         if run.returncode != 0:
             combined = run.head + "\n" + run.tail
             first = _first_error_line(combined)
-            if sandboxed and _SANDBOX_FAILURE_RE.search(combined):
+            if sandboxed and _is_sandbox_failure(combined):
                 return unverifiable(
                     run,
                     shown,

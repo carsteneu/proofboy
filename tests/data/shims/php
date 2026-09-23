@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Ehrlicher PHP-Shim: Syntaxcheck (-l) und Durchreichen an bin/console.
+
+"php -l <datei>" gibt bei gueltiger Datei "No syntax errors detected in
+<datei>" (Exit 0) aus; enthaelt die Datei die Marke SYNTAX-ERROR, kommt die
+echte Parse-error-Form (Exit 255). "php bin/console <args>" reicht an den
+Console-Shim durch.
+"""
+import os
+import subprocess
+import sys
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == "-l":
+        if len(args) < 2:
+            # Real php -l lints stdin when no file is named; the verifier
+            # must never confirm such a run (nothing from the checkout is
+            # checked), but the shim stays faithful to the real tool.
+            sys.stdin.read()
+            print("No syntax errors detected in Standard input code")
+            sys.exit(0)
+        target = args[1]
+        try:
+            with open(target, encoding="utf-8", errors="replace") as handle:
+                source = handle.read()
+        except OSError:
+            sys.stderr.write(f"Could not open input file: {target}\n")
+            sys.exit(1)
+        if "SYNTAX-ERROR" in source:
+            sys.stderr.write(
+                f'PHP Parse error:  syntax error, unexpected token "}}" in {target} on line 3\n'
+            )
+            sys.stderr.write(f"Errors parsing {target}\n")
+            sys.exit(255)
+        try:
+            with open("fixture-mode.txt", encoding="utf-8") as handle:
+                mode = handle.read().strip()
+        except OSError:
+            mode = "ok"
+        if mode == "redirect":
+            # A hijacked run that checked a different file than the claimed
+            # one: the success line must not confirm the claim.
+            print("No syntax errors detected in other.php")
+            sys.exit(0)
+        if mode == "silent":
+            # Exit 0 without the tool's own success line: an aborted run
+            # must not read as a clean lint.
+            print("Fatal error: out of memory (allocated 2097152)")
+            sys.exit(0)
+        print(f"No syntax errors detected in {target}")
+        sys.exit(0)
+    if args and args[0] == "bin/console":
+        proc = subprocess.run([sys.executable, "bin/console", *args[1:]])
+        sys.exit(proc.returncode)
+    if args and (args[0] == "-v" or args[0] == "--version"):
+        print("PHP 8.3.9 (cli) (built: Jul  2 2024 10:12:34) (NTS)")
+        sys.exit(0)
+    sys.stderr.write("Usage: php [options] [-f] <file> [--] [args...]\n")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

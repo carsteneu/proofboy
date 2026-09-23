@@ -2027,5 +2027,35 @@ class LeanLiveTest(unittest.TestCase):
         self.assertNotIn("does not depend on any axioms", result.reason)
 
 
+class SandboxFailureDetectionTest(unittest.TestCase):
+    """P20 (A): a forged "bwrap: " line must not re-label a real tool run.
+
+    bwrap fails before the tool starts, so a genuine sandbox failure is the
+    whole output. Visible code execution (an imported module's #eval) can
+    print a "bwrap: ..." line; the detection requires the line to be the
+    entire output so such a line cannot masquerade as a sandbox problem.
+    """
+
+    def test_a_pure_bwrap_failure_is_recognized(self):
+        self.assertTrue(
+            lean._is_sandbox_failure("bwrap: Creating new namespace failed: Operation not permitted\n")
+        )
+        self.assertTrue(
+            lean._is_sandbox_failure("bwrap: execvp lean: No such file or directory\n")
+        )
+
+    def test_a_forged_bwrap_line_beside_real_output_is_not_a_sandbox_failure(self):
+        self.assertFalse(
+            lean._is_sandbox_failure(
+                "some lake output\nbwrap: forged by an imported initializer\nerror: build failed\n"
+            )
+        )
+        self.assertFalse(lean._is_sandbox_failure("lean: unexpected output\nbwrap: x\n"))
+
+    def test_empty_output_is_no_sandbox_failure(self):
+        self.assertFalse(lean._is_sandbox_failure(""))
+        self.assertFalse(lean._is_sandbox_failure("\n\n"))
+
+
 if __name__ == "__main__":
     unittest.main()
