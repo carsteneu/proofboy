@@ -48,7 +48,7 @@ Erkennung nicht. `./...` und `src/...` (ASCII-Ellipse am Pfadmuster-Ende)
 sind keine Platzhalter, ein leeres `<>` und ein `<` ohne schliessendes `>`
 ebenso wenig. Eine Vorlage erscheint in keiner Ausgabe (kein JSON-Eintrag,
 kein Exit-Code-Effekt): das Fehlen einer Zeile und eine als Vorlage
-gelesene Zeile sind nicht unterscheidbar. Siehe README, Abschnitt
+gelesene Zeile sind nicht unterscheidbar. Siehe README.de.md, Abschnitt
 "Grenzen", fuer die ausgemessenen Grenzfaelle.
 
 ## Behauptungstypen und Pruefungen
@@ -120,7 +120,7 @@ deklariert, ohne Aenderung an Parser (`bemyself/report.py`) oder CLI
 (`bemyself/cli.py`) --
 `check --report` verlangt `--repo` nur, wenn ein vorkommender Typ ihn
 deklariert. Rezept mit durchgerechnetem Mini-Beispielen (`[EVEN]`,
-`[COMPUTE]`, `[ARTIFACT]`): README, Abschnitt "Neuen Behauptungstyp hinzufuegen".
+`[COMPUTE]`, `[ARTIFACT]`): README.de.md, Abschnitt "Neuen Behauptungstyp hinzufuegen".
 
 ## Begrenzter Suchlauf (`SEARCHED`)
 
@@ -137,7 +137,7 @@ Limit.
 Die Grenze ist Doktrin-Kern: Eine endliche Suche kann Nicht-Halten nicht
 beweisen. Der Urteilstext sagt das ausdruecklich ("a bounded search of N
 steps found no halt; this does not prove that the machine never halts"),
-README und SPEC dokumentieren es, und ein Test fixiert die Formulierung; der
+README.de.md und SPEC dokumentieren es, und ein Test fixiert die Formulierung; der
 Typ darf nie als Nicht-Halte-Beweis lesbar sein.
 
 Das ausfuehrbare Limit ist Default 10.000.000 Schritte (bewusst begrenzt,
@@ -215,7 +215,7 @@ Parameterwerte -- die Progression `n(t)` ist fuer alle Parameter durch den
 expliziten Zeugen abgedeckt, anders als das endliche Fenster eines
 SEARCHED-Laufs. Eine verifizierte Identitaet deckt eine Progression fuer alle
 Parameter ab; sie ist kein Beweis der Vermutung, solange nicht alle
-Restklassen abgedeckt sind. README und SPEC dokumentieren es, und ein Test
+Restklassen abgedeckt sind. README.de.md und SPEC dokumentieren es, und ein Test
 fixiert die Formulierung (analog SEARCHED/CYCLE).
 
 Beispiel: `[IDENT: n=3t ; a=t, b=4t, c=12t]` -> `CONFIRMED`
@@ -251,7 +251,7 @@ nicht greifen kann).
 Abgrenzung: Ein `CONFIRMED` belegt nur die untere Schranke `S(k) >= N`;
 es beweist keine Gleichheit und sagt nichts ueber die obere Schranke.
 Eine Faerbung ist ein kompaktes Zeugnis; die obere Seite (keine
-k-Faerbung von `1..N+1`) hat kein kompaktes Zertifikat. README und SPEC
+k-Faerbung von `1..N+1`) hat kein kompaktes Zertifikat. README.de.md und SPEC
 dokumentieren es, und ein Test fixiert die Formulierung.
 
 Beispiele: `[COLORING: k=2 ; 1221]` -> `CONFIRMED` (4 Tripel, kein
@@ -290,7 +290,7 @@ Sandkastenpfad. Die Limits begrenzen einen Lauf, nicht die Meldung.
 Die COMPUTE-Allowlist ist getrennt und minimal: Default sind die
 Repo-eigenen Module als literale Eintraege -- `python3 -m bemyself.turing`
 (der Simulator dieses Repos) und `python3 -m bemyself.experiments.erdos_straus`
-(das beschraenkte Erdős-Straus-Experiment, s. README "Experimente"); in einem
+(das beschraenkte Erdős-Straus-Experiment, s. README.de.md "Experimente"); in einem
 anderen Repo laufen sie nur, wenn der gepinnte Commit das Paket mitbringt.
 `--allow <prefix>` (wiederholbar) erweitert sie zusammen mit der
 Test-Allowlist. Kein Wildcard: ein kuenftiges Modul des Experiment-Pakets

@@ -45,7 +45,7 @@ from bemyself.model import Verdict
 from bemyself.report import parse_report
 
 EXIT_FAILED = 1
-# The thresholds are the README baseline: >= 90% of the false messages
+# The thresholds are the README.de.md baseline: >= 90% of the false messages
 # detected, >= 90% of the honest messages confirmed, and no false
 # confirmation at all.
 THRESHOLDS = {

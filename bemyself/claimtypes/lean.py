@@ -183,7 +183,7 @@ def _is_sandbox_failure(output):
     be the entire output keeps it from doing so. The remaining corner (a run
     whose whole output is exactly one forged bwrap line) can still only
     *downgrade* a verdict to UNVERIFIABLE and can never lift one; the
-    README documents that boundary.
+    README.de.md documents that boundary.
     """
     lines = [line for line in output.splitlines() if line.strip()]
     if not lines:

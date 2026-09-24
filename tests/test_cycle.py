@@ -368,7 +368,7 @@ class CycleBoundaryTest(unittest.TestCase):
     from being edited away."""
 
     def docs(self):
-        for name in ("README.md", "SPEC.md"):
+        for name in ("README.de.md", "SPEC.md"):
             with open(os.path.join(REPO_ROOT, name), encoding="utf-8") as handle:
                 yield name, handle.read()
 

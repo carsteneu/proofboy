@@ -469,7 +469,7 @@ def _missing_dependency(argv, output):
     never a defect and never a confirmation. The output is repo-controlled,
     so the phrases only count when the command itself is a PHP-family
     runner and no test evidence exists; a repo can print such a phrase to
-    downgrade a REFUTED to UNVERIFIABLE, which the README documents as a
+    downgrade a REFUTED to UNVERIFIABLE, which README.de.md documents as a
     boundary (like the missing Python runner module).
     """
     if not argv or _shows_test_evidence(output):

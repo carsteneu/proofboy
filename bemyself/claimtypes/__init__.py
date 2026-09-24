@@ -8,7 +8,7 @@ repository, and ``binds_commit`` declares whether the parser binds the claim
 to the report's single hash-shaped commit. The report parser
 (:mod:`bemyself.report`) and the checker dispatcher
 (:func:`bemyself.checks.run_claim`) both consult this registry, so a new type
-needs no change to either -- see README, "Neuen Behauptungstyp hinzufuegen".
+needs no change to either -- see README.de.md, "Neuen Behauptungstyp hinzufuegen".
 """
 
 from __future__ import annotations

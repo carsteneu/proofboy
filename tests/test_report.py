@@ -253,7 +253,7 @@ class PlaceholderReportTest(unittest.TestCase):
     def test_a_placeholder_score_makes_the_whole_claim_a_template(self):
         # The attached score is part of the HALT claim's fields: a placeholder
         # anywhere in them marks the line as a template (the uniform rule,
-        # documented in README and SPEC).
+        # documented in README.de.md and SPEC).
         self.assertEqual(
             parse_report("[HALT: 1RB1RZ_0LA0LA -> 3] [SCORE: 1RB1RZ_0LA0LA -> <ones>]\n"),
             [],
@@ -309,7 +309,7 @@ class PlaceholderReportTest(unittest.TestCase):
         )
 
     def test_angle_tokens_inside_real_values_are_the_documented_boundary(self):
-        # Accepted loss (README, "Grenzen"): a value whose text contains an
+        # Accepted loss (README.de.md, "Grenzen"): a value whose text contains an
         # angle token is indistinguishable from a template slot, so a real
         # command with one is skipped like a template.
         self.assertEqual(
@@ -317,7 +317,7 @@ class PlaceholderReportTest(unittest.TestCase):
         )
 
     def test_exact_placeholder_words_are_the_documented_boundary(self):
-        # Accepted loss (README, "Grenzen"): a branch or file literally named
+        # Accepted loss (README.de.md, "Grenzen"): a branch or file literally named
         # TODO is indistinguishable from the template word.
         self.assertEqual(parse_report("[BRANCH: todo]\n"), [])
         self.assertEqual(parse_report("**Files in scope:** TODO\n"), [])

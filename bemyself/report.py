@@ -121,7 +121,7 @@ def looks_like_placeholder(value: str) -> bool:
     Everything else is a value, however unusual it looks -- the parser must
     never silently drop a claim that some real world could satisfy; the
     shapes where that promise loses to the form alone are enumerated in the
-    README (section "Grenzen").
+    README.de.md (section "Grenzen").
     """
     value = value.strip().strip("`")
     if not value:

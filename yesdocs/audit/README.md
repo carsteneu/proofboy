@@ -4,7 +4,7 @@ Dieses Verzeichnis haelt den Vorher/Nachher-Vergleich des P15-Audits fest:
 Seit P15 gilt der Rumpf eines Markers, der einen Platzhalter traegt
 (`<hash>`, `<machine>`, `...`/`…`, `TODO`), nicht mehr als Behauptung — die
 Zeile wird ignoriert statt als `unpruefbar` gemeldet (Regel:
-[README](../../README.md), Abschnitt "Grenzen", und [SPEC](../../SPEC.md),
+[README](../../README.de.md), Abschnitt "Grenzen", und [SPEC](../../SPEC.md),
 Abschnitt "Eingabe").
 
 ## Kommando (wiederholbar)
@@ -96,7 +96,7 @@ P18-Nachtrag (2026-09-13): Die beiden HALT-Zeilen der Matrix laufen unter
 eigener Code fuer "wegen Budget nicht ausgefuehrt"): `halt-over-limit`
 3 / **6** statt 3 / 3 und `strict-mixed-real` 0 / **6** statt 0 / 4. Alle
 uebrigen Zeilen bleiben unveraendert; die "vorher/nachher"-Spalten dieser
-Tabelle dokumentieren den P15-Stand. Siehe README, Abschnitt "Exit-Codes".
+Tabelle dokumentieren den P15-Stand. Siehe README.de.md, Abschnitt "Exit-Codes".
 
 ## Was bewusst NICHT ignoriert wird (Grenzen)
 
