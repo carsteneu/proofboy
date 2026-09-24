@@ -170,5 +170,4 @@ claim classes and the negative-space line.
 
 ## License
 
-No license has been chosen yet; until then the code is public for reading and auditing only. A
-license decision is pending.
+MIT — see [LICENSE](LICENSE).
