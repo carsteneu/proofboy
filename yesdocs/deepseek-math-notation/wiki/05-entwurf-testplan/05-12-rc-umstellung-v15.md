@@ -52,7 +52,7 @@ Kernfragen: **Wie weit kommt die V1.1-Notation in den Denkkanal — mit Bordmitt
 | Gezielte Teilmenge | `tooling/harness.py` (`--task-ids`) | Exakte, geordnete Aufgabenauswahl statt Shuffle — reproduzierbare 12-Task-Teilmenge; die C-Varianten erben den maschinellen Rückkanal und den Trace-Blattpfad (Guard-Tests). |
 | Tests | `tests/test_v15_rcfidelity.py` (19), `tests/test_v15_rc_arms.py` (14) | Synthetische RC-Fixtures (Prosa/strikt/gemischt/degeneriert), synthetischer Lauf-Baum, CLI-Pfad, Robustheit (korrupte raw.json, Laufzeit-Schranke); Legend-Staffelung, C0≡C, Gold-Leak-Freiheit, Rückkanal-Verhalten, task-ids-Auswahl. |
 
-Engine unverändert (`bemyself/msheet/`, `bemyself/claimtypes/`); die Runde ändert Tooling, Tests, Laufdaten und Wiki. Gesamtsuite: **851 Tests grün** (818 vor dieser Runde + 33 neue).
+Engine unverändert (`proofboy/msheet/`, `proofboy/claimtypes/`); die Runde ändert Tooling, Tests, Laufdaten und Wiki. Gesamtsuite: **851 Tests grün** (818 vor dieser Runde + 33 neue).
 
 ## 3. Design-Entscheidungen
 

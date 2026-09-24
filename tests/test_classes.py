@@ -15,8 +15,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself.checks import Ctx, run_claim
-from bemyself.cli import (
+from proofboy.checks import Ctx, run_claim
+from proofboy.cli import (
     EXIT_DEFECT,
     EXIT_LIMIT,
     EXIT_NOTHING,
@@ -26,9 +26,9 @@ from bemyself.cli import (
     exit_code,
     render_text,
 )
-from bemyself.claimtypes import artifact
-from bemyself.model import Cause, Claim, Result, Verdict
-from bemyself.report import parse_report
+from proofboy.claimtypes import artifact
+from proofboy.model import Cause, Claim, Result, Verdict
+from proofboy.report import parse_report
 from tests.fixtures import make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -191,7 +191,7 @@ class ClassEndToEndTest(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "bemyself",
+                "proofboy",
                 "check",
                 "--repo",
                 repo or self.repo.path,

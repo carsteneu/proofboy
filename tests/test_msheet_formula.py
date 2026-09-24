@@ -1,4 +1,4 @@
-"""Tests for the V1 formula fragment of bemyself.msheet (05-02 §2/§3/§4).
+"""Tests for the V1 formula fragment of proofboy.msheet (05-02 §2/§3/§4).
 
 The fragment is deliberately small and fully parenthesized: exact integers,
 ranges, library calls, finite quantifiers. Terms evaluate to exact values
@@ -12,8 +12,8 @@ import time
 import unittest
 from fractions import Fraction
 
-from bemyself.msheet import formula
-from bemyself.msheet.library import GuardError
+from proofboy.msheet import formula
+from proofboy.msheet.library import GuardError
 
 
 def ev(text, env=None, defs=None, top_level=True):

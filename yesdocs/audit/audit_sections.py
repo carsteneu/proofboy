@@ -14,7 +14,7 @@ Usage:
 
 For every section of the 13 yesloop workers it runs
 
-    python3 -m bemyself check --section <name> --project <project>
+    python3 -m proofboy check --section <name> --project <project>
         --repo <project> [--base <base>]
 
 from ``--checkout`` (the code under test) and adds up the verdicts. The
@@ -40,19 +40,19 @@ import sys
 # The 13 yesloop worker sections (p1..p14, no p2) with the base revision
 # each one documents for its own regression baseline (p1 documents none).
 SECTIONS = {
-    "yesloop-bemyself-p1-verifier": None,
-    "yesloop-bemyself-p3-eval": "7c7392c",
-    "yesloop-bemyself-p4-cli": "ead3dc7",
-    "yesloop-bemyself-p5-strict": "5068e5f",
-    "yesloop-bemyself-p6-sandbox": "b8f437f",
-    "yesloop-bemyself-p7-halt": "6d82c4b",
-    "yesloop-bemyself-p8-repo-optional": "4fd2b3003e96c4a4a56b16cfebe43ae9c305d66e",
-    "yesloop-bemyself-p9-compute": "ff9b775",
-    "yesloop-bemyself-p10-cycle": "8766e37",
-    "yesloop-bemyself-p11-erdos-straus": "47301fc",
-    "yesloop-bemyself-p12-ident": "28609e0",
-    "yesloop-bemyself-p13-schur": "3025c29",
-    "yesloop-bemyself-p14-merge-artifact": "dd0767c",
+    "yesloop-proofboy-p1-verifier": None,
+    "yesloop-proofboy-p3-eval": "7c7392c",
+    "yesloop-proofboy-p4-cli": "ead3dc7",
+    "yesloop-proofboy-p5-strict": "5068e5f",
+    "yesloop-proofboy-p6-sandbox": "b8f437f",
+    "yesloop-proofboy-p7-halt": "6d82c4b",
+    "yesloop-proofboy-p8-repo-optional": "4fd2b3003e96c4a4a56b16cfebe43ae9c305d66e",
+    "yesloop-proofboy-p9-compute": "ff9b775",
+    "yesloop-proofboy-p10-cycle": "8766e37",
+    "yesloop-proofboy-p11-erdos-straus": "47301fc",
+    "yesloop-proofboy-p12-ident": "28609e0",
+    "yesloop-proofboy-p13-schur": "3025c29",
+    "yesloop-proofboy-p14-merge-artifact": "dd0767c",
 }
 
 # Exit-code matrix: reports built from real values only (plus one row that
@@ -80,7 +80,7 @@ _MATRIX = (
 
 
 def _run_check(checkout, args):
-    command = [sys.executable, "-m", "bemyself", *args]
+    command = [sys.executable, "-m", "proofboy", *args]
     return subprocess.run(
         command,
         cwd=checkout,
@@ -175,12 +175,12 @@ def main(argv=None):
     parser.add_argument(
         "--checkout",
         default=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        help="code under test: the bemyself package is imported from here",
+        help="code under test: the proofboy package is imported from here",
     )
     parser.add_argument(
         "--project",
-        default="/home/carsten/projects/bemyself",
-        help="scratchpad project of the sections (default: the bemyself project)",
+        default="/home/carsten/projects/proofboy",
+        help="scratchpad project of the sections (default: the proofboy project)",
     )
     parser.add_argument("--db", help="yesmem database path (default: ~/.claude/yesmem/yesmem.db)")
     parser.add_argument(

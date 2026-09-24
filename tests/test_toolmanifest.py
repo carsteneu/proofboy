@@ -11,7 +11,7 @@ import os
 import tempfile
 import unittest
 
-from bemyself import toolmanifest
+from proofboy import toolmanifest
 
 
 class ToolManifestTest(unittest.TestCase):

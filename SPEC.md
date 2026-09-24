@@ -1,4 +1,4 @@
-# SPEC bemyself: der Pruefer
+# SPEC proofboy: der Pruefer
 
 ## Zweck
 
@@ -26,7 +26,7 @@ Eine Meldung in Textform oder als Scratchpad-Section, die Behauptungen enthaelt,
 Dazu die beiden Befunde, die der Pruefer selbst erhebt: ein Marker, dessen
 Kuerzel kein registrierter Typ beansprucht (Grossbuchstaben-Token,
 Doppelpunkt, klammerfreier Rumpf), ist ein Defekt; und `--profile <name>`
-deklariert Pflichtklassen (Registry `bemyself/profiles.py`; erstes Profil
+deklariert Pflichtklassen (Registry `proofboy/profiles.py`; erstes Profil
 `yesloop-done`: Commit, Branch, Testlauf), deren Fehlen ein Defekt ist. Beide
 erscheinen als zusaetzliche Behauptung in der Urteilsliste (kinds
 `unknown_marker` und `profile`, Klasse `defect`). Ausgenommen von der
@@ -103,7 +103,7 @@ Das ausfuehrbare Limit ist die groesste Schrittzahl, die der Simulator fuer
 eine Behauptung ausfuehren darf: Default 47.176.870 (traegt den
 BB(5)-Champion), konfigurierbar ueber `--halt-limit N` bei `check` und
 `eval`. Eine Behauptung ueber dem Limit wird nicht ausgefuehrt und bleibt
-`UNVERIFIABLE`. Der Simulator (`bemyself/turing.py`, API `parse(machine)` und
+`UNVERIFIABLE`. Der Simulator (`proofboy/turing.py`, API `parse(machine)` und
 `run(machine, max_steps)`) laeuft in-process in reiner
 Standardbibliothek: kein Subprozess, kein Netz-, Repo- oder Sandkastenbezug
 (es entsteht kein ungesandboxtes Fremdkommando; ein Report aus lauter
@@ -113,11 +113,11 @@ nicht den Report; ein Claim am Limit kostet wenige Sekunden, viele HALT-Zeilen
 summieren sich.
 
 Erweiterbarkeit: Behauptungstypen liegen als Registry vor
-(`bemyself/claimtypes/`): ein neuer Typ ist ein Modul plus ein Eintrag in
+(`proofboy/claimtypes/`): ein neuer Typ ist ein Modul plus ein Eintrag in
 `CLAIM_TYPES` samt `needs_repo`, das den Repository-Bedarf deklariert, und
 `binds_commit`, das die Bindung an den `[COMMIT]`-Marker der Meldung
-deklariert, ohne Aenderung an Parser (`bemyself/report.py`) oder CLI
-(`bemyself/cli.py`) --
+deklariert, ohne Aenderung an Parser (`proofboy/report.py`) oder CLI
+(`proofboy/cli.py`) --
 `check --report` verlangt `--repo` nur, wenn ein vorkommender Typ ihn
 deklariert. Rezept mit durchgerechnetem Mini-Beispielen (`[EVEN]`,
 `[COMPUTE]`, `[ARTIFACT]`): README.de.md, Abschnitt "Neuen Behauptungstyp hinzufuegen".
@@ -288,8 +288,8 @@ Kommando laeuft je ohne Allowlist, ohne Shell-Interpretation und ohne
 Sandkastenpfad. Die Limits begrenzen einen Lauf, nicht die Meldung.
 
 Die COMPUTE-Allowlist ist getrennt und minimal: Default sind die
-Repo-eigenen Module als literale Eintraege -- `python3 -m bemyself.turing`
-(der Simulator dieses Repos) und `python3 -m bemyself.experiments.erdos_straus`
+Repo-eigenen Module als literale Eintraege -- `python3 -m proofboy.turing`
+(der Simulator dieses Repos) und `python3 -m proofboy.experiments.erdos_straus`
 (das beschraenkte Erdős-Straus-Experiment, s. README.de.md "Experimente"); in einem
 anderen Repo laufen sie nur, wenn der gepinnte Commit das Paket mitbringt.
 `--allow <prefix>` (wiederholbar) erweitert sie zusammen mit der
@@ -347,16 +347,16 @@ Lean-Identifier mit Unicode-Buchstaben/Ziffern/Unterstrich, Punkten und
    das Evidenzverzeichnis und danach die Build-Verzeichnisse der
    Abhaengigkeiten; so kann der gepruefte Baum die
    Imports des Abfrageprogramms nicht verschatten.
-4. Axiom-Abfrage: `bemyself/tools/lean_axioms.lean` wird als eigenes
+4. Axiom-Abfrage: `proofboy/tools/lean_axioms.lean` wird als eigenes
    Programm gestartet (`lean --run <programm> <modul> <name>`) und laedt
    das Modul zur Laufzeit als Daten
    (`importModules`); es wird nie zur Elaborationszeit importiert. In
    diesem Prozess laeuft kein Repo-Code (keine Taktik, kein Makro, kein
    `initialize`, kein `#eval`), darum ist der Ausgabekanal vertrauenswuerdig.
    Das Programm druckt genau eine Protokollzeile
-   (`BEMYSELF-LEAN-AXIOMS <name> [<axiome>]`, `BEMYSELF-LEAN-UNKNOWN
-   <name>`, `BEMYSELF-LEAN-FOREIGN <name> <modul>` oder
-   `BEMYSELF-LEAN-ERROR <detail>`); genau eine zur Behauptung
+   (`PROOFBOY-LEAN-AXIOMS <name> [<axiome>]`, `PROOFBOY-LEAN-UNKNOWN
+   <name>`, `PROOFBOY-LEAN-FOREIGN <name> <modul>` oder
+   `PROOFBOY-LEAN-ERROR <detail>`); genau eine zur Behauptung
    passende Zeile wird akzeptiert, keine oder mehrere sind `UNVERIFIABLE`,
    und eine AXIOMS-Zeile gilt nur zusammen mit Exit 0.
 
@@ -598,12 +598,12 @@ samt Digest.
 
 | Kommando | Wirkung |
 |---|---|
-| `python3 -m bemyself check --report <datei> [--repo <pfad>] [--strict] [--profile <name>] [--project-config <datei>] [--detect] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert; `--profile` fordert die Pflichtklassen der Gattung und macht eine fehlende zum Defekt |
-| `python3 -m bemyself check --section <name> --project <pfad> [--strict] [--profile <name>] [--project-config <datei>] [--detect] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
-| `python3 -m bemyself check --list-types [--json]` (auch ohne Subkommando) | Die registrierten optionalen Behauptungstypen aus `CLAIM_TYPES` auflisten: `kind`, `needs_repo`, `binds_commit` und die von ihnen beanspruchten Marker-Tokens; gemessen wird ein unbekannter Marker gegen diese Tokens plus die Kernmarker `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY` |
-| `python3 -m bemyself check --detect --repo <pfad> [--json]` | Die Stacks eines Repos aus den Namen der Marker-Dateien an der Wurzel ableiten (keine Inhalte gelesen) und passende Test-/`[LINT]`-Kommandos vorschlagen; reine Vorschlags-Schicht, aendert kein Verdikt (mit Report nur `detected`-Feld/Zusatzzeilen), Exit 0 |
-| `python3 -m bemyself eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
-| `python3 -m bemyself --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
+| `python3 -m proofboy check --report <datei> [--repo <pfad>] [--strict] [--profile <name>] [--project-config <datei>] [--detect] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Alle Behauptungen der Meldung pruefen, Urteil je Behauptung ausgeben; `--repo` ist Pflicht, sobald eine vorkommende Behauptung ein Repository deklariert; `--profile` fordert die Pflichtklassen der Gattung und macht eine fehlende zum Defekt |
+| `python3 -m proofboy check --section <name> --project <pfad> [--strict] [--profile <name>] [--project-config <datei>] [--detect] [--sandbox auto\|require\|off] [--artifact-root <dir>] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Meldung aus einer YesMem-Scratchpad-Section ziehen und pruefen |
+| `python3 -m proofboy check --list-types [--json]` (auch ohne Subkommando) | Die registrierten optionalen Behauptungstypen aus `CLAIM_TYPES` auflisten: `kind`, `needs_repo`, `binds_commit` und die von ihnen beanspruchten Marker-Tokens; gemessen wird ein unbekannter Marker gegen diese Tokens plus die Kernmarker `COMMIT`, `BRANCH`, `MERGE`, `DEPLOY` |
+| `python3 -m proofboy check --detect --repo <pfad> [--json]` | Die Stacks eines Repos aus den Namen der Marker-Dateien an der Wurzel ableiten (keine Inhalte gelesen) und passende Test-/`[LINT]`-Kommandos vorschlagen; reine Vorschlags-Schicht, aendert kein Verdikt (mit Report nur `detected`-Feld/Zusatzzeilen), Exit 0 |
+| `python3 -m proofboy eval --set <datei> [--strict] [--sandbox auto\|require\|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]` | Pruefset auswerten, Erkennungsraten berichten |
+| `python3 -m proofboy --json` | Maschinenlesbare Ausgabe fuer alle Kommandos |
 
 `--project-config <datei>` liest dieselben Knobeleien aus einem JSON
 (`allow`, `profile`, `sandbox`, `tools`, `tmp`); die Herkunft ist einweg
@@ -663,7 +663,7 @@ Je nicht ausgefuehrtem Claim nennt der Urteilstext das Limit, den behaupteten We
 
 ## Profile und Negativraum
 
-`--profile <name>` deklariert die Pflichtklassen einer Meldungsgattung; das erste Profil `yesloop-done` fordert Commit (`commit_exists`), Branch (`branch_pushed`) und einen Testlauf (`tests_green` oder `tests_exit` -- die Vorgabe verlangt die Testbehauptung, kein gruenes Ergebnis). Der Testlauf wird nur in der festen Zeilenform `Tests run: <kommando> -> exit <code>` erkannt, die mit dem Exit-Code endet; ein nachgestellter Vermerk macht die Zeile zu keiner Testbehauptung, dann meldet das Profil die Testklasse als fehlend. Die Registry steht als `PROFILES` in `bemyself/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe ein Tupel akzeptierter Behauptungsklassen. Eine geforderte Klasse gilt als vorhanden, sobald die Meldung eine Behauptung dieses kind hergibt -- auch eine `diff_scope`-Behauptung aus `--files` zaehlt, und das Urteil der Behauptung darf `unpruefbar` sein. Fehlt eine Vorgabe, erzeugt der Lauf eine zusaetzliche Behauptung (`kind` `profile`, `line` 0, `raw` `--profile <name>`) mit Klasse `defect`: eine unvollstaendige Meldung, Exit 5 in beiden Modi, das Urteil nennt Profilname und fehlende Klasse(n). Ein unbekannter Profilname ist ein usage-Fehler (Exit 2, die Auswahl nennt die registrierten Namen). Ohne `--profile` gibt es keine Pflicht und keinen Defekt.
+`--profile <name>` deklariert die Pflichtklassen einer Meldungsgattung; das erste Profil `yesloop-done` fordert Commit (`commit_exists`), Branch (`branch_pushed`) und einen Testlauf (`tests_green` oder `tests_exit` -- die Vorgabe verlangt die Testbehauptung, kein gruenes Ergebnis). Der Testlauf wird nur in der festen Zeilenform `Tests run: <kommando> -> exit <code>` erkannt, die mit dem Exit-Code endet; ein nachgestellter Vermerk macht die Zeile zu keiner Testbehauptung, dann meldet das Profil die Testklasse als fehlend. Die Registry steht als `PROFILES` in `proofboy/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe ein Tupel akzeptierter Behauptungsklassen. Eine geforderte Klasse gilt als vorhanden, sobald die Meldung eine Behauptung dieses kind hergibt -- auch eine `diff_scope`-Behauptung aus `--files` zaehlt, und das Urteil der Behauptung darf `unpruefbar` sein. Fehlt eine Vorgabe, erzeugt der Lauf eine zusaetzliche Behauptung (`kind` `profile`, `line` 0, `raw` `--profile <name>`) mit Klasse `defect`: eine unvollstaendige Meldung, Exit 5 in beiden Modi, das Urteil nennt Profilname und fehlende Klasse(n). Ein unbekannter Profilname ist ein usage-Fehler (Exit 2, die Auswahl nennt die registrierten Namen). Ohne `--profile` gibt es keine Pflicht und keinen Defekt.
 
 Jeder abgeschlossene Lauf -- auch eine leere Meldung -- endet mit der Negativraum-Zeile `negativraum: gesucht: ...; gefunden: ...; gefehlt: ...`; im JSON steht derselbe Befund als `negative_space` (`profile`, `sought`, `found`, `missing`). `gesucht` sind die Vorgaben in Deklarationsreihenfolge (ohne Profil leer), `gefunden` die Behauptungsklassen der Meldung in der Reihenfolge ihres Auftretens, ohne die Befunde des Pruefers selbst (`profile`, `unknown_marker`), `gefehlt` die nicht erfuellten Vorgaben. Damit sind "nichts gefunden" und "nichts gesucht" unterscheidbar: eine leere Meldung ohne Profil meldet `gesucht: keine ...; gefunden: keine`, dieselbe Meldung unter `yesloop-done` meldet drei gesuchte Klassen und alle drei als gefehlt. In Fehler-Nutzlasten fehlt `negative_space`: die einzige Fehler-Nutzlast ist der unlesbare Report, und dort wurde nichts beurteilt (ein fehlendes `--repo` ist ein usage-Fehler ohne JSON-Ausgabe).
 

@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself import evalset
-from bemyself.report import parse_report
+from proofboy import evalset
+from proofboy.report import parse_report
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SET_PATH = os.path.join(REPO_ROOT, "tests", "data", "pruefset.json")
@@ -247,7 +247,7 @@ class StandardSetTest(unittest.TestCase):
         case = self.by_name()["g21-compute-erdos-straus-stub"]
         self.assertEqual(case["group"], "genuine")
         self.assertEqual(case["expect_verdicts"]["compute"], "CONFIRMED")
-        self.assertIn("python3 -m bemyself.experiments.erdos_straus", case["report"])
+        self.assertIn("python3 -m proofboy.experiments.erdos_straus", case["report"])
         self.assertEqual(case["base"], self.fixture.commits["experiment"])
 
     def test_cycle_cases_pin_their_certificates(self):
@@ -327,7 +327,7 @@ class EvalsetRegenerationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out_path = os.path.join(tmp, "pruefset.json")
             proc = subprocess.run(
-                (sys.executable, "-m", "bemyself.evalset", out_path),
+                (sys.executable, "-m", "proofboy.evalset", out_path),
                 cwd=REPO_ROOT,
                 capture_output=True,
                 text=True,

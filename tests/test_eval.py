@@ -7,8 +7,8 @@ import sys
 import tempfile
 import unittest
 
-from bemyself import evalset
-from bemyself.eval import THRESHOLDS, evaluate, render_text
+from proofboy import evalset
+from proofboy.eval import THRESHOLDS, evaluate, render_text
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SET_PATH = os.path.join(REPO_ROOT, "tests", "data", "pruefset.json")
@@ -339,7 +339,7 @@ class EvalCliTest(unittest.TestCase):
         command = [
             sys.executable,
             "-m",
-            "bemyself",
+            "proofboy",
             "eval",
             "--set",
             set_path or SET_PATH,

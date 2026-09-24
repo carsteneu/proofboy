@@ -52,10 +52,10 @@ harness = _load("harness")
 prompts = _load("prompts")
 evaluate = _load("evaluate")
 
-from bemyself import turing  # noqa: E402
-from bemyself.claimtypes import cycle  # noqa: E402
-from bemyself.model import Claim, Verdict  # noqa: E402
-from bemyself.msheet.formula import evaluate_bool, parse_formula  # noqa: E402
+from proofboy import turing  # noqa: E402
+from proofboy.claimtypes import cycle  # noqa: E402
+from proofboy.model import Claim, Verdict  # noqa: E402
+from proofboy.msheet.formula import evaluate_bool, parse_formula  # noqa: E402
 
 TIER_A_V03 = "tier_a_v11-a-0.3.json"
 TIER_B_V03 = "tier_b_v11-b-0.3.json"

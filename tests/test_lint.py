@@ -13,8 +13,8 @@ import shutil
 import unittest
 from unittest import mock
 
-from bemyself.checks import run_claim
-from bemyself.model import Cause, Claim, Verdict
+from proofboy.checks import run_claim
+from proofboy.model import Cause, Claim, Verdict
 from tests.fixtures import FixtureTestCase, _SHIMS, make_repo
 
 

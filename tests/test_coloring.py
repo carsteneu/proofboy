@@ -17,11 +17,11 @@ import time
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes
-from bemyself.claimtypes import coloring
-from bemyself.checks import Ctx, kind_needs_repo, run_claim
-from bemyself.model import Verdict
-from bemyself.report import parse_report
+from proofboy import claimtypes
+from proofboy.claimtypes import coloring
+from proofboy.checks import Ctx, kind_needs_repo, run_claim
+from proofboy.model import Verdict
+from proofboy.report import parse_report
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -30,7 +30,7 @@ TWO_COLOR_4 = "[COLORING: k=2 ; 1221]"
 # One color, one number: there is no triple at all. S(1) is exactly 1.
 ONE_COLOR_1 = "[COLORING: k=1 ; 1]"
 # A three-coloring of 1..13 found by this repository's deterministic search
-# (python3 -m bemyself.experiments.schur 3 13). S(3) is exactly 13.
+# (python3 -m proofboy.experiments.schur 3 13). S(3) is exactly 13.
 THREE_COLOR_13 = "[COLORING: k=3 ; 1221331331221]"
 # The Golomb-Baumert partition of 1..44 (Baumert & Golomb 1965, as listed in
 # OEIS A045652): the sets A,B,C,D joined into one color string, A=1..D=4.

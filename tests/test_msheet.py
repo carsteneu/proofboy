@@ -1,4 +1,4 @@
-"""Tests for the sheet parser, the runner and the CLI of bemyself.msheet.
+"""Tests for the sheet parser, the runner and the CLI of proofboy.msheet.
 
 The sheet is the model's answer artifact (05-07 §§2–7): thinking zone with
 strict line heads, append-only status register, strict claim zone. The runner
@@ -13,9 +13,9 @@ import tempfile
 import time
 import unittest
 
-from bemyself.model import Verdict
-from bemyself.msheet.runner import run_sheet
-from bemyself.msheet.sheet import parse_sheet
+from proofboy.model import Verdict
+from proofboy.msheet.runner import run_sheet
+from proofboy.msheet.sheet import parse_sheet
 
 WIKI_CYCLER = "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC"
 SMALL_HALTER = "1RB1RZ_0LA0LA"
@@ -285,7 +285,7 @@ class CliTest(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write(text)
             return subprocess.run(
-                [sys.executable, "-m", "bemyself.msheet", "run", path, *extra],
+                [sys.executable, "-m", "proofboy.msheet", "run", path, *extra],
                 cwd=repo_root,
                 capture_output=True,
                 text=True,
@@ -314,7 +314,7 @@ class CliTest(unittest.TestCase):
     def test_missing_file(self):
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         proc = subprocess.run(
-            [sys.executable, "-m", "bemyself.msheet", "run", os.path.join(repo_root, "does-not-exist.msheet")],
+            [sys.executable, "-m", "proofboy.msheet", "run", os.path.join(repo_root, "does-not-exist.msheet")],
             cwd=repo_root,
             capture_output=True,
             text=True,

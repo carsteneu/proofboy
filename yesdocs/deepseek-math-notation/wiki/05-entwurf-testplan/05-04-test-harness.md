@@ -61,15 +61,15 @@ Neben opencode existiert ein direkter HTTP-Pfad zum Modell: Die lokale Konfigura
 
 **Nachtrag 2026-09-12 (verifiziert):** Der Vorbehalt ist ausgeräumt. `POST http://localhost:9099/v1/chat/completions` mit `model: deepseek-flash` und dem DeepSeek-Schlüssel aus `~/.local/share/opencode/auth.json` liefert HTTP 200 — sowohl mit `Authorization: Bearer <key>` als auch mit `x-api-key: <key>`; die Antwort trägt `message.reasoning_content` und `usage.completion_tokens_details.reasoning_tokens`. Der Pilotlauf nutzte diesen Pfad (kein opencode-Systemprompt-Sockel, keine Werkzeuge); Details und Abweichung siehe [05-08](05-08-pilotbericht-v1.1.md) §6.1.
 
-### 1.3 bemyself-Tooling als Muster (lokal)
+### 1.3 proofboy-Tooling als Muster (lokal)
 
-Der Harness übernimmt Konventionen aus dem lokalen `bemyself`-Repo (alle Quellen gelesen 2026-09-12):
+Der Harness übernimmt Konventionen aus dem lokalen `proofboy`-Repo (alle Quellen gelesen 2026-09-12):
 
-- **Set als öffentliches Artefakt.** `bemyself/eval.py` liest ein JSON-Set, baut eine deterministische Fixture, berichtet Raten und Thresholds statt Einzelurteile und nutzt die Exit-Codes `0` (OK), `1` (failed), `2` (error), `4` (strict); die Unterbefehle `check`/`eval` und `--json` für maschinenlesbare Ausgabe stehen in `bemyself/cli.py` (lokale Quellen, gelesen 2026-09-12).
-- **Determinismus als Anker.** `bemyself/evalset.py`: „The fixture is a local git repository built from fixed content, a fixed identity and fixed commit dates, so rebuilding it reproduces the same commit hashes“ (lokale Quelle, Original-Zitat) — das Set bettet Commit-Hashes ein. Der Notations-Harness ersetzt Commit-Hashes durch Set-Hash plus Aufgaben-IDs (Abschnitt 2).
-- **Claim-/Verdikt-Modell.** `bemyself/model.py` definiert `Claim` und `Verdict = CONFIRMED | REFUTED | UNVERIFIABLE` (lokale Quelle) — dieselben drei Verdikte nutzt die Notation ([05-02](05-02-notations-spezifikation.md)).
-- **Read-only-Disziplin.** `bemyself/scratchpad.py` öffnet die Datenbank explizit mit `mode=ro` („the verifier reads the section text and must never modify the database“, lokale Quelle) — Muster für den Auswertungsteil des Harness: Er liest Läufe, er schreibt kein Modell.
-- **Sandbox als harte Kette.** `bemyself/checks.py` (Commit `6d82c4b`, „P6 test-command sandbox via bwrap“): „require is a hard gate: when no bwrap is on PATH the command is never run, not even unsandboxed -- a fallback would be silent by construction“ (lokale Quelle).
+- **Set als öffentliches Artefakt.** `proofboy/eval.py` liest ein JSON-Set, baut eine deterministische Fixture, berichtet Raten und Thresholds statt Einzelurteile und nutzt die Exit-Codes `0` (OK), `1` (failed), `2` (error), `4` (strict); die Unterbefehle `check`/`eval` und `--json` für maschinenlesbare Ausgabe stehen in `proofboy/cli.py` (lokale Quellen, gelesen 2026-09-12).
+- **Determinismus als Anker.** `proofboy/evalset.py`: „The fixture is a local git repository built from fixed content, a fixed identity and fixed commit dates, so rebuilding it reproduces the same commit hashes“ (lokale Quelle, Original-Zitat) — das Set bettet Commit-Hashes ein. Der Notations-Harness ersetzt Commit-Hashes durch Set-Hash plus Aufgaben-IDs (Abschnitt 2).
+- **Claim-/Verdikt-Modell.** `proofboy/model.py` definiert `Claim` und `Verdict = CONFIRMED | REFUTED | UNVERIFIABLE` (lokale Quelle) — dieselben drei Verdikte nutzt die Notation ([05-02](05-02-notations-spezifikation.md)).
+- **Read-only-Disziplin.** `proofboy/scratchpad.py` öffnet die Datenbank explizit mit `mode=ro` („the verifier reads the section text and must never modify the database“, lokale Quelle) — Muster für den Auswertungsteil des Harness: Er liest Läufe, er schreibt kein Modell.
+- **Sandbox als harte Kette.** `proofboy/checks.py` (Commit `6d82c4b`, „P6 test-command sandbox via bwrap“): „require is a hard gate: when no bwrap is on PATH the command is never run, not even unsandboxed -- a fallback would be silent by construction“ (lokale Quelle).
 
 ## 2. Aufgaben-Sets
 
@@ -108,7 +108,7 @@ Feld-Semantik (Setzung): `expected` ist die Referenzantwort; der Runner führt d
 
 ## 3. Sandbox: Zeugen-Ausführung unter bwrap
 
-Modell-Zeugen (`py:`-Ausdrücke) und die Runner-Kompilate der `auto`/`range`-Wege werden sandboxed ausgeführt. Vorhandene Infrastruktur: `--sandbox=auto|require|off` mit bwrap (lokal: Commit `6d82c4b`, gelesen 2026-09-12); `bwrap` ist installiert (lokal verifiziert: `command -v bwrap` → `/usr/bin/bwrap`, 2026-09-12). Der Harness nutzt `require`: Fehlt bwrap, wird der Zeuge **nicht** ausgeführt — kein stiller unsandboxed-Fallback (Muster aus `bemyself/checks.py`, lokale Quelle). Innerhalb der Sandbox gilt: kein Netzwerk, Schreibzugriff nur auf ein Temp-Verzeichnis. Limits (Setzung, [05-02](05-02-notations-spezifikation.md) Abschnitt 4): 10 s Laufzeit pro Zeuge; Speicherbegrenzung über `ulimit -v` in der Sandbox-Kette (Skizze, auf dieser Maschine noch nicht als Harness-Teil getestet). **Überschreitung ⇒ `UNVERIFIABLE`**, nie ein stiller Abbruch oder eine Näherung — dieselbe Ehrlichkeit wie im Vorbild, das eine Unpruefbar-Quote berichtet statt sie zu verstecken (lokale Quelle: `bemyself/eval.py`).
+Modell-Zeugen (`py:`-Ausdrücke) und die Runner-Kompilate der `auto`/`range`-Wege werden sandboxed ausgeführt. Vorhandene Infrastruktur: `--sandbox=auto|require|off` mit bwrap (lokal: Commit `6d82c4b`, gelesen 2026-09-12); `bwrap` ist installiert (lokal verifiziert: `command -v bwrap` → `/usr/bin/bwrap`, 2026-09-12). Der Harness nutzt `require`: Fehlt bwrap, wird der Zeuge **nicht** ausgeführt — kein stiller unsandboxed-Fallback (Muster aus `proofboy/checks.py`, lokale Quelle). Innerhalb der Sandbox gilt: kein Netzwerk, Schreibzugriff nur auf ein Temp-Verzeichnis. Limits (Setzung, [05-02](05-02-notations-spezifikation.md) Abschnitt 4): 10 s Laufzeit pro Zeuge; Speicherbegrenzung über `ulimit -v` in der Sandbox-Kette (Skizze, auf dieser Maschine noch nicht als Harness-Teil getestet). **Überschreitung ⇒ `UNVERIFIABLE`**, nie ein stiller Abbruch oder eine Näherung — dieselbe Ehrlichkeit wie im Vorbild, das eine Unpruefbar-Quote berichtet statt sie zu verstecken (lokale Quelle: `proofboy/eval.py`).
 
 ## 4. Logging und Archivierung
 

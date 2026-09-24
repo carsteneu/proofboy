@@ -7,7 +7,7 @@ Quelle der Wahrheit), der V1-Zeuge steht im Feld ``witness``.
 
 Tier B (04-03/04-04): Trace-Aufgaben (T2) und Zyklus-Aufgaben auf
 bbchallenge-Maschinen; die Referenz-Konfigurationen werden zur Bauzeit mit
-``bemyself.turing`` re-derived und im Set eingefroren. Ein Teil der
+``proofboy.turing`` re-derived und im Set eingefroren. Ein Teil der
 Maschinen ist lokal generiert (deterministische Saat) -- kontaminationsfrei
 (K7); kuratierte Maschinen tragen ihre Herkunft im Feld ``source``.
 
@@ -34,7 +34,7 @@ des bbchallenge-Wikis als Bindungs-Szenario). v0.1-v0.3 bleiben eingefroren.
   -- 12- bis 20-stellige Additionen/Multiplikationen, mod/mulmod auf grossen
   Zahlen, ein 12-stelliger ggT (Bibliotheks-Guard 10^12), sowie vier lange
   Ziffernlaeufe (fc(40), fb(300), ch(200,100), 2^200). Alle Referenzwerte
-  kommen aus derselben Quelle wie der Bauzeuge: ``bemyself.msheet.library``
+  kommen aus derselben Quelle wie der Bauzeuge: ``proofboy.msheet.library``
   bzw. Python-Ints; der Zeuge steht im Feld ``witness`` und wird zur Bauzeit
   unter dem Fragment ausgewertet (er muss True ergeben).
 - Tier B-hard (8 Aufgaben): vier Trace-Aufgaben mit *tiefen* Checkpoints
@@ -59,10 +59,10 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT))
 
-from bemyself import turing  # noqa: E402
-from bemyself.claimtypes import cycle  # noqa: E402
-from bemyself.model import Claim  # noqa: E402
-from bemyself.msheet.formula import evaluate_bool, parse_formula  # noqa: E402
+from proofboy import turing  # noqa: E402
+from proofboy.claimtypes import cycle  # noqa: E402
+from proofboy.model import Claim  # noqa: E402
+from proofboy.msheet.formula import evaluate_bool, parse_formula  # noqa: E402
 
 TIER_A_VERSION = "v11-a-0.2"
 TIER_B_VERSION = "v11-b-0.2"
@@ -107,7 +107,7 @@ _ALIAS = {
 
 
 def build_tier_a():
-    from bemyself.msheet.library import LIBRARY
+    from proofboy.msheet.library import LIBRARY
 
     tasks = []
     for index, (kind, (fn_name, args), template) in enumerate(_A_SPECS, 1):
@@ -167,7 +167,7 @@ def build_tier_a_hard():
     """The hard Tier-A tasks (v0.3): exact gold from the library itself."""
     from math import gcd as _gcd
 
-    from bemyself.msheet.library import LIBRARY
+    from proofboy.msheet.library import LIBRARY
 
     specs = []
     for left, right in _A_HARD_ADD:
@@ -616,7 +616,7 @@ def _tapes_equal(first, second, start, end):
     """The checker's tape comparison (byte-wise, early exit).
 
     Same relative coordinates in both snapshots, zero outside the written
-    extent -- exactly :func:`bemyself.claimtypes.cycle._tape_difference` ==
+    extent -- exactly :func:`proofboy.claimtypes.cycle._tape_difference` ==
     None, only cheaper for the many non-matching candidates of a search.
     """
     cells1, lo1 = cycle._pattern(first)

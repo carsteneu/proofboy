@@ -14,7 +14,7 @@ Zuweisungen (``t1=``/``t2=``/``d=``) und Zahlentripel ``(a, b, c)``, die die
 Zertifikatswerte vollstaendig enthalten.
 
     python3 training/distill_thinking.py --dry-run --id sft:v13:B3-0008:D
-    BEMYSELF_DISTILL_KEY=… python3 training/distill_thinking.py --send \
+    PROOFBOY_DISTILL_KEY=… python3 training/distill_thinking.py --send \
         --id sft:v13:B3-0008:D --out trace.txt
 """
 
@@ -31,8 +31,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIR = Path(__file__).resolve().parent / "corpus"
-DEFAULT_URL = os.environ.get("BEMYSELF_DISTILL_URL", "http://localhost:9099/v1/chat/completions")
-DEFAULT_MODEL = os.environ.get("BEMYSELF_DISTILL_MODEL", "deepseek-flash")
+DEFAULT_URL = os.environ.get("PROOFBOY_DISTILL_URL", "http://localhost:9099/v1/chat/completions")
+DEFAULT_MODEL = os.environ.get("PROOFBOY_DISTILL_MODEL", "deepseek-flash")
 
 INSTRUCTION = (
     "### AUFTRAG\n"
@@ -163,9 +163,9 @@ def main(argv=None) -> int:
         print(json.dumps(request, ensure_ascii=False, indent=2))
         return 0
 
-    api_key = os.environ.get("BEMYSELF_DISTILL_KEY", "")
+    api_key = os.environ.get("PROOFBOY_DISTILL_KEY", "")
     if not api_key:
-        raise SystemExit("BEMYSELF_DISTILL_KEY noetig fuer --send (ENV, nicht CLI -- ps sichtbar)")
+        raise SystemExit("PROOFBOY_DISTILL_KEY noetig fuer --send (ENV, nicht CLI -- ps sichtbar)")
     trace = fetch_trace(request, url=args.url, api_key=api_key, timeout=args.timeout)
     leaks = find_gold_leaks(trace, gold_values(rlvr or {}))
     if leaks:

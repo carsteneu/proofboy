@@ -63,7 +63,7 @@ def write_fixture_corpus(directory: Path, *, certificate_given: bool = False) ->
         "split": "train",
         "messages": sft["messages"][:2],
         "verifier": {
-            "command": ["python3", "-m", "bemyself.msheet", "run", "{sheet}", "--json"],
+            "command": ["python3", "-m", "proofboy.msheet", "run", "{sheet}", "--json"],
             "expect": {"all_claims_confirmed": True, "min_claims": 1},
         },
         "gold": {"certificate_given": certificate_given, "certificate": [34, 37, -1]},
@@ -202,8 +202,8 @@ class ScriptsTest(unittest.TestCase):
         harness = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = harness
         spec.loader.exec_module(harness)
-        previous = os.environ.get("BEMYSELF_PROXY_URL")
-        os.environ["BEMYSELF_PROXY_URL"] = "not a url"
+        previous = os.environ.get("PROOFBOY_PROXY_URL")
+        os.environ["PROOFBOY_PROXY_URL"] = "not a url"
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 # The key file belongs to the environment, not to the test: a
@@ -223,9 +223,9 @@ class ScriptsTest(unittest.TestCase):
                 self.assertIn("ValueError", error or "")
         finally:
             if previous is None:
-                os.environ.pop("BEMYSELF_PROXY_URL", None)
+                os.environ.pop("PROOFBOY_PROXY_URL", None)
             else:
-                os.environ["BEMYSELF_PROXY_URL"] = previous
+                os.environ["PROOFBOY_PROXY_URL"] = previous
 
     def test_rlvr_reward_scores_confirmed_and_refuted(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -299,7 +299,7 @@ class ScriptsTest(unittest.TestCase):
         record = {
             "id": "rlvr:fx:B-0001:B",
             "verifier": {
-                "command": ["python3", "-m", "bemyself.msheet", "run", "{sheet}", "--json"],
+                "command": ["python3", "-m", "proofboy.msheet", "run", "{sheet}", "--json"],
                 "expect": {"checkpoints_all_matched": True, "checkpoints_total": 2},
             },
             "gold": {"checkpoints_gold": [[1, "B", 1, "1"], [2, "A", 0, "1"]]},
@@ -350,18 +350,18 @@ class ScriptsTest(unittest.TestCase):
         harness = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = harness
         spec.loader.exec_module(harness)
-        previous = os.environ.pop("BEMYSELF_PROXY_URL", None)
+        previous = os.environ.pop("PROOFBOY_PROXY_URL", None)
         try:
             self.assertEqual(harness.proxy_url(), "http://localhost:9099/v1/chat/completions")
-            os.environ["BEMYSELF_PROXY_URL"] = "http://gpu-box:8000/v1/chat/completions"
+            os.environ["PROOFBOY_PROXY_URL"] = "http://gpu-box:8000/v1/chat/completions"
             self.assertEqual(harness.proxy_url(), "http://gpu-box:8000/v1/chat/completions")
-            os.environ["BEMYSELF_PROXY_URL"] = "   "
+            os.environ["PROOFBOY_PROXY_URL"] = "   "
             self.assertEqual(harness.proxy_url(), "http://localhost:9099/v1/chat/completions")
         finally:
             if previous is None:
-                os.environ.pop("BEMYSELF_PROXY_URL", None)
+                os.environ.pop("PROOFBOY_PROXY_URL", None)
             else:
-                os.environ["BEMYSELF_PROXY_URL"] = previous
+                os.environ["PROOFBOY_PROXY_URL"] = previous
 
 
 if __name__ == "__main__":

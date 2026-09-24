@@ -93,4 +93,4 @@ Aus den Persona-Reviews, für die Pruefer-Design-Phase statt für dieses Wiki:
 
 ## Provenienz dieses Wikis
 
-Erstellt im yesresearch-Lauf `yesresearch/pruefer` (Worktree `.worktrees/yesresearch-bemyself-pruefer`, Basis: Master-Plan `yesdocs/pruefer/PLAN.md`). Die Bereichs-Agents für die drei Cluster wurden nach Abschluss der Recherche durch einen YesMem-Daemon-Restart beendet; die Integration (dieser Index, Bibliography, Gate-Checks) erfolgte in der P2-Orchestrator-Session. Kein Push, kein Merge — das übernimmt der Suborchestrator.
+Erstellt im yesresearch-Lauf `yesresearch/pruefer` (Worktree `.worktrees/yesresearch-proofboy-pruefer`, Basis: Master-Plan `yesdocs/pruefer/PLAN.md`). Die Bereichs-Agents für die drei Cluster wurden nach Abschluss der Recherche durch einen YesMem-Daemon-Restart beendet; die Integration (dieser Index, Bibliography, Gate-Checks) erfolgte in der P2-Orchestrator-Session. Kein Push, kein Merge — das übernimmt der Suborchestrator.

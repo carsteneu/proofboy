@@ -24,12 +24,12 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes, toolmanifest
-from bemyself.claimtypes import lean
-from bemyself.checks import Ctx, kind_needs_repo, run_claim
-from bemyself.cli import EXIT_DEFECT, exit_code
-from bemyself.model import Cause, Verdict
-from bemyself.report import parse_report
+from proofboy import claimtypes, toolmanifest
+from proofboy.claimtypes import lean
+from proofboy.checks import Ctx, kind_needs_repo, run_claim
+from proofboy.cli import EXIT_DEFECT, exit_code
+from proofboy.model import Cause, Verdict
+from proofboy.report import parse_report
 from tests.fixtures import _git, commit_probe, make_repo
 
 _ELAN_BIN = os.path.join(os.path.expanduser("~"), ".elan", "bin")
@@ -143,7 +143,7 @@ def _write_fake_tools(bin_dir):
 
 
 def _answer(name, axioms):
-    return f"BEMYSELF-LEAN-AXIOMS {name} [{axioms}]\n"
+    return f"PROOFBOY-LEAN-AXIOMS {name} [{axioms}]\n"
 
 
 def _sha256(path):
@@ -294,11 +294,11 @@ class LeanAnswerParsingTest(unittest.TestCase):
         self.assertEqual(lean._query_answer(_answer("other", ""), "fixture_proven"), (None, None))
 
     def test_the_unknown_marker_is_read(self):
-        text = "BEMYSELF-LEAN-UNKNOWN fixture_proven\n"
+        text = "PROOFBOY-LEAN-UNKNOWN fixture_proven\n"
         self.assertEqual(lean._query_answer(text, "fixture_proven"), ("unknown", None))
 
     def test_the_error_marker_is_read(self):
-        text = "BEMYSELF-LEAN-ERROR unknown module prefix 'Ghost'\n"
+        text = "PROOFBOY-LEAN-ERROR unknown module prefix 'Ghost'\n"
         status, payload = lean._query_answer(text, "fixture_proven")
         self.assertEqual(status, "error")
         self.assertIn("Ghost", payload)
@@ -418,7 +418,7 @@ class LeanCheckTest(unittest.TestCase):
 
     def test_an_unknown_declaration_refutes(self):
         repo, commit = self.probe_repo("unknown", _PROOF)
-        bin_dir = self.fake(**{"query.out": "BEMYSELF-LEAN-UNKNOWN no_such\n", "query.rc": "1\n"})
+        bin_dir = self.fake(**{"query.out": "PROOFBOY-LEAN-UNKNOWN no_such\n", "query.rc": "1\n"})
         with self.patched_path(bin_dir):
             result = self.check_report(
                 "lean/Proof.lean", "no_such", commit, self.ctx(repo.path)
@@ -498,7 +498,7 @@ class LeanCheckTest(unittest.TestCase):
             )
         os.chmod(broken, 0o755)
         with self.patched_path(bin_dir), mock.patch(
-            "bemyself.checks.find_bwrap", return_value=broken
+            "proofboy.checks.find_bwrap", return_value=broken
         ):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_broken", commit, self.ctx(repo.path, sandbox="auto")
@@ -743,7 +743,7 @@ class LeanCheckTest(unittest.TestCase):
         repo, commit = self.probe_repo("foreign", _PROOF)
         bin_dir = self.fake(
             **{
-                "query.out": "BEMYSELF-LEAN-FOREIGN fixture_proven Helper\n",
+                "query.out": "PROOFBOY-LEAN-FOREIGN fixture_proven Helper\n",
                 "query.rc": "1\n",
             }
         )
@@ -837,7 +837,7 @@ class LeanCheckTest(unittest.TestCase):
         repo, commit = self.probe_repo("nosandbox", _PROOF)
         bin_dir = self.fake(**{"query.out": _answer("fixture_proven", "")})
         with self.patched_path(bin_dir), mock.patch(
-            "bemyself.checks.find_bwrap", return_value=None
+            "proofboy.checks.find_bwrap", return_value=None
         ):
             result = self.check_report(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="auto")
@@ -911,7 +911,7 @@ class LeanCheckTest(unittest.TestCase):
         repo, commit = self.probe_repo("qerror", _PROOF)
         bin_dir = self.fake(
             **{
-                "query.out": "BEMYSELF-LEAN-ERROR cannot load olean for Proof\n",
+                "query.out": "PROOFBOY-LEAN-ERROR cannot load olean for Proof\n",
                 "query.rc": "2\n",
             }
         )
@@ -1007,7 +1007,7 @@ class LeanCheckTest(unittest.TestCase):
             self.elan_with_fake_tools(("leanprover--lean4---v4.33.1",))
         )
         with self.patched_path(bin_dir), mock.patch(
-            "bemyself.checks.find_bwrap", return_value=None
+            "proofboy.checks.find_bwrap", return_value=None
         ):
             claim, result = self.check_report_pair(
                 "lean/Proof.lean", "fixture_proven", commit, self.ctx(repo.path, sandbox="auto")

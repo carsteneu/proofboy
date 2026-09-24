@@ -3,10 +3,10 @@ import time
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes
-from bemyself.checks import Ctx, run_claim
-from bemyself.model import Cause, ClaimType, Result, Verdict
-from bemyself.report import CORE_MARKERS, parse_report
+from proofboy import claimtypes
+from proofboy.checks import Ctx, run_claim
+from proofboy.model import Cause, ClaimType, Result, Verdict
+from proofboy.report import CORE_MARKERS, parse_report
 
 
 FULL_REPORT = """\

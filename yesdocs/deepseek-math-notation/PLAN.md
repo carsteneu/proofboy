@@ -70,13 +70,13 @@ Hinweis: Dieses Wiki ist die LERN- und ENTWURFSPHASE. Die Umsetzung (Bau der Wer
 - 04-02-kandidaten-katalog.md — Katalog (Start: BB(6); Collatz; Goldbach; Erdős-Probleme; Hadwiger-Nelson; weitere via Recherche) je mit Status, Teilresultaten, Quellen.
 - 04-03-rechenfragmente-daten.md — Ausführbare/verifizierbare Teilfragmente, Datenquellen, Tools, Communities (z. B. bbchallenge, SAT-Solver, OEIS).
 - 04-04-empfehlung.md — Shortlist 2–3 mit begründeter Empfehlung und Testeignung für die Notations-Hypothese.
-- 04-05-bruecke-pruefer.md — Anschluss an vorhandene Infrastruktur: Prüfer (yesdocs/pruefer/wiki), `[HALT]`/`[SCORE]` (P7, Branch yesloop/bemyself-p7-halt), claimtypes-Registry; was steht, was fehlt.
+- 04-05-bruecke-pruefer.md — Anschluss an vorhandene Infrastruktur: Prüfer (yesdocs/pruefer/wiki), `[HALT]`/`[SCORE]` (P7, Branch yesloop/proofboy-p7-halt), claimtypes-Registry; was steht, was fehlt.
 
 ### 05-entwurf-testplan — Notation + Testprotokoll
 - 05-01-designprinzipien.md — Prinzipien aus 01-03 + 02-*: je Regel, Begründung, Belegquelle, testbare Vorhersage.
 - 05-02-notations-spezifikation.md — Der Entwurf: Lexik (Zahlen, Operatoren, ASCII), Syntax (kanonisch, lokal, explizit), Beispiele (Satz, Beweisschritt, HALT-Trace); Output-Budget beachten.
 - 05-03-mapping-formal.md — Mapping-Tabellen Notation↔Lean/Metamath/Witness; sauber abbildbar vs. nicht; Verluste; Parser/Renderer-Skizze.
-- 05-04-test-harness.md — Harness für diese Maschine: Aufgaben-Sets, Ausführung (opencode/API/bemyself), Sandbox, Logging, Determinismus.
+- 05-04-test-harness.md — Harness für diese Maschine: Aufgaben-Sets, Ausführung (opencode/API/proofboy), Sandbox, Logging, Determinismus.
 - 05-05-ablation-protokoll.md — A/B: Notation vs. Standard bei gleichen Aufgaben; Kontrollen, Wiederholungen, Metriken (Trefferquote, Tokens/Aufgabe, Schritte bis Ergebnis), Auswertung.
 - 05-06-erfolgskriterien-risiken.md — Bestätigung/Widerlegung der Hypothese; Risiken (Spezifikationsproblem, Modellwechsel, Nichtübertragbarkeit).
 

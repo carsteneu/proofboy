@@ -2,7 +2,7 @@
 """Pilot-Harness: fuehrt Aufgaben x Arme gegen die lokale Modell-Instanz aus.
 
 Transport ist der **direkte HTTP-Pfad**: per Default ueber den lokalen Proxy
-(``http://localhost:9099/v1/chat/completions``), per ENV ``BEMYSELF_TARGET``
+(``http://localhost:9099/v1/chat/completions``), per ENV ``PROOFBOY_TARGET``
 auch direkt gegen DeepSeek (``deepseek``) oder den Cluster (``cluster``,
 privateTomMax). Der Schluessel kommt aus ``~/.local/share/opencode/auth.json``
 (deepseek- bzw. gateway-Eintrag). Verifiziert am 2026-09-12:
@@ -72,9 +72,9 @@ Tier B v0.4); fuer eine Reproduktion alter Runden muessen diese Konstanten
 bewusst umgestellt werden (die alten Set-Dateien liegen unveraendert im
 Sets-Ordner).
 
-Transport-Umstellung (V16): ``BEMYSELF_TARGET=proxy|deepseek|cluster`` waehlt
+Transport-Umstellung (V16): ``PROOFBOY_TARGET=proxy|deepseek|cluster`` waehlt
 Endpoint und Modell (Default ``proxy``, V11-V15-kompatibel);
-``BEMYSELF_MAX_TOKENS`` (Default 8192) und ``BEMYSELF_REASONING_EFFORT``
+``PROOFBOY_MAX_TOKENS`` (Default 8192) und ``PROOFBOY_REASONING_EFFORT``
 (Default: Feld wird nicht gesendet) ueberschreiben den Request-Body.
 """
 
@@ -98,11 +98,11 @@ ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(HERE))
 
-from bemyself.claimtypes import cycle  # noqa: E402
-from bemyself.model import Claim  # noqa: E402
-from bemyself.msheet.runner import run_sheet  # noqa: E402
-from bemyself.msheet.sheet import parse_sheet  # noqa: E402
-from bemyself.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
+from proofboy.claimtypes import cycle  # noqa: E402
+from proofboy.model import Claim  # noqa: E402
+from proofboy.msheet.runner import run_sheet  # noqa: E402
+from proofboy.msheet.sheet import parse_sheet  # noqa: E402
+from proofboy.msheet.witnesses import _CP_RE, find_bwrap  # noqa: E402
 from prompts import build_messages, build_repair_message  # noqa: E402
 
 DEFAULT_PROXY_URL = "http://localhost:9099/v1/chat/completions"
@@ -121,33 +121,33 @@ TARGETS = {
 def proxy_url():
     """Der OpenAI-kompatible Endpunkt; per ENV umstellbar (Default: lokaler Proxy).
 
-    Auf einer gemieteten GPU zeigt ``BEMYSELF_PROXY_URL`` auf die eigene
+    Auf einer gemieteten GPU zeigt ``PROOFBOY_PROXY_URL`` auf die eigene
     vLLM-/SGLang-Instanz, damit dieselben Arme/Sets gegen das trainierte
     Modell laufen (Runbook: training/README.md). Ein leerer/whitespace-Wert
     zaehlt als "nicht gesetzt" -- so bricht ein versehentlich leeres ENV den
     Lauf nicht mit einem ValueError, sondern nutzt den Default.
     """
-    value = os.environ.get("BEMYSELF_PROXY_URL", "").strip()
+    value = os.environ.get("PROOFBOY_PROXY_URL", "").strip()
     return value or DEFAULT_PROXY_URL
 
 
 def target_name():
-    """Das gewaehlte Transport-Ziel: ``BEMYSELF_TARGET`` (Default ``proxy``)."""
-    value = os.environ.get("BEMYSELF_TARGET", "").strip().lower()
+    """Das gewaehlte Transport-Ziel: ``PROOFBOY_TARGET`` (Default ``proxy``)."""
+    value = os.environ.get("PROOFBOY_TARGET", "").strip().lower()
     return value or "proxy"
 
 
 def target_config(name=None):
     """(url, model, auth) des Ziels -- unbekannte Ziele brechen ab.
 
-    ``proxy`` bleibt ueber ``BEMYSELF_PROXY_URL`` umstellbar (Runbook:
+    ``proxy`` bleibt ueber ``PROOFBOY_PROXY_URL`` umstellbar (Runbook:
     gemietete GPU); die Direktziele ignorieren die Variable bewusst.
     """
     resolved = (name or target_name()).strip().lower()
     entry = TARGETS.get(resolved)
     if entry is None:
         known = ", ".join(sorted(TARGETS))
-        raise SystemExit(f"unknown BEMYSELF_TARGET {resolved!r} (known: {known})")
+        raise SystemExit(f"unknown PROOFBOY_TARGET {resolved!r} (known: {known})")
     config = dict(entry)
     if resolved == "proxy":
         config["url"] = proxy_url()
@@ -157,7 +157,7 @@ def target_config(name=None):
 def display_url(url):
     """Die URL ohne Zugangsdaten -- fuer Manifest und Protokollzeilen.
 
-    ``BEMYSELF_PROXY_URL`` darf Userinfo tragen (``http://user:pass@host``);
+    ``PROOFBOY_PROXY_URL`` darf Userinfo tragen (``http://user:pass@host``);
     im Manifest hat weder Passwort noch Token etwas zu suchen.
     """
     parts = urllib.parse.urlsplit(url)
@@ -179,23 +179,23 @@ def _int_env(name, default):
 
 
 def max_tokens():
-    """Ausgabe-Budget je Aufruf (``BEMYSELF_MAX_TOKENS``, Default 8192).
+    """Ausgabe-Budget je Aufruf (``PROOFBOY_MAX_TOKENS``, Default 8192).
 
     Vorsicht beim Vergleich Proxy vs. Direkt: der YesMem-Proxy ersetzt
     ``max_tokens`` durch ``max_completion_tokens``, das DeepSeek ignoriert --
     ueber den Proxy ist das Budget faktisch wirkungslos (V16-Bericht 05-13).
     """
-    return _int_env("BEMYSELF_MAX_TOKENS", 8192)
+    return _int_env("PROOFBOY_MAX_TOKENS", 8192)
 
 
 def reasoning_effort():
-    """Optionales ``reasoning_effort`` (``BEMYSELF_REASONING_EFFORT``).
+    """Optionales ``reasoning_effort`` (``PROOFBOY_REASONING_EFFORT``).
 
     Leer = Feld wird nicht gesendet. Der Proxy injiziert fuer deepseek-flash
     ``max`` (Config ``proxy.reasoning_effort``); der Direktpfad sendet nur,
     was hier explizit steht.
     """
-    return os.environ.get("BEMYSELF_REASONING_EFFORT", "").strip()
+    return os.environ.get("PROOFBOY_REASONING_EFFORT", "").strip()
 
 
 AUTH_PATH = os.path.expanduser("~/.local/share/opencode/auth.json")
@@ -255,7 +255,7 @@ def call_model(messages, timeout):
     start = time.monotonic()
     try:
         # Der Request-Bau gehoert in den try: eine ungueltige
-        # BEMYSELF_PROXY_URL (z.B. Leerzeichen) muss als Transportfehler
+        # PROOFBOY_PROXY_URL (z.B. Leerzeichen) muss als Transportfehler
         # zurueckkommen, nicht als Traceback.
         request = urllib.request.Request(
             config["url"],

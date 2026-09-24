@@ -13,7 +13,7 @@ import sys
 import tempfile
 import unittest
 
-from bemyself import stackdetect
+from proofboy import stackdetect
 from tests.fixtures import make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -100,7 +100,7 @@ class DetectCliTest(unittest.TestCase):
 
     def invoke(self, *args):
         return subprocess.run(
-            [sys.executable, "-m", "bemyself", "check", *args],
+            [sys.executable, "-m", "proofboy", "check", *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

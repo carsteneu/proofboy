@@ -47,8 +47,8 @@ harness = _load("harness")
 prompts = _load("prompts")
 evaluate = _load("evaluate")
 
-from bemyself.claimtypes import cycle  # noqa: E402
-from bemyself.model import Claim  # noqa: E402
+from proofboy.claimtypes import cycle  # noqa: E402
+from proofboy.model import Claim  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures: reale Maschinen der v13/v14-Sets (Zertifikate mit cycle.check
@@ -730,7 +730,7 @@ class SetsV04Test(unittest.TestCase):
     def test_v04_trace_control_rederives_its_gold(self):
         tasks = [t for t in self._load()["tasks"] if t["tier_b_kind"] == "trace"]
         self.assertEqual([t["id"] for t in tasks], ["B3-0002"])
-        from bemyself import turing
+        from proofboy import turing
 
         for task in tasks:
             machine = turing.parse(task["machine"])
@@ -750,8 +750,8 @@ class SetsV04Test(unittest.TestCase):
         self.assertEqual(len(tasks), 5)
         not_given = [t for t in tasks if t.get("certificate_given") is False]
         self.assertEqual(len(not_given), 5, "alle neuen Zyklus-Aufgaben ohne Vorgabe")
-        from bemyself.claimtypes import cycle
-        from bemyself.model import Claim, Verdict
+        from proofboy.claimtypes import cycle
+        from proofboy.model import Claim, Verdict
 
         for task in tasks:
             t1, t2, d = task["certificate"]

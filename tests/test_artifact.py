@@ -16,11 +16,11 @@ import time
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes
-from bemyself.claimtypes import artifact
-from bemyself.checks import Ctx, kind_needs_repo, run_claim
-from bemyself.model import Claim, Verdict
-from bemyself.report import parse_report
+from proofboy import claimtypes
+from proofboy.claimtypes import artifact
+from proofboy.checks import Ctx, kind_needs_repo, run_claim
+from proofboy.model import Claim, Verdict
+from proofboy.report import parse_report
 
 DIGEST = "a" * 64
 

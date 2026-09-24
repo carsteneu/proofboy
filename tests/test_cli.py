@@ -12,8 +12,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes, cli
-from bemyself.model import ClaimType, Result, Verdict
+from proofboy import claimtypes, cli
+from proofboy.model import ClaimType, Result, Verdict
 from tests.fixtures import commit_probe, make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,7 +40,7 @@ class CliTest(unittest.TestCase):
         command = [
             sys.executable,
             "-m",
-            "bemyself",
+            "proofboy",
             "check",
             "--repo",
             repo or self.repo.path,
@@ -627,7 +627,7 @@ class CliTest(unittest.TestCase):
     # --- --repo: required only for claim kinds that need it ----------------
     def invoke_without_repo(self, *args):
         return subprocess.run(
-            [sys.executable, "-m", "bemyself", "check"] + list(args),
+            [sys.executable, "-m", "proofboy", "check"] + list(args),
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
@@ -766,7 +766,7 @@ class CliSectionTest(unittest.TestCase):
         command = [
             sys.executable,
             "-m",
-            "bemyself",
+            "proofboy",
             "check",
             "--section",
             section,
@@ -786,7 +786,7 @@ class CliSectionTest(unittest.TestCase):
 
     def invoke_raw(self, *args):
         return subprocess.run(
-            [sys.executable, "-m", "bemyself", "check"] + list(args),
+            [sys.executable, "-m", "proofboy", "check"] + list(args),
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
@@ -957,7 +957,7 @@ class ProfileCliTest(unittest.TestCase):
         command = [
             sys.executable,
             "-m",
-            "bemyself",
+            "proofboy",
             "check",
             "--repo",
             self.repo.path,
@@ -1128,7 +1128,7 @@ class ListTypesTest(unittest.TestCase):
 
     def invoke(self, *args):
         return subprocess.run(
-            [sys.executable, "-m", "bemyself", *args],
+            [sys.executable, "-m", "proofboy", *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

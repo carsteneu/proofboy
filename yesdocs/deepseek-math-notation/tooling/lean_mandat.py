@@ -23,7 +23,7 @@ Statement-Echo (steht die geforderte Aussage im Code?), Verdikt des
 
 Aufruf::
 
-    BEMYSELF_TARGET=deepseek BEMYSELF_MAX_TOKENS=4096 \
+    PROOFBOY_TARGET=deepseek PROOFBOY_MAX_TOKENS=4096 \
         python3 lean_mandat.py run --out .yesmem/tmp/lean-mandat/<ts> --reps 3
     python3 lean_mandat.py render --run <dir> [--raw raw.md] [--summary summary.md]
 

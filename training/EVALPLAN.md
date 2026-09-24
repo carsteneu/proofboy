@@ -14,7 +14,7 @@ Urteilen des Trainers.
 | 2 | **LoRA-SFT** (`training/out/sft`) auf denselben Faellen | Notationstreue + Trefferquote |
 | 3 | **DPO** (`training/out/dpo`), dann **RLVR** (Runner-Reward) | Verstaerkung der Praeferenz; RLVR nur, wenn Stufe 2 stabil |
 
-Kommandos: `training/README.md` §5/§6 (Harness gegen `BEMYSELF_PROXY_URL`,
+Kommandos: `training/README.md` §5/§6 (Harness gegen `PROOFBOY_PROXY_URL`,
 Sets v0.3, gleiche Arme). Jede Stufe ist reproduzierbar aus dem Basis-Commit
 plus Korpus; Laeufe landen in `.yesmem/tmp/runs/` des Checkouts.
 

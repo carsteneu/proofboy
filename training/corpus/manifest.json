@@ -7,7 +7,7 @@
     "D"
   ],
   "sandbox": "require",
-  "command": "training/build_corpus.py --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v11-20260912 --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v12-20260912 --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v13-20260912 --out training/corpus",
+  "command": "training/build_corpus.py --runs /home/carsten/projects/proofboy/.yesmem/tmp/runs-v11-20260912 --runs /home/carsten/projects/proofboy/.yesmem/tmp/runs-v12-20260912 --runs /home/carsten/projects/proofboy/.yesmem/tmp/runs-v13-20260912 --out training/corpus",
   "counts": {
     "runs_scanned": 436,
     "sft": 160,

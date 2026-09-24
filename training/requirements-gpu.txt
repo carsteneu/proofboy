@@ -1,4 +1,4 @@
-# GPU-Training/Inferenz fuer den bemyself-Trainingspfad.
+# GPU-Training/Inferenz fuer den proofboy-Trainingspfad.
 # Auf dieser CPU-Maschine NICHT installieren -- das ist die Liste fuer die
 # gemietete CUDA-Maschine (Runbook: training/README.md).
 #

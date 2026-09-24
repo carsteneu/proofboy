@@ -85,8 +85,8 @@ def _extract_certificate(record):
 
 def certificate_valid(machine_text, values):
     """cycle.check on the stated certificate -- the machine decides (V13)."""
-    from bemyself.claimtypes import cycle
-    from bemyself.model import Claim
+    from proofboy.claimtypes import cycle
+    from proofboy.model import Claim
 
     t1, t2, d = (str(value) for value in values)
     claim = Claim(

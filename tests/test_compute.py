@@ -15,11 +15,11 @@ import time
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes
-from bemyself.claimtypes import compute
-from bemyself.checks import Ctx, kind_needs_repo, run_claim
-from bemyself.report import parse_report
-from bemyself.model import Verdict
+from proofboy import claimtypes
+from proofboy.claimtypes import compute
+from proofboy.checks import Ctx, kind_needs_repo, run_claim
+from proofboy.report import parse_report
+from proofboy.model import Verdict
 from tests.fixtures import commit_probe, make_repo
 
 _BWRAP = shutil.which("bwrap")
@@ -95,16 +95,16 @@ class ComputeRegistryTest(unittest.TestCase):
         self.assertEqual(
             compute.DEFAULT_COMPUTE_ALLOWLIST,
             (
-                "python3 -m bemyself.turing",
-                "python3 -m bemyself.experiments.erdos_straus",
-                "python3 -m bemyself.experiments.antihydra_deep",
+                "python3 -m proofboy.turing",
+                "python3 -m proofboy.experiments.erdos_straus",
+                "python3 -m proofboy.experiments.antihydra_deep",
             ),
         )
 
     def test_the_default_allowlist_does_not_open_the_experiments_package(self):
         # The experiment entry is literal: a future module of the package is
         # not opened implicitly.
-        argv = ["python3", "-m", "bemyself.experiments.some_future_module"]
+        argv = ["python3", "-m", "proofboy.experiments.some_future_module"]
         self.assertFalse(compute._allowed_by_tokens(argv, compute.DEFAULT_COMPUTE_ALLOWLIST))
 
 
@@ -157,11 +157,11 @@ class ComputeCheckTest(unittest.TestCase):
         repo, commit = self.probe_repo(
             "experiment",
             "print('fixture erdos-straus')\n",
-            filename=os.path.join("bemyself", "experiments", "erdos_straus.py"),
+            filename=os.path.join("proofboy", "experiments", "erdos_straus.py"),
         )
         ctx = self.ctx(repo.path, compute_allowlist=compute.DEFAULT_COMPUTE_ALLOWLIST)
         result = self.check_report(
-            "python3 -m bemyself.experiments.erdos_straus 8",
+            "python3 -m proofboy.experiments.erdos_straus 8",
             digest("fixture erdos-straus\n"),
             commit,
             ctx,
@@ -172,11 +172,11 @@ class ComputeCheckTest(unittest.TestCase):
         repo, commit = self.probe_repo(
             "deep-counter",
             "print('fixture antihydra-deep')\n",
-            filename=os.path.join("bemyself", "experiments", "antihydra_deep.py"),
+            filename=os.path.join("proofboy", "experiments", "antihydra_deep.py"),
         )
         ctx = self.ctx(repo.path, compute_allowlist=compute.DEFAULT_COMPUTE_ALLOWLIST)
         result = self.check_report(
-            "python3 -m bemyself.experiments.antihydra_deep --depth 4",
+            "python3 -m proofboy.experiments.antihydra_deep --depth 4",
             digest("fixture antihydra-deep\n"),
             commit,
             ctx,
@@ -285,7 +285,7 @@ class ComputeCheckTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("outside the checkout", result.reason)
 
-    @mock.patch("bemyself.claimtypes.compute.COMPUTE_TIMEOUT", 1)
+    @mock.patch("proofboy.claimtypes.compute.COMPUTE_TIMEOUT", 1)
     def test_timeout_is_unverifiable_and_leaves_no_files(self):
         repo, commit = self.probe_repo("timeout", _SLEEPER)
         ctx = self.ctx(repo.path)
@@ -294,7 +294,7 @@ class ComputeCheckTest(unittest.TestCase):
         self.assertIn("timed out after 1s", result.reason)
         self.assertEqual(os.listdir(ctx.tmp_dir), [], "throwaway files were left behind")
 
-    @mock.patch("bemyself.claimtypes.compute.MAX_COMPUTE_BYTES", 4096)
+    @mock.patch("proofboy.claimtypes.compute.MAX_COMPUTE_BYTES", 4096)
     def test_output_beyond_the_limit_is_unverifiable(self):
         repo, commit = self.probe_repo("flood", _FLOODER)
         result = self.check_report("python3 emit.py", digest("x"), commit, self.ctx(repo.path))
@@ -328,7 +328,7 @@ class ComputeCheckTest(unittest.TestCase):
         # checkout), not the verifier's, so it must not clear the pre-flight.
         repo, commit = self.probe_repo("relative-which", _EMIT)
         ctx = self.ctx(repo.path, compute_allowlist=("mytool",))
-        with mock.patch("bemyself.claimtypes.compute.shutil.which", return_value="bin/mytool"):
+        with mock.patch("proofboy.claimtypes.compute.shutil.which", return_value="bin/mytool"):
             result = self.check_report("mytool --version", digest("x"), commit, ctx)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("not found", result.reason)
@@ -347,7 +347,7 @@ class ComputeCheckTest(unittest.TestCase):
     def test_require_without_bwrap_never_runs_the_command(self):
         repo, commit = self.probe_repo("require-missing", _EMIT)
         ctx = self.ctx(repo.path, sandbox="require")
-        with mock.patch("bemyself.checks.find_bwrap", return_value=None):
+        with mock.patch("proofboy.checks.find_bwrap", return_value=None):
             result = self.check_report("python3 emit.py", digest("compute: 42\n"), commit, ctx)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("bwrap is not available", result.reason)

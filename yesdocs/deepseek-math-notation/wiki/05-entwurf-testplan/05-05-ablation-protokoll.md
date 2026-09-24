@@ -70,7 +70,7 @@ Es gibt keinen Seed: Das Request-Schema des Modells dokumentiert keinen `seed`-P
 | b | Tokens/Aufgabe | generierte Tokens = `output + reasoning` aus `step_finish.part.tokens`; fixer Input-Overhead (~28k) wird getrennt ausgewiesen | `raw.jsonl` (lokale Beobachtungen: 28.068 / 21.462 Input; 770 / 90 Reasoning) |
 | c | Schritte bis Ergebnis | Turns = Anzahl `step_start`-Events je Aufgabe (arm-vergleichbar); im Behandlungsarm zusätzlich die Zahl der `S…:`-Zeilen | `raw.jsonl`, Parser |
 | d | Formatfehlerquote | Anteil Blätter mit Parsefehlern, unvollständiger Behauptungszone oder fehlendem `[HALT]` | Parser ([05-03](05-03-mapping-formal.md)) |
-| e | Falschbestätigungsrate | Anteil Claims, die das Blatt als belegt führt, die der Runner aber `REFUTED` liefert (bemyself-Sinn; Verdikt-Modell `CONFIRMED|REFUTED|UNVERIFIABLE`) | Runner-Trace |
+| e | Falschbestätigungsrate | Anteil Claims, die das Blatt als belegt führt, die der Runner aber `REFUTED` liefert (proofboy-Sinn; Verdikt-Modell `CONFIRMED|REFUTED|UNVERIFIABLE`) | Runner-Trace |
 | f | Wanduhrzeit | Differenz `step_start`→`step_finish` je Lauf plus Gesamtzeit aus `runner.log` | `raw.jsonl`/Log (lokale Beobachtung: 4,18 s / 1,30 s Mini-Prompt) |
 | g | Trace-Fidelity (nur Tier B, T2) | Erste abweichende Position der rekonstruierten Schrittfolge (0 = identisch) und Tokens je Trace | Referenz-Simulation ([05-04](05-04-test-harness.md) Abschnitt 2, `trace_expected`) |
 

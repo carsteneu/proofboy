@@ -11,10 +11,10 @@ import re
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes, profiles
-from bemyself.checks import Ctx, run_claim
-from bemyself.model import Cause, Claim, ClaimType, Result, Verdict
-from bemyself.report import parse_report
+from proofboy import claimtypes, profiles
+from proofboy.checks import Ctx, run_claim
+from proofboy.model import Cause, Claim, ClaimType, Result, Verdict
+from proofboy.report import parse_report
 
 COMMIT = "a" * 40
 

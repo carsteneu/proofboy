@@ -341,7 +341,7 @@ class BuilderTest(unittest.TestCase):
             records = self.builder.build_rlvr(runs)
             self.assertEqual(len(records), 1)
             record = records[0]
-            self.assertEqual(record["verifier"]["command"][:3], ["python3", "-m", "bemyself.msheet"])
+            self.assertEqual(record["verifier"]["command"][:3], ["python3", "-m", "proofboy.msheet"])
             self.assertEqual(
                 record["verifier"]["expect"], {"all_claims_confirmed": True, "min_claims": 1}
             )
@@ -400,7 +400,7 @@ class BuilderTest(unittest.TestCase):
 
     def test_clean_sheet_refuses_py_witness_without_bwrap(self):
         """Sandbox-Pflicht: ohne bwrap faellt das Blatt aus SFT/DPO (fail closed)."""
-        from bemyself.msheet import witnesses
+        from proofboy.msheet import witnesses
 
         py_sheet = (
             "h1: (((1 + 2) = 3))\n"

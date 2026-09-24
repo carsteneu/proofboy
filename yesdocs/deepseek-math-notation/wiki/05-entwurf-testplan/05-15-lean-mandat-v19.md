@@ -49,7 +49,7 @@ Kernfragen: **(a)** Kann *irgendeine* Prompt-Variante den Lean-Anteil der Denksp
 | Aufgaben (7) | dito | **trivial:** `2 + 3 = 5`, `1 + 1 = 2`; **mechanisch:** `(12 + 30) % 7 = 0`, `837465291837 + 192837465564 = 1030302757401`; **Lemma (Std):** `∀ n : Nat, n + 0 = n`, `[1, 2, 3].length = 3`, `∀ a b : Nat, a + b = b + a`. Jede Aufgabe trägt einen Referenzbeweis (`ref_tactic`), der im Test **real** über `leancheck` elaboriert wird (7/7 `valid`). |
 | Tests | `tests/test_v19_lean_mandat.py` (neu, 29) | Varianten-Ladder (V-A ⊂ V-B ⊂ V-C; V-E = V-B + Fence-Zusatz; nur V-D mit Prefill), Prompt-Bau, Extraktion/Echo/Statement-Echo, Aggregation (inkl. Axiom-Zählung nur valider Zellen), Manifest ohne Zugangsdaten, geskripteter Transport und geskriptetes `leancheck` (kein Netz), Renderer-Determinismus (zweimal rendern ⇒ identisch), echte Referenz-Elaboration (skipWithout Toolchain). Volle Suite: **1170 Tests grün** auf dieser Basis; Basis (8832f9f): 1141 grün, `diff` der Fehlschläge: keine. |
 
-Engine und Harness unverändert (`bemyself/`, `harness.py`, `prompts.py`); die Runde ändert Tooling, Tests, Laufdaten und Wiki.
+Engine und Harness unverändert (`proofboy/`, `harness.py`, `prompts.py`); die Runde ändert Tooling, Tests, Laufdaten und Wiki.
 
 ## 3. Design-Entscheidungen
 
@@ -84,9 +84,9 @@ Die RC-Heuristik (`leanfidelity`) klassifiziert Zeilen per erstem Wort und `:=`-
 Transport: direkter HTTP-Pfad `https://api.deepseek.com/v1/chat/completions` (Bearer; Modell `deepseek-flash`, `max_tokens 4096`); Reproduktion:
 
 ```
-BEMYSELF_TARGET=deepseek BEMYSELF_MAX_TOKENS=4096 \
+PROOFBOY_TARGET=deepseek PROOFBOY_MAX_TOKENS=4096 \
   python3 yesdocs/deepseek-math-notation/tooling/lean_mandat.py run --out <dir> --reps 3
-BEMYSELF_TARGET=cluster ... --variants V-B --tasks t1,l1 --reps 2
+PROOFBOY_TARGET=cluster ... --variants V-B --tasks t1,l1 --reps 2
 python3 .../lean_mandat.py render --run <dir> --summary <dir>/summary.md --raw <dir>/raw.md
 ```
 

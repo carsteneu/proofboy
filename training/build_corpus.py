@@ -20,7 +20,7 @@ Ausgaben (jsonl, nach id sortiert, UTF-8):
   unterschiedliche Legenden).
 * ``dpo.jsonl``  -- (prompt, chosen=verifiziert, rejected=nicht bestaetigt);
   Cross-Arm-Fallback wird in ``meta.notes`` ausgewiesen.
-* ``rlvr.jsonl`` -- Task + Verifier-Kommando (``python3 -m bemyself.msheet
+* ``rlvr.jsonl`` -- Task + Verifier-Kommando (``python3 -m proofboy.msheet
   run <sheet> --json``) + Erwartungswerte des verifizierten Blatts.
 * ``think.jsonl``-- Task + Denkzone des verifizierten Blatts (das Material der
   Denk-Traces; Prosabegruendung nur als Laengen-Metadatum).
@@ -249,7 +249,7 @@ def prompt_messages(prompt_path: Path) -> list[dict] | None:
 
 
 def default_evaluator():
-    spec = importlib.util.spec_from_file_location("bemyself_training_harness", TOOLING_DIR / "harness.py")
+    spec = importlib.util.spec_from_file_location("proofboy_training_harness", TOOLING_DIR / "harness.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -433,7 +433,7 @@ def build_dpo(runs, arms=DEFAULT_ARMS, splits: dict | None = None, stats: dict |
 
 
 def thinking_zone(answer: str) -> list[str]:
-    from bemyself.msheet.sheet import parse_sheet
+    from proofboy.msheet.sheet import parse_sheet
 
     sheet = parse_sheet(answer)
     lines = answer.splitlines()
@@ -461,8 +461,8 @@ def sheet_verdicts(answer: str, sandbox: str = DEFAULT_SANDBOX) -> dict:
     Sandbox sichtbar bleibt (bei ``sandbox="require"`` liefert der Runner
     stattdessen UNVERIFIABLE und das Blatt faellt aus SFT/DPO).
     """
-    from bemyself.msheet.runner import run_sheet
-    from bemyself.msheet.sheet import parse_sheet
+    from proofboy.msheet.runner import run_sheet
+    from proofboy.msheet.sheet import parse_sheet
 
     sheet = parse_sheet(answer)
     result = run_sheet(sheet, sandbox=sandbox, timeout=20.0)
@@ -537,7 +537,7 @@ def build_rlvr(runs, arms=DEFAULT_ARMS, splits: dict | None = None, sets: dict |
         task = task_for(run, sets) if sets else None
         gold = {key: task[key] for key in gold_keys if task is not None and key in task}
         verifier: dict = {
-            "command": ["python3", "-m", "bemyself.msheet", "run", "{sheet}", "--json"],
+            "command": ["python3", "-m", "proofboy.msheet", "run", "{sheet}", "--json"],
         }
         if gold.get("tier_b_kind") == "trace" and gold.get("checkpoints_gold"):
             # Trace-Aufgaben werden ueber ihre Konfigurationspunkte geprueft

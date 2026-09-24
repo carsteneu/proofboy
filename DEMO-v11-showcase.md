@@ -53,7 +53,7 @@ WITNESS c1: ref h1
 
 ## Doppelbeleg: msheet-CLI
 
-Dieselbe Blatt-Datei durch `python3 -m bemyself.msheet run <blatt>`:
+Dieselbe Blatt-Datei durch `python3 -m proofboy.msheet run <blatt>`:
 
 ```
 #ok: v1 c1

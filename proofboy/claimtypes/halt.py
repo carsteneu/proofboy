@@ -1,0 +1,192 @@
+"""The ``[HALT: <machine> -> <steps>]`` claim type.
+
+A HALT claim asserts that the named machine of the bbchallenge standard
+notation halts after exactly the claimed number of steps. An optional
+``[SCORE: <machine> -> <ones>]`` on the same line for the same machine
+additionally asserts the number of ones on the tape when it halts. The
+machine is re-run by :mod:`proofboy.turing`, in this process: no repository,
+no subprocess, no network, nothing to sandbox.
+
+Verdicts: CONFIRMED only when the machine halts after exactly the claimed
+steps -- and with exactly the claimed score when one is given; REFUTED when
+it halts earlier, does not halt within the claimed steps (a finite witness:
+not having halted after n steps proves it cannot halt exactly at step n; it
+is not a proof that the machine never halts), or halts with a different
+score; UNVERIFIABLE when the machine does not parse, the step count is not a
+plain non-negative integer, or it exceeds the executable limit. A [SCORE]
+marker without a [HALT] marker for its machine is not a claim.
+
+Cost: one claim at the limit means roughly five seconds of simulation, and a
+report may carry many claims; the limit bounds each claim, not the report.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING
+
+from proofboy import turing
+from proofboy.model import Cause, ClaimType, Result, Verdict
+
+if TYPE_CHECKING:
+    from proofboy.checks import Ctx
+
+# The largest number of steps the checker will ever execute for one claim.
+# It carries the BB(5) champion's 47,176,870 steps; a claim beyond it stays
+# UNVERIFIABLE (--halt-limit changes it).
+DEFAULT_HALT_LIMIT = 47_176_870
+
+_ARROW = "->"
+_UNICODE_ARROW = "\u2192"
+# One lazy "anything but a bracket" capture per marker, fields split out of it
+# afterwards. Whitespace *must not* appear as its own quantifier around the
+# capture: the classes overlap, and on a hostile whitespace run behind an
+# unterminated marker the engine then explores combinations polynomially (a
+# 2 KB line took ~7 s). A report is untrusted input, so the patterns stay
+# linear.
+_HALT_RE = re.compile(r"\[HALT:(?P<body>[^\]\[]*?)\]")
+_SCORE_RE = re.compile(r"\[SCORE:(?P<body>[^\]\[]*?)\]")
+_COUNT_RE = re.compile(r"\A[0-9]+\Z")
+
+
+def _split_body(match):
+    """(machine, value) of one marker, or None when it has no arrow."""
+    body = match.group("body")
+    for arrow in (_UNICODE_ARROW, _ARROW):
+        if arrow in body:
+            left, right = body.rsplit(arrow, 1)
+            return left.strip(), right.strip()
+    return None
+
+
+def _count(text):
+    """A claimed count: plain decimal digits, no sign, no underscores."""
+    if not text or not _COUNT_RE.match(text):
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        # CPython caps int(text) at a few thousand digits by default; such a
+        # claim is beyond any limit and must not crash the checker.
+        return None
+
+
+def parse(match, raw):
+    """Fields of one [HALT] marker, plus its same-line [SCORE] if any."""
+    parts = _split_body(match)
+    if parts is None:
+        # An arrow-less marker names no claim.
+        return None
+    machine, steps = parts
+    scores = set()
+    for score in _SCORE_RE.finditer(raw):
+        score_parts = _split_body(score)
+        if score_parts is not None and score_parts[0] == machine:
+            scores.add(score_parts[1])
+    fields = {
+        "machine": machine,
+        "steps": steps,
+        "score": None,
+        "score_conflict": False,
+    }
+    if len(scores) == 1:
+        fields["score"] = scores.pop()
+    elif len(scores) > 1:
+        fields["score_conflict"] = True
+    return fields
+
+
+def check(claim, ctx):
+    machine_text = (claim.fields.get("machine") or "").strip()
+    if not machine_text:
+        return Result(
+            Verdict.UNVERIFIABLE, reason="the claim names no machine", cause=Cause.DEFECT
+        )
+    try:
+        machine = turing.parse(machine_text)
+    except turing.MachineError as exc:
+        # A machine the simulator cannot read is payload the tool cannot
+        # interpret -- not a defective claim (the report may be honest).
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"not a machine of the bbchallenge notation: {exc}",
+            cause=Cause.UNVERIFIABLE,
+        )
+    claimed = _count(claim.fields.get("steps") or "")
+    if claimed is None:
+        # A prose number ("2^^^5") is uninterpretable, not a defect: the
+        # claim stays unverifiable, it is not accused of lying.
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="the claimed step count is not a non-negative integer: "
+            f"{claim.fields.get('steps')!r}",
+            cause=Cause.UNVERIFIABLE,
+        )
+    if claim.fields.get("score_conflict"):
+        # Two [SCORE] markers that disagree make the claim ambiguous, not
+        # defective: the report may be honest and the tool cannot decide
+        # which value to check (same residual rule as a prose number).
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason="conflicting [SCORE] markers for this machine; the claim is ambiguous",
+            cause=Cause.UNVERIFIABLE,
+        )
+    if claimed > ctx.halt_limit:
+        return Result(
+            Verdict.UNVERIFIABLE,
+            reason=f"the claimed {claimed} steps exceed the executable limit of "
+            f"{ctx.halt_limit}; raise the limit with --halt-limit",
+            cause=Cause.LIMIT,
+        )
+    result = turing.run(machine, claimed)
+    command = f"simulate {machine_text} for at most {claimed} steps"
+    output = f"halts={result.halts} steps={result.steps} score={result.score}"
+    if not result.halts:
+        return Result(
+            Verdict.REFUTED,
+            command,
+            output,
+            f"the machine did not halt within the claimed {claimed} steps; "
+            f"it cannot halt exactly at step {claimed}",
+        )
+    if result.steps != claimed:
+        return Result(
+            Verdict.REFUTED,
+            command,
+            output,
+            f"the machine halted after {result.steps} steps, not {claimed}",
+        )
+    score_text = claim.fields.get("score")
+    if score_text is not None:
+        claimed_score = _count(score_text)
+        if claimed_score is None:
+            return Result(
+                Verdict.UNVERIFIABLE,
+                command,
+                output,
+                f"the claimed score is not a non-negative integer: {score_text!r}",
+                cause=Cause.UNVERIFIABLE,
+            )
+        if claimed_score != result.score:
+            return Result(
+                Verdict.REFUTED,
+                command,
+                output,
+                f"the machine halted after {claimed} steps with score "
+                f"{result.score}, not {claimed_score}",
+            )
+    return Result(
+        Verdict.CONFIRMED,
+        command,
+        output,
+        f"the machine halted after {claimed} steps with score {result.score}",
+    )
+
+
+HALT = ClaimType(
+    kind="halt",
+    pattern=_HALT_RE,
+    parse=parse,
+    check=check,
+    markers=("HALT", "SCORE"),
+)

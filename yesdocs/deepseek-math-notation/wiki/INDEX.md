@@ -21,7 +21,7 @@ prüfbare Mathematik rücküberführbar (Zeugen, nicht Glauben).
 
 Instanz unter Test: `deepseek/deepseek-flash` (Provider `deepseek`; Kontext 1.000.000, Output 8.192 Tokens;
 interleaved `reasoning_content` — lokale Quelle: `~/.config/opencode/opencode.json`). Stand 2026-09-13:
-Entwurf (05-07), Werkzeugbau (bemyself/msheet, tooling/), erster Pilotlauf (05-08), die
+Entwurf (05-07), Werkzeugbau (proofboy/msheet, tooling/), erster Pilotlauf (05-08), die
 Rückkanal-Runde mit Reparatur-Loop (05-09, Arme K/B/C/D), die Härte-Runde (05-10: Sets v0.3,
 Zahlen-Regime, tiefe Läufe, Zyklus-Suche), die Lokalisierungs-Runde (05-11: Feedback-Leiter
 G0/G1/G2, Bindungsschutz, Sets v0.4), die RC-Umstellung (05-12: RC-Fidelity-Metrik,

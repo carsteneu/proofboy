@@ -1,4 +1,4 @@
-"""Tests for the witness kinds of bemyself.msheet (05-02 §4, 05-07 §4/§6).
+"""Tests for the witness kinds of proofboy.msheet (05-02 §4, 05-07 §4/§6).
 
 Witnesses decide claims and hypotheses: auto compiles the target formula,
 py runs a model-written expression (sandboxed subprocess), range is an
@@ -12,9 +12,9 @@ target is UNVERIFIABLE, never a silent approximation.
 import shutil
 import unittest
 
-from bemyself import turing
-from bemyself.model import Verdict
-from bemyself.msheet import witnesses
+from proofboy import turing
+from proofboy.model import Verdict
+from proofboy.msheet import witnesses
 
 WIKI_CYCLER = "1RB0RE_0LC1RC_0RD1LA_1LE---_1LB1RC"  # certificate (6, 16, 2)
 SMALL_HALTER = "1RB1RZ_0LA0LA"  # halts after exactly 3 steps, score 1
@@ -101,7 +101,7 @@ class AutoTest(unittest.TestCase):
         self.assertEqual(run("auto", "(st(27) = 110)").verdict, Verdict.REFUTED)
 
     def test_defs_are_available(self):
-        from bemyself.msheet.formula import parse_def
+        from proofboy.msheet.formula import parse_def
 
         defs = {"sum_1_to_n": parse_def("def sum_1_to_n(n) = sum(k=1..n, k)")}
         result = run("auto", "(sum_1_to_n(10) = 55)", defs=defs)

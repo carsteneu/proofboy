@@ -5,12 +5,12 @@ Bewusst als Guard-Tests formuliert:
 
 - Default-Target ist ``proxy`` (rueckwaerts-kompatibel zu V11-V15; der lokale
   Proxy bleibt die Vorgabe, Direkt-Transporte sind explizit).
-- ``BEMYSELF_TARGET=deepseek|cluster`` loest Endpoint, Modell und
-  Key-Eintrag der Ziel-Tabelle auf; ``BEMYSELF_PROXY_URL`` gilt weiter fuer
+- ``PROOFBOY_TARGET=deepseek|cluster`` loest Endpoint, Modell und
+  Key-Eintrag der Ziel-Tabelle auf; ``PROOFBOY_PROXY_URL`` gilt weiter fuer
   Target ``proxy``.
 - Ein unbekanntes Target bricht mit SystemExit ab (ein Tippfehler darf nicht
   still als Proxy laufen).
-- ``BEMYSELF_MAX_TOKENS``/``BEMYSELF_REASONING_EFFORT`` steuern den
+- ``PROOFBOY_MAX_TOKENS``/``PROOFBOY_REASONING_EFFORT`` steuern den
   Request-Body; ``call_model`` sendet Modell und URL des gewaehlten Targets.
 - Kein Key-Wert erscheint in Fehlermeldungen oder im Lauf-Manifest.
 """
@@ -58,10 +58,10 @@ class _TransportEnvTest(unittest.TestCase):
     """Gemeinsame Klammer: ENV und AUTH_PATH sind je Test isoliert."""
 
     ENV_KEYS = (
-        "BEMYSELF_TARGET",
-        "BEMYSELF_PROXY_URL",
-        "BEMYSELF_MAX_TOKENS",
-        "BEMYSELF_REASONING_EFFORT",
+        "PROOFBOY_TARGET",
+        "PROOFBOY_PROXY_URL",
+        "PROOFBOY_MAX_TOKENS",
+        "PROOFBOY_REASONING_EFFORT",
     )
 
     def setUp(self):
@@ -97,37 +97,37 @@ class TargetResolutionTest(_TransportEnvTest):
         self.assertEqual(cfg["model"], "deepseek-flash")
 
     def test_proxy_url_env_still_routes_the_proxy_target(self):
-        os.environ["BEMYSELF_PROXY_URL"] = "http://127.0.0.1:9999/v1/chat/completions"
+        os.environ["PROOFBOY_PROXY_URL"] = "http://127.0.0.1:9999/v1/chat/completions"
         self.assertEqual(harness.target_config()["url"], "http://127.0.0.1:9999/v1/chat/completions")
 
     def test_proxy_url_env_does_not_leak_into_other_targets(self):
-        os.environ["BEMYSELF_PROXY_URL"] = "http://127.0.0.1:9999/v1/chat/completions"
-        os.environ["BEMYSELF_TARGET"] = "deepseek"
+        os.environ["PROOFBOY_PROXY_URL"] = "http://127.0.0.1:9999/v1/chat/completions"
+        os.environ["PROOFBOY_TARGET"] = "deepseek"
         self.assertEqual(harness.target_config()["url"], _DEEPSEEK_URL)
 
     def test_deepseek_target_endpoint_and_model(self):
-        os.environ["BEMYSELF_TARGET"] = "deepseek"
+        os.environ["PROOFBOY_TARGET"] = "deepseek"
         cfg = harness.target_config()
         self.assertEqual(cfg["url"], _DEEPSEEK_URL)
         self.assertEqual(cfg["model"], "deepseek-flash")
 
     def test_cluster_target_endpoint_and_model(self):
-        os.environ["BEMYSELF_TARGET"] = "cluster"
+        os.environ["PROOFBOY_TARGET"] = "cluster"
         cfg = harness.target_config()
         self.assertEqual(cfg["url"], _CLUSTER_URL)
         self.assertEqual(cfg["model"], "privateTomMax")
 
     def test_target_name_is_case_insensitive(self):
-        os.environ["BEMYSELF_TARGET"] = " DeepSeek "
+        os.environ["PROOFBOY_TARGET"] = " DeepSeek "
         self.assertEqual(harness.target_name(), "deepseek")
 
     def test_target_config_accepts_an_explicit_name(self):
         self.assertEqual(harness.target_config("cluster")["model"], "privateTomMax")
-        os.environ["BEMYSELF_TARGET"] = "bogus"
+        os.environ["PROOFBOY_TARGET"] = "bogus"
         self.assertEqual(harness.target_config("deepseek")["url"], _DEEPSEEK_URL)
 
     def test_unknown_target_aborts(self):
-        os.environ["BEMYSELF_TARGET"] = "bogus"
+        os.environ["PROOFBOY_TARGET"] = "bogus"
         with self.assertRaises(SystemExit):
             harness.target_config()
 
@@ -135,14 +135,14 @@ class TargetResolutionTest(_TransportEnvTest):
 class ApiKeyTest(_TransportEnvTest):
     def test_key_entry_follows_the_target(self):
         self.assertEqual(harness._api_key(), _TEST_DEEPSEEK_KEY)
-        os.environ["BEMYSELF_TARGET"] = "deepseek"
+        os.environ["PROOFBOY_TARGET"] = "deepseek"
         self.assertEqual(harness._api_key(), _TEST_DEEPSEEK_KEY)
-        os.environ["BEMYSELF_TARGET"] = "cluster"
+        os.environ["PROOFBOY_TARGET"] = "cluster"
         self.assertEqual(harness._api_key(), _TEST_GATEWAY_KEY)
 
     def test_missing_key_error_leaks_no_secret(self):
         self.write_auth({"deepseek": {"key": _TEST_DEEPSEEK_KEY}})
-        os.environ["BEMYSELF_TARGET"] = "cluster"
+        os.environ["PROOFBOY_TARGET"] = "cluster"
         with self.assertRaises(SystemExit) as caught:
             harness._api_key()
         self.assertNotIn(_TEST_DEEPSEEK_KEY, str(caught.exception))
@@ -207,9 +207,9 @@ class CallModelBodyTest(_TransportEnvTest):
         self.assertNotIn("reasoning_effort", body)
 
     def test_cluster_body_carries_model_and_overrides(self):
-        os.environ["BEMYSELF_TARGET"] = "cluster"
-        os.environ["BEMYSELF_MAX_TOKENS"] = "65536"
-        os.environ["BEMYSELF_REASONING_EFFORT"] = "max"
+        os.environ["PROOFBOY_TARGET"] = "cluster"
+        os.environ["PROOFBOY_MAX_TOKENS"] = "65536"
+        os.environ["PROOFBOY_REASONING_EFFORT"] = "max"
         request = self._call()
         self.assertEqual(request.full_url, _CLUSTER_URL)
         body = json.loads(request.data.decode("utf-8"))
@@ -219,19 +219,19 @@ class CallModelBodyTest(_TransportEnvTest):
         self.assertEqual(request.headers["Authorization"], f"Bearer {_TEST_GATEWAY_KEY}")
 
     def test_deepseek_body_uses_the_deepseek_key(self):
-        os.environ["BEMYSELF_TARGET"] = "deepseek"
+        os.environ["PROOFBOY_TARGET"] = "deepseek"
         request = self._call()
         self.assertEqual(request.full_url, _DEEPSEEK_URL)
         self.assertEqual(request.headers["Authorization"], f"Bearer {_TEST_DEEPSEEK_KEY}")
 
     def test_invalid_max_tokens_aborts(self):
-        os.environ["BEMYSELF_MAX_TOKENS"] = "viele"
+        os.environ["PROOFBOY_MAX_TOKENS"] = "viele"
         with self.assertRaises(SystemExit):
             harness.max_tokens()
 
     def test_blank_overrides_count_as_unset(self):
-        os.environ["BEMYSELF_MAX_TOKENS"] = "  "
-        os.environ["BEMYSELF_REASONING_EFFORT"] = ""
+        os.environ["PROOFBOY_MAX_TOKENS"] = "  "
+        os.environ["PROOFBOY_REASONING_EFFORT"] = ""
         self.assertEqual(harness.max_tokens(), 8192)
         self.assertEqual(harness.reasoning_effort(), "")
 
@@ -268,7 +268,7 @@ class ManifestTest(_TransportEnvTest):
         return manifests[-1]
 
     def test_manifest_records_target_without_key(self):
-        manifest_path = self._run_manifest({"BEMYSELF_TARGET": "deepseek"})
+        manifest_path = self._run_manifest({"PROOFBOY_TARGET": "deepseek"})
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(manifest["transport"]["target"], "deepseek")
         self.assertEqual(manifest["transport"]["url"], _DEEPSEEK_URL)
@@ -281,8 +281,8 @@ class ManifestTest(_TransportEnvTest):
 
     def test_manifest_strips_credentials_from_proxy_url(self):
         manifest_path = self._run_manifest({
-            "BEMYSELF_TARGET": "proxy",
-            "BEMYSELF_PROXY_URL": "http://user:secret@127.0.0.1:9999/v1/chat/completions",
+            "PROOFBOY_TARGET": "proxy",
+            "PROOFBOY_PROXY_URL": "http://user:secret@127.0.0.1:9999/v1/chat/completions",
         })
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(

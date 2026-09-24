@@ -1,9 +1,9 @@
-# bemyself
+# proofboy
 
 A verifier that does not believe agent reports — it re-derives every claim.
 
 An agent reports `DONE: tests green, commit abc123, branch pushed, deploy done`. I can write that
-same message myself. `bemyself` takes such a report and checks it against reality: does the commit
+same message myself. `proofboy` takes such a report and checks it against reality: does the commit
 exist, was the branch really pushed, is the diff really the claimed one, do the tests really pass on
 a clean checkout of that commit, do the cited evidence IDs exist. Each claim gets a verdict —
 `confirmed`, `refuted` or `unverifiable` — with the executed command and its raw output attached.
@@ -34,13 +34,13 @@ The guiding rule: **a false confirmation is the worst possible error.** When in 
 
 ```bash
 # check a report file against a repository
-python3 -m bemyself check --report tests/data/beispiel-report.md --repo . --base <rev>
+python3 -m proofboy check --report tests/data/beispiel-report.md --repo . --base <rev>
 
 # check a YesMem scratchpad section instead of a file (read-only)
-python3 -m bemyself check --section <name> --project /path/to/project
+python3 -m proofboy check --section <name> --project /path/to/project
 
 # gate: no exit code 0 while anything is unverified
-python3 -m bemyself check --report done.md --repo . --strict
+python3 -m proofboy check --report done.md --repo . --strict
 ```
 
 Useful flags: `--json` (machine-readable), `--profile yesloop-done` (required claim classes for a
@@ -79,7 +79,7 @@ Structural claims, derived from the report itself:
 | `Files in scope: a, b` | `diff_scope` | `git diff --name-only <base>..<commit>` against the claimed list. |
 | any unknown `[MARKER: …]` | `unknown_marker` | A **defect** (exit 5) — never silently ignored. |
 
-Marker claims, one module per kind in `bemyself/claimtypes/`:
+Marker claims, one module per kind in `proofboy/claimtypes/`:
 
 | Trigger | Kind | What is verified |
 |---|---|---|
@@ -131,7 +131,7 @@ claim classes and the negative-space line.
 
 ## Extending
 
-- **New claim type** — one module in `bemyself/claimtypes/` plus one registry entry. The report parser
+- **New claim type** — one module in `proofboy/claimtypes/` plus one registry entry. The report parser
   and the dispatcher need no change. Worked recipe: `SPEC.md` and the German manual (`README.de.md`).
 - **New stack / project** — two axes:
   - *Operator flags* — `--allow <prefix>` for additional runners; `--project-config <file>` bundles

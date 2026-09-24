@@ -24,8 +24,8 @@ Drei Fragen der V16-Runde, alle drei empirisch, keine Modelländerung:
 ## 2. Was gebaut wurde
 
 - **Transport-Layer im Harness** (`tooling/harness.py`): ENV
-  `BEMYSELF_TARGET=proxy|deepseek|cluster` wählt Endpoint und Modell;
-  `BEMYSELF_MAX_TOKENS` (Default 8192) und `BEMYSELF_REASONING_EFFORT`
+  `PROOFBOY_TARGET=proxy|deepseek|cluster` wählt Endpoint und Modell;
+  `PROOFBOY_MAX_TOKENS` (Default 8192) und `PROOFBOY_REASONING_EFFORT`
   (Default: Feld wird nicht gesendet) steuern den Request-Body. Keys kommen
   aus `~/.local/share/opencode/auth.json` (`deepseek` bzw. `gateway`);
   das Lauf-Manifest dokumentiert den Transport als Objekt

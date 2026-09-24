@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from bemyself.checks import Ctx, _arg_escapes_checkout, _is_wrapper_command, _repo_command, run_claim
-from bemyself.model import Cause, Claim, Verdict
+from proofboy.checks import Ctx, _arg_escapes_checkout, _is_wrapper_command, _repo_command, run_claim
+from proofboy.model import Cause, Claim, Verdict
 
 from tests.fixtures import FixtureTestCase, _SHIMS, commit_probe, make_repo, merge_into_main
 
@@ -541,7 +541,7 @@ class CheckerTest(unittest.TestCase):
             )
             self.assertIs(result.verdict, Verdict.UNVERIFIABLE, script)
 
-    @mock.patch("bemyself.checks.MAX_LOG_BYTES", 4096)
+    @mock.patch("proofboy.checks.MAX_LOG_BYTES", 4096)
     def test_tests_green_unverifiable_when_output_exceeds_log_cap(self):
         ctx = self.ctx(allowlist=("python3 -c",))
         result = run_claim(
@@ -555,7 +555,7 @@ class CheckerTest(unittest.TestCase):
         )
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
 
-    @mock.patch("bemyself.checks.TEST_TIMEOUT", 1)
+    @mock.patch("proofboy.checks.TEST_TIMEOUT", 1)
     def test_tests_green_timeout_leaves_no_files_behind(self):
         ctx = self.ctx(allowlist=("python3 -c",))
         result = run_claim(
@@ -606,7 +606,7 @@ class CheckerTest(unittest.TestCase):
         self.assertIn("exploded", result.reason)
 
     def test_unittest_summary_ignores_zero_tests(self):
-        from bemyself.checks import _UNITTEST_SUMMARY_RE
+        from proofboy.checks import _UNITTEST_SUMMARY_RE
 
         self.assertIsNone(_UNITTEST_SUMMARY_RE.search("Ran 0 tests in 0.1s"))
         self.assertIsNotNone(_UNITTEST_SUMMARY_RE.search("Ran 1 test in 0.0s"))
@@ -639,7 +639,7 @@ class CheckerTest(unittest.TestCase):
                 self.repo.path,
                 "for-each-ref",
                 "--format=%(refname)",
-                "refs/bemyself-verify/",
+                "refs/proofboy-verify/",
             ],
             capture_output=True,
             text=True,
@@ -731,7 +731,7 @@ class CheckerTest(unittest.TestCase):
         )
         self.assertIs(result.verdict, Verdict.CONFIRMED)
 
-    @mock.patch("bemyself.checks.MAX_LOG_BYTES", 4096)
+    @mock.patch("proofboy.checks.MAX_LOG_BYTES", 4096)
     def test_tests_green_unverifiable_when_child_hits_write_limit(self):
         ctx = self.ctx(allowlist=("python3 -c",))
         result = run_claim(
@@ -1390,7 +1390,7 @@ class CheckerTest(unittest.TestCase):
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertFalse(os.path.exists(marker), "the ext transport executed a program")
 
-    @mock.patch("bemyself.checks.TEST_TIMEOUT", 2)
+    @mock.patch("proofboy.checks.TEST_TIMEOUT", 2)
     def test_tests_green_timeout_kills_the_process_group(self):
         # The marker must be unique per run: a shared "sleep <n>" makes
         # concurrent runs pgrep/pkill each other's grandchildren.
@@ -1600,7 +1600,7 @@ class SandboxTest(unittest.TestCase):
         self.assertIs(result.sandboxed, True)
 
     @unittest.skipUnless(_BWRAP, "bwrap is required for the sandbox isolation tests")
-    @mock.patch("bemyself.checks.TEST_TIMEOUT", 1)
+    @mock.patch("proofboy.checks.TEST_TIMEOUT", 1)
     def test_sandboxed_timeout_still_kills_the_sandbox(self):
         repo = make_repo(os.path.join(self._tmp.name, "timeout"))
         ctx = self.ctx(repo.path, sandbox="require", allowlist=("python3 -c",))
@@ -1622,7 +1622,7 @@ class SandboxTest(unittest.TestCase):
     def test_require_without_bwrap_never_runs_the_command(self):
         repo, commit = self.probe_repo("require-missing", _ESCAPE_PROBE)
         ctx = self.ctx(repo.path, sandbox="require")
-        with mock.patch("bemyself.checks.find_bwrap", return_value=None):
+        with mock.patch("proofboy.checks.find_bwrap", return_value=None):
             result = run_claim(self.probe_claim(commit), ctx)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("bwrap is not available", result.reason)
@@ -1633,7 +1633,7 @@ class SandboxTest(unittest.TestCase):
     def test_require_with_broken_bwrap_never_runs_the_command(self):
         repo, commit = self.probe_repo("require-broken", _ESCAPE_PROBE)
         ctx = self.ctx(repo.path, sandbox="require")
-        with mock.patch("bemyself.checks.find_bwrap", return_value=self.broken_bwrap(ctx)):
+        with mock.patch("proofboy.checks.find_bwrap", return_value=self.broken_bwrap(ctx)):
             result = run_claim(self.probe_claim(commit), ctx)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)
         self.assertIn("could not start a sandbox", result.reason)
@@ -1644,7 +1644,7 @@ class SandboxTest(unittest.TestCase):
     def test_auto_falls_back_and_says_so_when_bwrap_is_missing(self):
         repo, commit = self.probe_repo("auto-missing", _ESCAPE_PROBE)
         ctx = self.ctx(repo.path, sandbox="auto")
-        with mock.patch("bemyself.checks.find_bwrap", return_value=None):
+        with mock.patch("proofboy.checks.find_bwrap", return_value=None):
             result = run_claim(self.probe_claim(commit), ctx)
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
         self.assertIn("not sandboxed", result.reason)
@@ -1655,7 +1655,7 @@ class SandboxTest(unittest.TestCase):
     def test_auto_falls_back_and_says_so_when_bwrap_cannot_start(self):
         repo, commit = self.probe_repo("auto-broken", _ESCAPE_PROBE)
         ctx = self.ctx(repo.path, sandbox="auto")
-        with mock.patch("bemyself.checks.find_bwrap", return_value=self.broken_bwrap(ctx)):
+        with mock.patch("proofboy.checks.find_bwrap", return_value=self.broken_bwrap(ctx)):
             result = run_claim(self.probe_claim(commit), ctx)
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
         self.assertIn("not sandboxed", result.reason)
@@ -1680,7 +1680,7 @@ class SandboxTest(unittest.TestCase):
         runtime = os.path.join("/run/user", str(os.getuid()))
         if not os.path.isdir(runtime):
             self.skipTest("no per-user runtime directory on this host")
-        socket_path = os.path.join(runtime, f"bemyself-probe-{os.getpid()}.sock")
+        socket_path = os.path.join(runtime, f"proofboy-probe-{os.getpid()}.sock")
         if os.path.exists(socket_path):
             os.unlink(socket_path)
         listener = socket.socket(socket.AF_UNIX)
@@ -1751,7 +1751,7 @@ class SandboxTest(unittest.TestCase):
             claimed_exit=2,
             commit=repo["good"],
         )
-        with mock.patch("bemyself.checks.find_bwrap", return_value=None):
+        with mock.patch("proofboy.checks.find_bwrap", return_value=None):
             result = run_claim(claimed, self.ctx(repo.path, sandbox="auto"))
         self.assertIs(result.verdict, Verdict.CONFIRMED, result.output)
         self.assertIs(result.sandboxed, False)
@@ -1764,8 +1764,8 @@ class SandboxTest(unittest.TestCase):
         repo, commit = self.probe_repo("vanished", _ESCAPE_PROBE)
         ctx = self.ctx(repo.path, sandbox="require")
         vanished = os.path.join(ctx.tmp_dir, "vanished-bwrap")
-        with mock.patch("bemyself.checks.find_bwrap", return_value=vanished), mock.patch(
-            "bemyself.checks._sandbox_probe", return_value=None
+        with mock.patch("proofboy.checks.find_bwrap", return_value=vanished), mock.patch(
+            "proofboy.checks._sandbox_probe", return_value=None
         ):
             result = run_claim(self.probe_claim(commit), ctx)
         self.assertIs(result.verdict, Verdict.UNVERIFIABLE)

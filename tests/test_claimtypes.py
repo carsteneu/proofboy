@@ -5,11 +5,11 @@ import time
 import unittest
 from unittest import mock
 
-from bemyself import claimtypes
-from bemyself.claimtypes import halt
-from bemyself.checks import Ctx, kind_needs_repo, needs_repo, run_claim
-from bemyself.model import ClaimType, Result, Verdict
-from bemyself.report import parse_report
+from proofboy import claimtypes
+from proofboy.claimtypes import halt
+from proofboy.checks import Ctx, kind_needs_repo, needs_repo, run_claim
+from proofboy.model import ClaimType, Result, Verdict
+from proofboy.report import parse_report
 
 # Hand trace in tests/test_turing.py: three steps, score 1.
 SMALL = "1RB1RZ_0LA0LA"

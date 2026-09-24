@@ -131,10 +131,10 @@ class TasksTest(unittest.TestCase):
 
 class ManifestTest(unittest.TestCase):
     def test_default_manifest_shape_without_secrets(self):
-        # Hermetisch: default_manifest liest BEMYSELF_TARGET/MAX_TOKENS aus der
+        # Hermetisch: default_manifest liest PROOFBOY_TARGET/MAX_TOKENS aus der
         # Umgebung — die Testumgebung wird auf gueltige Werte gepinnt.
         with mock.patch.dict(
-            os.environ, {"BEMYSELF_TARGET": "deepseek", "BEMYSELF_MAX_TOKENS": "4096"}
+            os.environ, {"PROOFBOY_TARGET": "deepseek", "PROOFBOY_MAX_TOKENS": "4096"}
         ):
             manifest = lean_mandat.default_manifest()
         for key in ("target", "url", "model", "max_tokens"):

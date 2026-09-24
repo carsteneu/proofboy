@@ -527,7 +527,7 @@
       "expect_verdicts": {
         "compute": "REFUTED"
       },
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 2d4eec116f5601f8170fca8b3510927c9009fb3a]`\n[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 70233b8c48827b251df35d838a30d16f870dd3cb]`\n[COMPUTE: python3 -m proofboy.turing 1RB1RZ_0LA0LA 3 -> 0000000000000000000000000000000000000000000000000000000000000000]\n"
     },
     {
       "name": "f19-cycle-wrong-offset",
@@ -560,14 +560,14 @@
     {
       "name": "g21-compute-erdos-straus-stub",
       "group": "genuine",
-      "note": "Ehrliche Meldung: COMPUTE-Zertifikat des Experiment-Moduls python3 -m bemyself.experiments.erdos_straus auf dem Fixture-Stub -- haengt am zweiten, literalen Default-Allowlist-Eintrag: ohne ihn bliebe der Lauf unpruefbar statt CONFIRMED.",
-      "base": "ca16045ba1cd8ca1313d5e667c08e5a14130b12c",
+      "note": "Ehrliche Meldung: COMPUTE-Zertifikat des Experiment-Moduls python3 -m proofboy.experiments.erdos_straus auf dem Fixture-Stub -- haengt am zweiten, literalen Default-Allowlist-Eintrag: ohne ihn bliebe der Lauf unpruefbar statt CONFIRMED.",
+      "base": "726fbc8f0823f87bc4263b1ba8cd7d57100a138d",
       "targets": [],
       "expect_not_confirmed": [],
       "expect_verdicts": {
         "compute": "CONFIRMED"
       },
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: ca16045ba1cd8ca1313d5e667c08e5a14130b12c]`\n[COMPUTE: python3 -m bemyself.experiments.erdos_straus 8 -> 4754fa6e7c4ae0b2e22171b0b16bddf6b9dad14b2293342675a782e18f76a52e]\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 726fbc8f0823f87bc4263b1ba8cd7d57100a138d]`\n[COMPUTE: python3 -m proofboy.experiments.erdos_straus 8 -> 4754fa6e7c4ae0b2e22171b0b16bddf6b9dad14b2293342675a782e18f76a52e]\n"
     },
     {
       "name": "g22-ident-affine-progression",
@@ -676,7 +676,7 @@
         "commit_exists": "CONFIRMED",
         "merge": "CONFIRMED"
       },
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 89401913df0433dc6897ef6bffe31ff5b6ad8759] [MERGE: topic]`\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 5d7bdac2630a9510e1a879c685c21c520fec6062] [MERGE: topic]`\n"
     },
     {
       "name": "f25-merge-wrong-branch",
@@ -690,7 +690,7 @@
       "expect_verdicts": {
         "merge": "REFUTED"
       },
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 89401913df0433dc6897ef6bffe31ff5b6ad8759] [MERGE: main]`\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 5d7bdac2630a9510e1a879c685c21c520fec6062] [MERGE: main]`\n"
     },
     {
       "name": "g26-placeholder-lines",
@@ -704,29 +704,29 @@
         "merge": "UNVERIFIABLE"
       },
       "expect_claim_count": 2,
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[LEAN: <pfad.lean> -> <satz>]\n[COLORING: k=<k> ; <digits>]\n[COMMIT: e5b68dd1\u2026]\n[COMMIT: TODO]\nTests run: <cmd> -> exit 0\n**Files in scope:** bemyself/model.py, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [DEPLOY: <status>] [COMMIT: <hash>] [BRANCH: <name>] [MERGE: <branch>] <zusammenfassung>`\n[HALT: <machine> -> <steps>]\n[COMPUTE: <cmd> -> <sha256>]\n[ARTIFACT: <pfad> -> <sha256>]\n[LEAN: <pfad.lean> -> <satz>]\n[COLORING: k=<k> ; <digits>]\n[COMMIT: e5b68dd1\u2026]\n[COMMIT: TODO]\nTests run: <cmd> -> exit 0\n**Files in scope:** proofboy/model.py, <pfad2>\n**send_to payload:** `[DONE] [COMMIT: 10cb019d9d3ee68328c862c7954bac63ed75c481] [MERGE: no]`\n"
     },
     {
       "name": "g27-lean-proven",
       "group": "genuine",
       "note": "Ehrliche Meldung: der Satz fixture_proven ist in lean/Proof.lean auf dem gepinnten Commit ohne sorry bewiesen. Mit einer echten Lean-Toolchain im PATH wird das Modul gebaut, das Artefakt kernel-nachgeprueft und die Axiomliste per eigener Abfrage gelesen; die Behauptung ist CONFIRMED (Axiomliste im Urteil). Auf einem Host ohne Lean bleibt sie ehrlich unpruefbar -- der Fall pinnt deshalb kein Urteil und nie eine Bestaetigung per Annahme.",
-      "base": "885805a50b19a409b55ebbde28cb365a63f5ad44",
+      "base": "f4d5a544d01bd8edb06218cb1fccf72a0cfaa7e9",
       "targets": [],
       "expect_not_confirmed": [],
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 885805a50b19a409b55ebbde28cb365a63f5ad44]`\n[LEAN: lean/Proof.lean -> fixture_proven]\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: f4d5a544d01bd8edb06218cb1fccf72a0cfaa7e9]`\n[LEAN: lean/Proof.lean -> fixture_proven]\n"
     },
     {
       "name": "f26-lean-sorry",
       "group": "false",
       "note": "Falsch: lean/Sorry.lean gibt den Beweis nur mit sorry an -- die Axiomliste des Artefakts nennt sorryAx, die Behauptung ist REFUTED (auf einem Host ohne Lean ehrlich unpruefbar). In keinem Fall darf sie CONFIRMED werden.",
-      "base": "885805a50b19a409b55ebbde28cb365a63f5ad44",
+      "base": "f4d5a544d01bd8edb06218cb1fccf72a0cfaa7e9",
       "targets": [
         "lean"
       ],
       "expect_not_confirmed": [
         "lean"
       ],
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 885805a50b19a409b55ebbde28cb365a63f5ad44]`\n[LEAN: lean/Sorry.lean -> fixture_sorry_proven]\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: f4d5a544d01bd8edb06218cb1fccf72a0cfaa7e9]`\n[LEAN: lean/Sorry.lean -> fixture_sorry_proven]\n"
     },
     {
       "name": "f27-lean-toolchain-path-request",
@@ -744,7 +744,7 @@
         "lean": "defect"
       },
       "expect_exit": 5,
-      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: 0f690c9c3368018308f53fa48866f11564a41f59]`\n[LEAN: lean/Proof.lean -> fixture_proven]\n"
+      "report": "### Phase 6: FINISH\n**Status:** COMPLETE\n**send_to payload:** `[DONE] [COMMIT: c02662ab460655a737b9d50a3aa1fd743c5d3531]`\n[LEAN: lean/Proof.lean -> fixture_proven]\n"
     },
     {
       "name": "f28-tests-without-commit-binding",

@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 import unittest
 
-from bemyself.checks import Ctx
+from proofboy.checks import Ctx
 
 # The honest runtime shims under tests/data/shims/ (a PHP host is not
 # guaranteed); tests copy them into fixture repos.

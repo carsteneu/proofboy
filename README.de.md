@@ -1,4 +1,4 @@
-# bemyself
+# proofboy
 
 > English entry point: [README.md](README.md). Diese Datei ist das vollstaendige deutsche Handbuch.
 
@@ -19,18 +19,18 @@ YesMem speichert, verblasst, sucht Erinnerungen. Der Yesloop-Done-Guard prueft d
 ## Nutzung
 
 ```
-python3 -m bemyself check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--project-config <datei>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
-python3 -m bemyself check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--project-config <datei>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
-python3 -m bemyself check --list-types [--json]
-python3 -m bemyself --list-types
-python3 -m bemyself eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
+python3 -m proofboy check --report <datei> [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--project-config <datei>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
+python3 -m proofboy check --section <name> --project <pfad> [--db <datei>] [--repo <pfad>] [--base <rev>] [--files a,b] [--artifact-root <dir>] [--tools <manifest>] [--profile <name>] [--project-config <datei>] [--json] [--tmp <dir>] [--allow <prefix>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N] [--coloring-limit N]
+python3 -m proofboy check --list-types [--json]
+python3 -m proofboy --list-types
+python3 -m proofboy eval --set <datei> [--json] [--tmp <dir>] [--strict] [--sandbox auto|require|off] [--halt-limit N] [--search-limit N] [--cycle-limit N]
 ```
 
 `check` prueft die Behauptungen einer Meldung, `eval` misst den Pruefer auf einem
-Pruefset. `check --list-types` (auch ohne Subkommando: `python3 -m bemyself
+Pruefset. `check --list-types` (auch ohne Subkommando: `python3 -m proofboy
 --list-types`) beantwortet die Frage nach den registrierten Behauptungstypen:
 je Eintrag `kind`, `needs_repo`, `binds_commit` und die Marker-Tokens, gelesen
-aus der Registry (`bemyself/claimtypes/`, `CLAIM_TYPES`), nicht aus einer
+aus der Registry (`proofboy/claimtypes/`, `CLAIM_TYPES`), nicht aus einer
 Zweitliste; `--json` liefert dieselbe Liste maschinenlesbar. `--profile
 <name>` deklariert, welche Behauptungsklassen eine Meldung dieser Gattung
 enthalten MUSS -- siehe "Berichtsprofile und Negativraum". Die Meldung kommt
@@ -87,7 +87,7 @@ Repo-Bereich, traegt die Config trotzdem seine Entscheidung -- wer das
 vermeiden will, laesst `sandbox`/`tools` dort weg (dieselbe Klasse wie
 `--tools`: der Host pinnt die Werkzeuge selbst).
 
-**Stack-Vorschlag (`--detect`):** `python3 -m bemyself check --detect --repo
+**Stack-Vorschlag (`--detect`):** `python3 -m proofboy check --detect --repo
 <pfad>` liest die Namen der Marker-Dateien an der Repo-Wurzel (`composer.json`,
 `phpunit.xml(.dist)`, `package.json`, `go.mod`, `Cargo.toml`,
 `pyproject.toml`, `setup.py`, `pytest.ini`, `tox.ini`, `Makefile`; nur
@@ -128,7 +128,7 @@ bestaetigte Behauptung bleibt Exit 3 -- es sei denn, eine Behauptung ist ein
 Defekt (dann 5, in beiden Modi) oder, mit `--strict`, ein ausgeschoepftes
 Budget (dann 6). Die Codes 0-4 behalten sonst in beiden Modi ihre Bedeutung.
 Empfehlung: ein Merge-Gate mit `--strict` fahren und nur bei Exit 0 mergen,
-also `python3 -m bemyself check --strict --report <datei> --repo <pfad>`.
+also `python3 -m proofboy check --strict --report <datei> --repo <pfad>`.
 
 Widerlegt dominiert: hat eine Meldung eine widerlegte Behauptung, bleibt es
 bei Exit 1, auch wenn daneben ein Defekt steht. Die Klassen selbst und die
@@ -205,7 +205,7 @@ treffen, sonst meldet das Profil die Testklasse als fehlend.
 
 Ein unbekannter Profilname ist ein usage-Fehler (Exit 2, die Auswahl nennt die
 registrierten Namen). Die Registry steht als `PROFILES` in
-`bemyself/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe
+`proofboy/profiles.py`: ein Profil ist eine Folge von Vorgaben, jede Vorgabe
 ein Tupel akzeptierter Behauptungsklassen (`tests_green` und `tests_exit`
 sind zwei Formen derselben Vorgabe Testlauf). Eine vom Profil geforderte
 Klasse gilt als vorhanden, sobald die Meldung eine Behauptung dieses kind
@@ -421,7 +421,7 @@ bbchallenge-Standardnotation haelt:
 ```
 
 Der Pruefer fuehrt die Maschine mit einem eigenen Simulator neu aus
-(`bemyself/turing.py`, unabhaengig importierbar: `parse(machine)` und
+(`proofboy/turing.py`, unabhaengig importierbar: `parse(machine)` und
 `run(machine, max_steps) -> (halts, steps, score)`), im eigenen Prozess:
 kein Repo, kein Subprozess, kein Netz, kein Sandkasten beteiligt. Gezaehlt
 wird jede Transition, auch die in den Halt-Zustand `Z`; der Score ist die
@@ -432,7 +432,7 @@ Die Notation kennt auch die undefinierte Transition `---` (etwa in der
 Antihydra-Kanonform der bbchallenge-Wiki): Ihr Erreichen haelt die Maschine,
 ohne selbst als Schritt zu zaehlen -- gezaehlt werden nur ausgefuehrte
 Transitionen. Als Kommando druckt der Simulator eine Ergebniszeile:
-`python3 -m bemyself.turing <maschine> <schritte>` gibt
+`python3 -m proofboy.turing <maschine> <schritte>` gibt
 `halts=<bool> steps=<n> score=<n>` aus.
 
 Urteile: `bestaetigt` nur, wenn die Maschine exakt nach der behaupteten
@@ -629,7 +629,7 @@ kleinen Grades im selben Prozess -- kein Subprozess, kein Netz, nichts zu
 sanden; kein neues Limit, kein CLI-Schalter.
 
 ```
-$ python3 -m bemyself check --report ident-report.md
+$ python3 -m proofboy check --report ident-report.md
 ident  CONFIRMED     4/n(t) = 1/a(t) + 1/b(t) + 1/c(t) holds as a rational identity in t for every t >= 1 with n = 3t, a = t, b = 4t, c = 12t; ...
     cmd: expand 1/(t) + 1/(4t) + 1/(12t) - 4/(3t) as one rational function in t
     out: numerator=0
@@ -697,7 +697,7 @@ COMPUTE-Marker behauptet, dass ein Kommando auf stdout genau die Bytes
 ausgibt, deren SHA-256 behauptet wird:
 
 ```
-[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df]
+[COMPUTE: python3 -m proofboy.turing 1RB1RZ_0LA0LA 3 -> fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df]
 ```
 
 Der Pruefer checkt den Commit der Meldung in einen Wegwerf-Checkout aus
@@ -721,8 +721,8 @@ gefundenes Programm (Vorabpruefung vor dem Lauf), abgelehnte Argumente
 abgelehnt, nie gekuerzt in ein Urteil) oder ein Exit-Status ungleich 0.
 
 Die COMPUTE-Allowlist ist bewusst minimal: standardmaessig nur die
-Repo-eigenen Module als literale Eintraege -- `python3 -m bemyself.turing`
-(der Simulator) und `python3 -m bemyself.experiments.erdos_straus` (das
+Repo-eigenen Module als literale Eintraege -- `python3 -m proofboy.turing`
+(der Simulator) und `python3 -m proofboy.experiments.erdos_straus` (das
 Erdős-Straus-Experiment, s. u.). Kein Wildcard: ein kuenftiges Modul des
 Experiment-Pakets wird nicht implizit geoeffnet. Weitere Rechnungen
 werden explizit geoeffnet: `--allow "praefix"` (wiederholbar) erweitert die
@@ -731,7 +731,7 @@ wird nie ausgefuehrt. Fuer COMPUTE laeuft der Abgleich auf den argv-Tokens, die
 wirklich ausgefuehrt werden -- nicht auf normalisiertem Text, damit ein
 allowlist-aehnlich aussehender String nie als etwas anderes laeuft. Das
 Netzwerk ist im Sandkasten aus (bestehende `--unshare-net`-Semantik): ein
-Netzversuch scheitert. Die Default-Eintraege passen zum bemyself-Repo: in einem
+Netzversuch scheitert. Die Default-Eintraege passen zum proofboy-Repo: in einem
 anderen Repo laufen sie nur, wenn der gepinnte Commit das Paket mitbringt
 (sonst `unpruefbar`, nicht `bestaetigt`).
 
@@ -743,9 +743,9 @@ stehen nur in Vorlagen); mehrere verschiedene Commits binden nichts, und der
 Claim bleibt `unpruefbar`.
 
 ```
-$ python3 -m bemyself check --report compute-report.md --repo <repo>
+$ python3 -m proofboy check --report compute-report.md --repo <repo>
 compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 27 bytes) (sandboxed with bwrap)
-    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout <hash> && bwrap ... -- python3 -m bemyself.turing 1RB1RZ_0LA0LA 3
+    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout <hash> && bwrap ... -- python3 -m proofboy.turing 1RB1RZ_0LA0LA 3
     out: sha256=fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df bytes=27 exit=0
 ```
 
@@ -799,7 +799,7 @@ alle im Sandkasten:
    mit dem Libverzeichnis der Toolchain, damit der gepruefte Baum die
    Imports des Abfrageprogramms nicht verschatten kann.
 4. **Axiom-Abfrage.** Das eigene Abfrageprogramm
-   (`bemyself/tools/lean_axioms.lean`) laedt das Artefakt als **Daten**
+   (`proofboy/tools/lean_axioms.lean`) laedt das Artefakt als **Daten**
    (`importModules`) und druckt die Axiomliste der Deklaration; eine
    AXIOMS-Zeile gilt nur zusammen mit Exit 0, und die Deklaration muss im
    geprueften Modul selbst definiert sein (kommt sie aus einem importierten
@@ -811,7 +811,7 @@ alle im Sandkasten:
    nachgeprueft hat.
 
 ```
-$ python3 -m bemyself check --report lean-report.md --repo <repo>
+$ python3 -m proofboy check --report lean-report.md --repo <repo>
 lean           CONFIRMED     'CycleBridge.cycle_never_halts' is proved in lean/cycle-bridge/CycleBridge/Cycle.lean at 9ba28724475f: the artifact built from that commit passed Lean's kernel re-check (leanchecker, Lean 4.33.1) and the checker's own query (no repository code in the query process) read its axiom list from the artifact: 'CycleBridge.cycle_never_halts' depends on axioms: [propext, Quot.sound] (tools: lean 4.33.1 sha256:e0f4b30b29c5, leanchecker 4.33.1 sha256:e0f4b30b29c5, lake 5.0.0-src+819816b sha256:e0f4b30b29c5 (toolchain leanprover/lean4:v4.33.1); sandboxed with bwrap)
 ```
 
@@ -1086,7 +1086,7 @@ der Zielbranch liegt -- die Behauptung nennt dann eine wahre Merge-Struktur,
 aber keinen Merge auf der Zielbranch.
 
 ```
-$ python3 -m bemyself check --report merge-report.md --repo <repo>
+$ python3 -m proofboy check --report merge-report.md --repo <repo>
 merge          CONFIRMED     79aaa8161516 is a merge of 'topic': parent 1487f8796175 is its tip and parent 7954a3c59f69 lies on main
 ```
 
@@ -1144,14 +1144,14 @@ behaupten will, behauptet stattdessen, was wirklich pruefbar ist: das
 Artefakt und seinen Digest (`[ARTIFACT: ... -> <sha256>]`) -- das ist der
 ehrliche Ersatz.
 
-## Experimente (`bemyself/experiments/`)
+## Experimente (`proofboy/experiments/`)
 
-Ein Experiment ist ein Modul unter `bemyself/experiments/`, das eine endliche
+Ein Experiment ist ein Modul unter `proofboy/experiments/`, das eine endliche
 Rechnung deterministisch auf stdout ausgibt; ein `[COMPUTE]`-Merkmal macht das
 Ergebnis ueber Kommando, gepinnten Commit und SHA-256 des stdout nachpruefbar
 -- ohne neuen Behauptungstyp.
 
-### Erdős–Straus bis N (`python3 -m bemyself.experiments.erdos_straus <N>`)
+### Erdős–Straus bis N (`python3 -m proofboy.experiments.erdos_straus <N>`)
 
 Die Vermutung von Erdős–Straus: Fuer jedes `n >= 2` gibt es positive ganze
 Zahlen `a, b, c` mit `4/n = 1/a + 1/b + 1/c`. Die Vermutung ist offen; das
@@ -1200,26 +1200,26 @@ Peak-RSS); ein weit groesseres `N` kann am Speicher scheitern -- der Lauf
 endet dann mit einem Fehl-Exit (Exit 2 aus dem Modul oder vom Kernel
 beendet), nie mit einer erfundenen Aussage.
 
-Artefakt dieses Branches: `python3 -m bemyself.experiments.erdos_straus
+Artefakt dieses Branches: `python3 -m proofboy.experiments.erdos_straus
 1000000` -> sha256
 `e5b68dd1818d89f2c66d0e7b5a68bf906dbe7adc77c64dba015bf27058a4f89d`.
 Das Paar `[COMMIT: <finaler Branch-HEAD>]` + `[COMPUTE: ... -> <sha256>]`
 steht im Artefakt-Report des Zweigs (ungetrackt unter `.yesmem/tmp/`, wie bei
 den bisherigen Artefakten); nachrechenbar mit
-`python3 -m bemyself check --report <artefakt> --repo . --sandbox require
+`python3 -m proofboy check --report <artefakt> --repo . --sandbox require
 --strict`.
 
 ## Neuen Behauptungstyp hinzufuegen
 
-Ein optionaler Behauptungstyp ist ein Modul in `bemyself/claimtypes/` plus
-ein Eintrag in `CLAIM_TYPES`; Parser (`bemyself/report.py`) und CLI
-(`bemyself/cli.py`) bleiben unveraendert. Durchgerechnetes Mini-Beispiel
+Ein optionaler Behauptungstyp ist ein Modul in `proofboy/claimtypes/` plus
+ein Eintrag in `CLAIM_TYPES`; Parser (`proofboy/report.py`) und CLI
+(`proofboy/cli.py`) bleiben unveraendert. Durchgerechnetes Mini-Beispiel
 `[EVEN: <zahl>]`:
 
 ```python
-# bemyself/claimtypes/even.py
+# proofboy/claimtypes/even.py
 import re
-from bemyself.model import ClaimType, Result, Verdict
+from proofboy.model import ClaimType, Result, Verdict
 
 def parse(match, raw):          # Felder aus dem Marker
     return {"value": match.group(1)}
@@ -1235,8 +1235,8 @@ EVEN = ClaimType(kind="even",
 ```
 
 ```python
-# bemyself/claimtypes/__init__.py
-from bemyself.claimtypes import even, halt
+# proofboy/claimtypes/__init__.py
+from proofboy.claimtypes import even, halt
 CLAIM_TYPES = (halt.HALT, even.EVEN)
 ```
 
@@ -1249,7 +1249,7 @@ liest: `ClaimType(..., needs_repo=True)`. Ohne die Angabe (Default `False`)
 laeuft `check --report` auch ohne `--repo`; mit `needs_repo=True` verlangt ein
 Report, der eine solche Behauptung enthaelt, `--repo` (usage-Fehler, Exit 2,
 mit dem Typ in der Meldung). Den Bedarf liest der Pruefer aus der Registry
-(`bemyself.checks.kind_needs_repo`), nicht aus einer Typ-Liste im CLI-Code.
+(`proofboy.checks.kind_needs_repo`), nicht aus einer Typ-Liste im CLI-Code.
 
 Und ob die Behauptung an den Commit der Meldung bindet:
 `ClaimType(..., binds_commit=True)`. Dann setzt der Parser das Feld `commit`
@@ -1310,7 +1310,7 @@ ist zweistufig -- und der erste Schritt braucht **keinen** neuen Typ:
    die Checkliste oben gilt. Eine Domain-Engine (Simulator, Parser, Solver)
    lebt als eigenstaendig importierbare Bibliothek mit eigenen Tests, nicht im
    Checker; kein Wissen wird zwischen Checkern kopiert (die gemeinsame
-   Lauf-Engine der Kommando-Checker liegt in `bemyself/checks.py`:
+   Lauf-Engine der Kommando-Checker liegt in `proofboy/checks.py`:
    `_prepare_command` + `_run_in_checkout`).
 
 Durchgerechnetes PHP/Symfony-Beispiel (P20, ausgeliefert und getestet):
@@ -1338,7 +1338,7 @@ Durchgerechnetes PHP/Symfony-Beispiel (P20, ausgeliefert und getestet):
 Durchgerechnetes COMPUTE-Mini-Beispiel (der Typ, an dem beides zusammenkommt):
 
 ```python
-# bemyself/claimtypes/compute.py (Auszug)
+# proofboy/claimtypes/compute.py (Auszug)
 COMPUTE = ClaimType(kind="compute",
                     pattern=re.compile(r"\[COMPUTE:(?P<body>[^\]\[]*?)\]"),
                     parse=parse, check=check,
@@ -1351,24 +1351,24 @@ ist sha256 von `halts=True steps=3 score=1\n`):
 
 ```
 **send_to payload:** `[DONE] [COMMIT: <hash>]`
-[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df]
+[COMPUTE: python3 -m proofboy.turing 1RB1RZ_0LA0LA 3 -> fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df]
 ```
 
 ```
-$ python3 -m bemyself check --report compute-report.md --repo <repo>
+$ python3 -m proofboy check --report compute-report.md --repo <repo>
 compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 27 bytes) (sandboxed with bwrap)
 ```
 
 Fehlt `--repo`, bricht der Aufruf mit Exit 2 ab und nennt `compute`; ein
 Kommando ausserhalb der Allowlist bleibt `unpruefbar` (der Standard-Eintrag
-ist `python3 -m bemyself.turing`, `--allow` erweitert); ein falscher Hash ist
+ist `python3 -m proofboy.turing`, `--allow` erweitert); ein falscher Hash ist
 `widerlegt`.
 
 Durchgerechnetes IDENT-Mini-Beispiel (ein weiterer Typ ohne Repo-Bedarf,
 wie `[HALT]`, `[SEARCHED]` und `[CYCLE]`):
 
 ```python
-# bemyself/claimtypes/ident.py (Auszug)
+# proofboy/claimtypes/ident.py (Auszug)
 IDENT = ClaimType(kind="ident",
                   pattern=re.compile(r"\[IDENT:(?P<body>[^\]\[]*?)\]"),
                   parse=parse, check=check)
@@ -1382,10 +1382,10 @@ nicht-affiner Ausdruck bleibt `unpruefbar`. Details: Abschnitt
 
 Durchgerechnetes ARTIFACT-Mini-Beispiel (ein Datei-Digest unter einer
 konfigurierten Wurzel; das Marker-Pattern liegt im eigenen Modul, die
-Kern-Marker-Regex in `bemyself/report.py` bleibt unberuehrt):
+Kern-Marker-Regex in `proofboy/report.py` bleibt unberuehrt):
 
 ```python
-# bemyself/claimtypes/artifact.py (Auszug)
+# proofboy/claimtypes/artifact.py (Auszug)
 ARTIFACT = ClaimType(kind="artifact",
                      pattern=re.compile(r"\[ARTIFACT:(?P<body>[^\]\[]*?)\]"),
                      parse=parse, check=check)
@@ -1399,7 +1399,7 @@ Abschnitt "Artefakte und Deploys".
 
 ## Evaluation
 
-`python3 -m bemyself eval --set tests/data/pruefset.json` fuehrt den Pruefer
+`python3 -m proofboy eval --set tests/data/pruefset.json` fuehrt den Pruefer
 ueber das Pruefset und berichtet vier Zahlen: Erkennungsrate,
 Falschbestaetigungsrate, Bestaetigungsrate der echten Meldungen und
 Unpruefbar-Quote. `--json` liefert dasselbe maschinenlesbar, mit dem Urteil je
@@ -1446,7 +1446,7 @@ Rekordhalter nur den begrenzten Lauf ohne Halt belegt, zwei ehrliche
 CYCLE-Meldungen: eine bestaetigt das Zertifikat der bbchallenge-Wiki-Maschine,
 eine bleibt mit vertauschten Schritten ehrlich `unpruefbar`, und eine ehrliche
 COMPUTE-Meldung auf dem Fixture-Stub des Experiment-Moduls
-(`python3 -m bemyself.experiments.erdos_straus`), die am neuen, literalen
+(`python3 -m proofboy.experiments.erdos_straus`), die am neuen, literalen
 Default-Allowlist-Eintrag haengt: ohne ihn bliebe sie `unpruefbar` statt
 `bestaetigt`, und eine ehrliche IDENT-Meldung, die die Identitaet fuer die
 Progression n=3t bestaetigt (repo-frei, ohne --repo lauffaehig), ein
@@ -1462,7 +1462,7 @@ sondern nur den ehrlichen Umgang mit beiden Hosts.
 Dazu eine ehrliche Meldung mit den Vorlagenzeilen eines Briefings
 (`g26-placeholder-lines`): ihre Platzhalter-Marker ergeben keine Behauptung
 und keine `unpruefbar`-Zeile -- auch die gemischte Scope-Zeile
-(`bemyself/model.py, <pfad2>`) entfaellt als Ganzes --, nur der echte Commit
+(`proofboy/model.py, <pfad2>`) entfaellt als Ganzes --, nur der echte Commit
 und das literale `[MERGE: no]` zaehlen; `expect_claim_count` pinnt das.
 Dazu vier P19-Meldungen: eine ehrliche Vollmeldung unter dem Profil
 `yesloop-done` (Commit, Branch, Testlauf -- kein Profildefekt,
@@ -1474,7 +1474,7 @@ Profil die Testbehauptung fehlt (Profildefekt, Exit 5, Urteil mit Profilname
 und fehlender Klasse).
 Es liegt als `tests/data/pruefset.json`
 im Repo und wird deterministisch aus einem Fixture-Repo erzeugt:
-`python3 -m bemyself.evalset <out.json>` baut es byte-identisch neu; `eval`
+`python3 -m proofboy.evalset <out.json>` baut es byte-identisch neu; `eval`
 baut dasselbe Fixture zur Laufzeit und lehnt Sets ab, die zu einem anderen
 Fixture gehoeren.
 
@@ -1490,7 +1490,7 @@ Arten, die der Report gar nicht hergibt. Case-Reports unterliegen derselben
 waehlen; der Fixture-Bau ist nicht gelockt. `eval` verweigert den
 Default-Pfad ausserhalb des Arbeitsverzeichnisses und symlinkte Tmp-Pfade;
 geloescht wird nur ein `fixture`-Verzeichnis mit eigener Markerdatei
-(`.bemyself-eval`) — fremde bleiben unangetastet.
+(`.proofboy-eval`) — fremde bleiben unangetastet.
 
 ## Makefile
 
@@ -1511,7 +1511,7 @@ landen unter `.yesmem/tmp/` innerhalb des Repos.
 
 ## Messlatte
 
-Ein Pruefset aus einundsechzig Meldungen (dreissig ehrlich, einunddreissig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `bemyself/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
+Ein Pruefset aus einundsechzig Meldungen (dreissig ehrlich, einunddreissig auf bekannte Weise falsch). Bestanden bei mindestens 90 Prozent erkannten Falschmeldungen, 90 Prozent korrekt bestaetigten echten Meldungen und null falschen Bestaetigungen. Die Schwellen stehen als `THRESHOLDS` in `proofboy/eval.py` und sind in `tests/test_eval.py` als Test fixiert.
 
 ## Stand
 

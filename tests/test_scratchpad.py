@@ -9,7 +9,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from bemyself.scratchpad import ScratchpadError, default_db_path, read_section
+from proofboy.scratchpad import ScratchpadError, default_db_path, read_section
 
 SCHEMA = """
 CREATE TABLE scratchpad_entries (

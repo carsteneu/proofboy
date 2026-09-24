@@ -9,7 +9,7 @@ Abschnitt "Eingabe").
 
 ## Kommando (wiederholbar)
 
-Das Skript [`audit_sections.py`](audit_sections.py) fuehrt `bemyself check`
+Das Skript [`audit_sections.py`](audit_sections.py) fuehrt `proofboy check`
 ueber die 13 Worker-Sections der Yesloop-Kette (p1, p3–p14) und ueber eine
 Exit-Code-Matrix mit echten Werten. Es laeuft fuer jeden Stand aus dem
 jeweiligen Code-Checkout:
@@ -28,7 +28,7 @@ Die Sektions-Baselines (je `--base`) sind die Regressions-Baselines, die die
 Sections selbst in ihren Phase-4-Bloecken dokumentieren; `p3` nennt in seiner
 Meldung die Basis `7c7392c`, `p1` dokumentiert keine und laeuft ohne `--base`.
 Die Sections werden ausschliesslich lesend aus der YesMem-Scratchpad-DB
-gelesen (`--project /home/carsten/projects/bemyself`). Laeuft eine Section in
+gelesen (`--project /home/carsten/projects/proofboy`). Laeuft eine Section in
 einen Fehler (kein lesbares JSON), zaehlt sie nicht als null Claims: das
 Skript listet die Fehllaeufe am Ende und endet mit Exit 1.
 
@@ -36,19 +36,19 @@ Skript listet die Fehllaeufe am Ende und endet mit Exit 1.
 
 | Section | vorher C/R/U | nachher C/R/U |
 |---|---|---|
-| yesloop-bemyself-p1-verifier | 0 / 0 / 0 | 0 / 0 / 0 |
-| yesloop-bemyself-p3-eval | 0 / 0 / 1 | 0 / 0 / 1 |
-| yesloop-bemyself-p4-cli | 4 / 0 / 9 | 4 / 0 / 9 |
-| yesloop-bemyself-p5-strict | 1 / 1 / 3 | 1 / 1 / 3 |
-| yesloop-bemyself-p6-sandbox | 0 / 0 / 5 | 0 / 0 / **4** |
-| yesloop-bemyself-p7-halt | 0 / 0 / 5 | 0 / 0 / **3** |
-| yesloop-bemyself-p8-repo-optional | 2 / 0 / 3 | 2 / 0 / 3 |
-| yesloop-bemyself-p9-compute | 4 / 0 / 0 | 4 / 0 / 0 |
-| yesloop-bemyself-p10-cycle | 3 / 0 / 0 | 3 / 0 / 0 |
-| yesloop-bemyself-p11-erdos-straus | 4 / 0 / 12 | 4 / 0 / **10** |
-| yesloop-bemyself-p12-ident | 1 / 0 / 6 | 1 / 0 / **4** |
-| yesloop-bemyself-p13-schur | 0 / 0 / 8 | 0 / 0 / **4** |
-| yesloop-bemyself-p14-merge-artifact | 0 / 0 / 25 | 0 / 0 / **13** |
+| yesloop-proofboy-p1-verifier | 0 / 0 / 0 | 0 / 0 / 0 |
+| yesloop-proofboy-p3-eval | 0 / 0 / 1 | 0 / 0 / 1 |
+| yesloop-proofboy-p4-cli | 4 / 0 / 9 | 4 / 0 / 9 |
+| yesloop-proofboy-p5-strict | 1 / 1 / 3 | 1 / 1 / 3 |
+| yesloop-proofboy-p6-sandbox | 0 / 0 / 5 | 0 / 0 / **4** |
+| yesloop-proofboy-p7-halt | 0 / 0 / 5 | 0 / 0 / **3** |
+| yesloop-proofboy-p8-repo-optional | 2 / 0 / 3 | 2 / 0 / 3 |
+| yesloop-proofboy-p9-compute | 4 / 0 / 0 | 4 / 0 / 0 |
+| yesloop-proofboy-p10-cycle | 3 / 0 / 0 | 3 / 0 / 0 |
+| yesloop-proofboy-p11-erdos-straus | 4 / 0 / 12 | 4 / 0 / **10** |
+| yesloop-proofboy-p12-ident | 1 / 0 / 6 | 1 / 0 / **4** |
+| yesloop-proofboy-p13-schur | 0 / 0 / 8 | 0 / 0 / **4** |
+| yesloop-proofboy-p14-merge-artifact | 0 / 0 / 25 | 0 / 0 / **13** |
 | **Summe** | **19 / 1 / 77** | **19 / 1 / 54** |
 
 `CONFIRMED` und `REFUTED` sind unveraendert; die Unpruefbar-Zahl sinkt um 23

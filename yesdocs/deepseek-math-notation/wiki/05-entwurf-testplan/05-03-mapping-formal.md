@@ -40,7 +40,7 @@ Vorbehalt, der alle Tabellen qualifiziert: Die Lean-Spalte ist **doku-basiert** 
 | **`//`, `%`, `^`** | Standardoperatoren; Rundungssemantik auf `ℤ` nicht verifiziert | definiert: `zdiv`, `df-mod`/`modval`, `df-exp`; Zuordnung erfordert Lemma-Ketten | `//`, `%`, `**` exakt; Guards aus 05-02 §2, große Exponenten nur via `powmod` | Python: sauber; Lean/Metamath: teilweise. Verlust: Guard-Grenzen erzeugen ehrliches `UNVERIFIABLE` statt Näherung |
 | **`def`-Funktionen (closed form)** | `def`/`theorem` direkt; Elaborator prüft beim Build | Definitional-Axiome mit Disjoint-Bedingungen — heikel | `def` im Zeugenmodul; Rekursion unzulässig (05-02 §7) | Lean/Python: sauber; Metamath: nicht praktikabel. Verlust: Lean-Typannotationen ergänzt der Renderer ausgewiesen |
 | **Bibliotheksfunktionen** (`isprime`, `powmod`, `collatz_steps` …) | mathlib-Kandidaten (`Nat.Prime` …); jede Identifikation ist Definitions-Mismatch-anfällig | Teildeckung Primzahlen (`df-prm`, `prmnn`, `1nprm`); `collatz`: 404-Markierung | die V1-Bibliothek selbst (05-02 §2) mit Guards | Python: sauber — Bibliothek ist die Semantik. Lean: teilweise; Prämissenwahl ist der Engpass [LeanDojo](https://arxiv.org/abs/2306.15626, accessed 2026-09-12). Metamath: teilweise. Verlust: außerhalb der Guards `UNVERIFIABLE` |
-| **`CLAIM`/`WITNESS`-Block** | Claim → `theorem`-Statement; WITNESS → Beweisterm/`sorry`; V1 liefert nur das Skelett | Claim → `$p`; WITNESS → RPN-Herleitung; V1 liefert sie nicht | nativ: `Claim(kind, line, raw, fields)` + `Result(verdict, …)` aus `bemyself/model.py` | Python: sauber (Identität); Lean: teilweise; Metamath: nicht (V1). Verlust: Skelett ohne Beweis muss als Lücke markiert sein |
+| **`CLAIM`/`WITNESS`-Block** | Claim → `theorem`-Statement; WITNESS → Beweisterm/`sorry`; V1 liefert nur das Skelett | Claim → `$p`; WITNESS → RPN-Herleitung; V1 liefert sie nicht | nativ: `Claim(kind, line, raw, fields)` + `Result(verdict, …)` aus `proofboy/model.py` | Python: sauber (Identität); Lean: teilweise; Metamath: nicht (V1). Verlust: Skelett ohne Beweis muss als Lücke markiert sein |
 | **`calc`-Zahlenspalten** | Layout ohne Semantik; Ziel ist die Endgleichung | ebenso layout-blind; `2p2e4` zeigt die Kette | `py:`-Einzelausdruck (`999999999 + 1 == 1000000000`) | Python: sauber; Lean/Metamath: teilweise. Verlust: Zwischenschritte sind Darstellung, kein formales Objekt |
 
 Das Muster: Die Python-Spalte ist für alle zehn Klassen sauber — kein Zufall, 05-02 definiert die Notation gegen genau diese Stufe. Die nicht abbildbaren Klassen entsprechen fast genau dem, was 05-02 §7 als nicht abgedeckt führt (unbounded Beweise, Pflichtbeweise, Zwischenschritt-Prüfung). P8 erfüllt sich daher nur, wenn die Klassifikation ehrlich bleibt: Eine unbounded-Zeile ist eine offene Behauptung, keine F-Zeile.
@@ -64,7 +64,7 @@ Auf die V1-Kette abgebildet, vier Verlustklassen:
 flowchart TD
   A["Blatt (Notation V1): Denkzone + Behauptungszone"] --> B["Parser (Grammatik 05-02)"]
   B -->|"Formatfehler: keine Behauptung erzeugt"| P["Parsermeldung (Zeile, Regel)"]
-  B --> C["Claim-Objekte: Claim(kind, line, raw, fields) — bemyself/model.py"]
+  B --> C["Claim-Objekte: Claim(kind, line, raw, fields) — proofboy/model.py"]
   C -->|"auto / py: / range"| D["Python-Zeugen-Compiler"]
   D --> E["Sandbox-Runner (bwrap, Laufzeit-/Speicherlimit)"]
   E --> F{"Verdikt"}
@@ -80,9 +80,9 @@ flowchart TD
   M -.->|"Roundtrip: Kern -> Notation"| A
 ```
 
-*Eigene Darstellung auf Basis der zitierten Quellen und des lokalen Verdikt-Modells `bemyself/model.py`: die Renderer-Kette von V1. Ausführbar ist heute allein der Python-Zweig (Sofort-Stufe).*
+*Eigene Darstellung auf Basis der zitierten Quellen und des lokalen Verdikt-Modells `proofboy/model.py`: die Renderer-Kette von V1. Ausführbar ist heute allein der Python-Zweig (Sofort-Stufe).*
 
-Nur die Behauptungszone erreicht den Parser als strikte Grammatik. Aus ihm treten Claim-Objekte aus — `Claim(kind, line, raw, fields)` und `Verdict.CONFIRMED|REFUTED|UNVERIFIABLE` sind die Anschlussnaht (lokale Quelle: `bemyself/model.py`, gelesen 2026-09-12); V1 braucht dort einen neuen Claim-Kind (`math_witness`, 05-02 §8). **Schnittstellen-Setzung:** Die vollständige Compiler-Regelmatrix (Notation → Python) und das Feldschema von `math_witness` (cid, Zeilenbezug, Verdikt, Trace-Pfad, Gründe) werden bewusst erst bei der Implementierung festgelegt — dieses Kapitel fixiert nur die Anschlussform an `bemyself/model.py`; die Spezifikation bleibt damit ehrlich über ihren Reifegrad. Drei Renderer hängen an derselben Claim-Menge: (a) der Python-Compiler (`auto` übersetzt selbst; `py:`/`range` prüft die Modellangabe) plus Sandbox-Runner; (b) der Lean-Renderer erzeugt `theorem`-Skelette, wo kein Beweis existiert bleibt `sorry` — von Lean als Warnung geführt ([TPIL, Interacting with Lean](https://lean-lang.org/theorem_proving_in_lean4/Interacting-with-Lean/, accessed 2026-09-12)); (c) Metamath nur für den kleinsten Kern (Abschnitt 6). Die gestrichelten Pfeile sind der Roundtrip-Pfad: ein inverser Renderer (Formel → Notation) erzeugt die kanonische Normalform zurück.
+Nur die Behauptungszone erreicht den Parser als strikte Grammatik. Aus ihm treten Claim-Objekte aus — `Claim(kind, line, raw, fields)` und `Verdict.CONFIRMED|REFUTED|UNVERIFIABLE` sind die Anschlussnaht (lokale Quelle: `proofboy/model.py`, gelesen 2026-09-12); V1 braucht dort einen neuen Claim-Kind (`math_witness`, 05-02 §8). **Schnittstellen-Setzung:** Die vollständige Compiler-Regelmatrix (Notation → Python) und das Feldschema von `math_witness` (cid, Zeilenbezug, Verdikt, Trace-Pfad, Gründe) werden bewusst erst bei der Implementierung festgelegt — dieses Kapitel fixiert nur die Anschlussform an `proofboy/model.py`; die Spezifikation bleibt damit ehrlich über ihren Reifegrad. Drei Renderer hängen an derselben Claim-Menge: (a) der Python-Compiler (`auto` übersetzt selbst; `py:`/`range` prüft die Modellangabe) plus Sandbox-Runner; (b) der Lean-Renderer erzeugt `theorem`-Skelette, wo kein Beweis existiert bleibt `sorry` — von Lean als Warnung geführt ([TPIL, Interacting with Lean](https://lean-lang.org/theorem_proving_in_lean4/Interacting-with-Lean/, accessed 2026-09-12)); (c) Metamath nur für den kleinsten Kern (Abschnitt 6). Die gestrichelten Pfeile sind der Roundtrip-Pfad: ein inverser Renderer (Formel → Notation) erzeugt die kanonische Normalform zurück.
 
 ## 4. Roundtrip-Testplan
 
@@ -177,7 +177,7 @@ Zwei quantifizierte Einschränkungen des Transfers: (1) Engpass ist nicht die Gr
 
 ## Lokale Quellen
 
-1. `bemyself/model.py` — `Claim(kind, line, raw, fields)`, `Verdict.CONFIRMED|REFUTED|UNVERIFIABLE`, `Result(verdict, command, output, reason, sandboxed)` (lokale Quelle, gelesen 2026-09-12)
+1. `proofboy/model.py` — `Claim(kind, line, raw, fields)`, `Verdict.CONFIRMED|REFUTED|UNVERIFIABLE`, `Result(verdict, command, output, reason, sandboxed)` (lokale Quelle, gelesen 2026-09-12)
 2. `yesdocs/pruefer/wiki/INDEX.md` (referenziert u. a. `01-theorie/falsifizierbarkeit.md`, `02-systeme/fact-checking-pipelines.md`) — bestehende Verifikations-Infrastruktur (lokale Quelle, gelesen 2026-09-12)
 3. `05-02-notations-spezifikation.md` — Grammatik, Bibliothek, Guards, Verdikt-Semantik (lokale Quelle, gelesen 2026-09-12)
 4. `05-01-designprinzipien.md` — P4/P8, Falsifizierbarkeits-Vorhersagen (lokale Quelle, gelesen 2026-09-12)

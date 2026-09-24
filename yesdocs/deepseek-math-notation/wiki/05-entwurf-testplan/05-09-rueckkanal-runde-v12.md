@@ -51,7 +51,7 @@ Kernfrage: **Wird mit Rückkanal ein Effekt der Arme messbar?** Genauer: Können
 | Sets v0.2 | `tooling/build_sets.py`, `sets/tier_{a,b}_v11-*-0.2.json` | Neue `set_version` + sha256; Inhalte v0.1-gleich bis auf Hygiene: Lizenz generierter Tier-B-Maschinen CC0, Memory-ID in einer `source`-Zeile durch externe Referenz ersetzt. v0.1 eingefroren (Hash-Test). **B-0011** (schwerer Übersetzer-Zyklus) ist enthalten und wurde ohne Shuffle-Ausschluss gefahren. |
 | Runden-Auswertung | `tooling/evaluate.py` | End-Trefferquote, Runden bis ok, Reparaturgewinn (R0 vs. final), `#xx`-Auflösungsrate, Tokens je Ergebnis; V11-Läufe (flaches Layout) bleiben auswertbar. |
 
-Engine unverändert (`bemyself/msheet/`); Änderungen liegen in Tooling, Sets und Tests. Tests: `tests/test_v12_harness.py` (28 neue), Gesamt 607 Tests grün.
+Engine unverändert (`proofboy/msheet/`); Änderungen liegen in Tooling, Sets und Tests. Tests: `tests/test_v12_harness.py` (28 neue), Gesamt 607 Tests grün.
 
 ## 3. Design-Entscheidungen (Fairness)
 
@@ -159,5 +159,5 @@ Nicht belegt:
 3. [05-07-denksprache-v1.1.md](05-07-denksprache-v1.1.md) — Denk-Sprache V1.1 (Tags, Status, Zeugenformen).
 4. [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, Metriken, Multiplizitätsregel.
 5. [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln).
-6. `tests/test_v12_harness.py`, `tooling/{harness,prompts,build_sets,evaluate}.py`, `bemyself/msheet/` — Implementierung + Tests (607 Tests grün).
+6. `tests/test_v12_harness.py`, `tooling/{harness,prompts,build_sets,evaluate}.py`, `proofboy/msheet/` — Implementierung + Tests (607 Tests grün).
 7. [../01-modellprofil/01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme.

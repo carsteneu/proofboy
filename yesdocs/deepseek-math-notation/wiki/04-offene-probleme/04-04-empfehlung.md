@@ -47,11 +47,11 @@ Für uneindeutige Zellwerte (0–1, 1–2) gilt der niedrigere Wert als Standard
 
 **Warum.** Drei Gründe, die sich gegenseitig verstärken:
 
-1. **Der Prüfpfad existiert bereits lokal.** `[HALT: <machine> -> <steps>]` und `[SCORE: <machine> -> <ones>]` werden in-prozess simuliert und mit den Verdicts `CONFIRMED`/`REFUTED`/`UNVERIFIABLE` bewertet; der BB(5)-Champion mit 47.176.870 Schritten und 4098 Einsen ist als Referenz im Testkorpus verankert ([04-05](04-05-bruecke-pruefer.md); [tests/test_turing.py (lokale Quelle)](git:yesloop/bemyself-p7-halt:tests/test_turing.py, accessed 2026-09-12)).
+1. **Der Prüfpfad existiert bereits lokal.** `[HALT: <machine> -> <steps>]` und `[SCORE: <machine> -> <ones>]` werden in-prozess simuliert und mit den Verdicts `CONFIRMED`/`REFUTED`/`UNVERIFIABLE` bewertet; der BB(5)-Champion mit 47.176.870 Schritten und 4098 Einsen ist als Referenz im Testkorpus verankert ([04-05](04-05-bruecke-pruefer.md); [tests/test_turing.py (lokale Quelle)](git:yesloop/proofboy-p7-halt:tests/test_turing.py, accessed 2026-09-12)).
 2. **Die Notation ist selbst der Gegenstand.** Die bbchallenge-Standardnotation (`1RB1LC_1RC1RB_…`) ist eine kompakte formale Mini-Sprache mit Parser und exakter Semantik — ein A/B-Test kann eine modell-nahe Alternativnotation gegen sie laufen lassen und beide Seiten in denselben Verifier übersetzen ([04-05](04-05-bruecke-pruefer.md); [Standard TM Text format](https://discuss.bbchallenge.org/t/standard-tm-text-format/60, accessed 2026-09-12)).
 3. **Die Aufgabe ist frisch und der Vorrat unerschöpflich.** Die BB(6)-Jagd ist offen (Stand August 2026: ~1000 Holdouts bis auf Äquivalenz; alle Maschinen bis 10¹³ Schritte simuliert) [BB(6) – BusyBeaverWiki](https://wiki.bbchallenge.org/wiki/BB(6), accessed 2026-09-12); über die Seed-Datenbank (88.664.064 Maschinen, 30 Byte je Datensatz) lassen sich beliebig viele randomisierte Instanzen ziehen [Method – bbchallenge](https://bbchallenge.org/method, accessed 2026-09-12).
 
-**Risiken.** (a) Vertrautheit: BB(5)-Champions und Antihydra sind in der Trainingsliteratur präsent — K7 verlangt, vor allem frische Holdouts (2025/2026) und lokal randomisierte Maschinen zu verwenden (vgl. [04-01](04-01-wahlkriterien.md), K7). (b) Nicht-Halte-Aufgaben sind mit der heutigen Mechanik nicht abbildbar; der Test beschränkt sich auf endliche Horizonte ([halt.py (lokale Quelle)](git:yesloop/bemyself-p7-halt:bemyself/claimtypes/halt.py, accessed 2026-09-12)).
+**Risiken.** (a) Vertrautheit: BB(5)-Champions und Antihydra sind in der Trainingsliteratur präsent — K7 verlangt, vor allem frische Holdouts (2025/2026) und lokal randomisierte Maschinen zu verwenden (vgl. [04-01](04-01-wahlkriterien.md), K7). (b) Nicht-Halte-Aufgaben sind mit der heutigen Mechanik nicht abbildbar; der Test beschränkt sich auf endliche Horizonte ([halt.py (lokale Quelle)](git:yesloop/proofboy-p7-halt:proofboy/claimtypes/halt.py, accessed 2026-09-12)).
 
 ### 2.2 Ergänzung: Collatz-Fragmente
 
@@ -139,7 +139,7 @@ flowchart LR
 3. [04-03-rechenfragmente-daten.md](04-03-rechenfragmente-daten.md) — Werkzeuge, Datenquellen, Communities.
 4. [04-05-bruecke-pruefer.md](04-05-bruecke-pruefer.md) — Bestand/Lücken der lokalen Prüfkette.
 5. `yesdocs/deepseek-math-notation/PLAN.md` — Auftrag und Hypothese.
-6. `bemyself/claimtypes/halt.py`, `bemyself/turing.py`, `tests/test_turing.py` — Branch `yesloop/bemyself-p7-halt`.
+6. `proofboy/claimtypes/halt.py`, `proofboy/turing.py`, `tests/test_turing.py` — Branch `yesloop/proofboy-p7-halt`.
 
 **Web-Primärquellen** (accessed 2026-09-12)
 7. bbchallenge – Method (Seed-Datenbank, 88.664.064 Maschinen). https://bbchallenge.org/method

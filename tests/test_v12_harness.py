@@ -43,8 +43,8 @@ harness = _load("harness")
 prompts = _load("prompts")
 evaluate = _load("evaluate")
 
-from bemyself.msheet.runner import run_sheet  # noqa: E402
-from bemyself.msheet.sheet import parse_sheet  # noqa: E402
+from proofboy.msheet.runner import run_sheet  # noqa: E402
+from proofboy.msheet.sheet import parse_sheet  # noqa: E402
 
 TASK_A = {"id": "A-0006", "tier": "A", "prompt": "Berechne 2 hoch 10 modulo 1000.", "expected": "24"}
 TASK_TRACE = {

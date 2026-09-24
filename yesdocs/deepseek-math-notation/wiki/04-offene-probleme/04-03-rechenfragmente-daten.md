@@ -184,7 +184,7 @@ seit dem Paper mit „1029“ gewachsen), 1661 `research solved`, 901 `answer(so
 auf Statement-Ebene; Schwerpunkte: ErdosProblems (660 offen), Wikipedia (264),
 OEIS (208). **Erdős–Straus ist im Katalog enthalten**: `ErdosProblems/242.lean`
 (`erdos_242`, `research open`) — damit ist die E1-Frage positiv beantwortet; der
-Prüfpfad `[IDENT]`/`[COMPUTE]` ist genau auf diese Form gebaut (`bemyself.experiments.erdos_straus`).
+Prüfpfad `[IDENT]`/`[COMPUTE]` ist genau auf diese Form gebaut (`proofboy.experiments.erdos_straus`).
 Shortlist für unsere Kette (Gates aus [04-01](04-01-wahlkriterien.md): K2 ≥ 1, K4 = 2; nur
 offene Kandidaten): **BMO#1** (BB(6)-Holdout `1RB1RE_1LC0RA_0RD1LB_---1RC_1LF1RE_0LB0LE`;
 2-Symbol-Maschine — endliche Fragmente über `[HALT]`/`[SEARCHED]` und

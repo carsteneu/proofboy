@@ -39,7 +39,7 @@ Dieser Bericht schließt den Bau- und Pilotzyklus ab, den [05-07](05-07-denkspra
 | Werkzeug | Ort | Was es tut |
 |---|---|---|
 | **W1 Sonde** | `assets/01-03-messskript.py` (erweitert), Bericht [01-03b](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) | Misst die V1.1-Lexeme gegen den echten Tokenizer (168 Rohdaten-Zeilen; 42/42 Validierungsvektoren reproduziert). |
-| **W2 msheet** | `bemyself/msheet/` (Package) | Der Runner: Blatt-Parser (Denkzone/Status/Behauptungszone), V1-Formelfragment (exakt, voll geklammert), Zeugen-Registry (`auto py range ref sim cyc`), Verdikt-Appendix, CLI. |
+| **W2 msheet** | `proofboy/msheet/` (Package) | Der Runner: Blatt-Parser (Denkzone/Status/Behauptungszone), V1-Formelfragment (exakt, voll geklammert), Zeugen-Registry (`auto py range ref sim cyc`), Verdikt-Appendix, CLI. |
 | **W3 Harness + Sets** | `yesdocs/deepseek-math-notation/tooling/`, `sets/` | Prompt-Builder der Arme, Aufgaben-Sets Tier A (16) und Tier B (12) mit eingefrorenem Gold, Batch-Runner mit Logs, Auswertung mit Wilson-Intervallen. |
 | **W4 Pilot** | Dieser Bericht, Rohdaten unter `.yesmem/tmp/runs/` (gitignored) | 120 Läufe: Tier A 16×3×2, Tier B 8×3×1. |
 | **W5 Doku** | Diese Datei + INDEX | Ergebnisse, Abweichungen, Grenzen, offene Punkte. |
@@ -102,7 +102,7 @@ Dieser Bericht schließt den Bau- und Pilotzyklus ab, den [05-07](05-07-denkspra
 - Läufe: `.yesmem/tmp/runs/20260912-163929/` (Tier A) und `.yesmem/tmp/runs/20260912-164755/` (Tier B), je `<task>/<arm>-rep<r>/{prompt.md,raw.json,parsed.json}`; `manifest.json` mit Set-Hashes. Auswertung: `evaluate.py --runs <dir>`. Die Aggregat-Tabellen dieses Berichts liegen zusätzlich als committete Artefakte bei: `assets/05-08-eval-tierA.md`, `assets/05-08-eval-tierB.md` (die Rohantworten bleiben gitignored unter `.yesmem/tmp/`).
 - Sets: `sets/tier_a_v11-a-0.1.json`, `sets/tier_b_v11-b-0.1.json` (+ `build_sets.py` zur Neuerzeugung; Tier-B-Gold per `turing.py`, Zyklus-Zertifikate zur Bauzeit gegen `claimtypes.cycle` verifiziert).
 - Harness: `tooling/harness.py` (Transport §2), `tooling/prompts.py` (Legenden aller vier Arme), `tooling/evaluate.py`.
-- Beispiel für Zeugen-Durchlauf: `python3 -m bemyself.msheet run tests/data/beispielblatt.msheet` → `#ok: v1 v2 c1`, `#xx: c2`, `#?: c3`.
+- Beispiel für Zeugen-Durchlauf: `python3 -m proofboy.msheet run tests/data/beispielblatt.msheet` → `#ok: v1 v2 c1`, `#xx: c2`, `#?: c3`.
 
 ## 6. Abweichungen und Präzisierungen (dokumentiert)
 
@@ -159,4 +159,4 @@ Runde 2 ist in [05-09](05-09-rueckkanal-runde-v12.md) vollständig dokumentiert 
 3. Lokale Quelle: [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, A/B-Leiter, Metriken a–k, Multiplizitätsregel.
 4. Lokale Quelle: [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln; Abweichung §6.1).
 5. Lokale Quelle: [01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme (W1).
-6. Lokale Quelle: `bemyself/msheet/` + `tests/test_msheet*.py`, `tests/test_v11_harness.py` — Engine, Zeugen, Harness-Tests (568 Tests grün).
+6. Lokale Quelle: `proofboy/msheet/` + `tests/test_msheet*.py`, `tests/test_v11_harness.py` — Engine, Zeugen, Harness-Tests (568 Tests grün).

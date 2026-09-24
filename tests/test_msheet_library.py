@@ -1,4 +1,4 @@
-"""Tests for the V1 library of bemyself.msheet.
+"""Tests for the V1 library of proofboy.msheet.
 
 The library is the checkable fragment of mathematics of the notation
 (05-02 §2): exact integers, deterministic functions, documented guard
@@ -8,7 +8,7 @@ verdict of a witness stands or falls with this exactness.
 
 import unittest
 
-from bemyself.msheet import library
+from proofboy.msheet import library
 
 
 class GuardTest(unittest.TestCase):

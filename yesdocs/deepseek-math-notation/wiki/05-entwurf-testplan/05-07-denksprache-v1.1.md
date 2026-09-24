@@ -37,7 +37,7 @@ persona_review:
 
 Diese Datei erweitert die Notations-Spezifikation [05-02](05-02-notations-spezifikation.md) um die **Denk-Grammatik**: Regeln für das, was in V1 bewusst frei blieb — die Denkzone der Blätter und (als Empfehlung, nicht Erzwingung) den `reasoning_content`-Kanal. Anlass (Auftrag Carsten, 2026-09-12): Bei schweren Aufgaben dominieren die Denk-Tokens das Output-Budget; wenn die Notation wirkt, wirkt sie dort. Status: **Entwurf** — jede Regel ist eine Setzung mit benanntem Schalter; entschieden wird sie vom A/B-Leiter in [05-05](05-05-ablation-protokoll.md), nicht durch Beschluss.
 
-Unverändert gilt: Die **Behauptungszone** (`CLAIM`/`WITNESS`, `[HALT]`, Guard-Bibliothek) bleibt wörtlich V1; die Verdikte schreibt der Runner (`CONFIRMED|REFUTED|UNVERIFIABLE`, lokale Quelle: `bemyself/model.py`, gelesen 2026-09-12; Anschluss [04-05](../04-offene-probleme/04-05-bruecke-pruefer.md)).
+Unverändert gilt: Die **Behauptungszone** (`CLAIM`/`WITNESS`, `[HALT]`, Guard-Bibliothek) bleibt wörtlich V1; die Verdikte schreibt der Runner (`CONFIRMED|REFUTED|UNVERIFIABLE`, lokale Quelle: `proofboy/model.py`, gelesen 2026-09-12; Anschluss [04-05](../04-offene-probleme/04-05-bruecke-pruefer.md)).
 
 ## 1. Designlogik: drei Setzungen
 
@@ -212,7 +212,7 @@ Priorisierung im Verhältnis zu S1–S5 ([05-05](05-05-ablation-protokoll.md)): 
 - `^^`/`^^^`, `ex`, `#(...)`: ungemessen — Sonde vor Aufnahme in die Lexik. **→ gemessen ([01-03b](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md)).**
 - Ordnung/Wiederholung im Trace („Frontloading": Zustand zuletzt vs. zuerst) — eigenes Experiment, nicht Teil von V1.1.
 - RC-Enforcement (S10) — Zukunft, setzt internes Format-Signal voraus. **→ Signal vorbereitet (Korpus v0 + Trainings-Skripte, [`training/`](../../../../training/README.md), §13); Messung offen (braucht GPU-Läufe).**
-- Parser-Anpassungen: Tag-IDs statt `S<n>` in V1.1-Armen; Legenden-Injektion ist Harness-Aufgabe ([05-04](05-04-test-harness.md)). **→ umgesetzt (bemyself/msheet, tooling/prompts.py).**
+- Parser-Anpassungen: Tag-IDs statt `S<n>` in V1.1-Armen; Legenden-Injektion ist Harness-Aufgabe ([05-04](05-04-test-harness.md)). **→ umgesetzt (proofboy/msheet, tooling/prompts.py).**
 
 ## 13. Nachtrag (2026-09-13): Trainings-Pfad — Korpus v0 und die Skripte
 
@@ -237,7 +237,7 @@ die Leiter (Basis vs. LoRA vs. DPO/RLVR) steht in `training/EVALPLAN.md`.
 Ehrlichkeitsgrenze: auf der CPU-Maschine sind nur dry-runs, Reward-Läufe,
 Leck-Guard und Rebuild geprüft — jeder Trainingslauf braucht gemietete
 CUDA-Hardware, und der Harness-Endpunkt ist dafür per
-`BEMYSELF_PROXY_URL` auf die eigene Instanz umstellbar.
+`PROOFBOY_PROXY_URL` auf die eigene Instanz umstellbar.
 
 ## Quellen
 
@@ -253,7 +253,7 @@ CUDA-Hardware, und der Harness-Endpunkt ist dafür per
 10. DeepSeek-AI (2025): DeepSeek-R1. arXiv:2501.12948. https://arxiv.org/abs/2501.12948 (accessed 2026-09-12)
 11. Lokale Quelle (2026-09-12): [01-03-tokenizer-zahlen.md](../01-modellprofil/01-03-tokenizer-zahlen.md) samt Artefakten `assets/01-03-messskript.py`, `assets/01-03-rohdaten-symbole.txt`, `assets/01-03-rohdaten-bausteine.txt` — Tokenizer-Messreihe, aus der die Leitplanken in Abschnitt 1 stammen.
 12. Lokale Quelle (2026-09-12): [05-02-notations-spezifikation.md](05-02-notations-spezifikation.md) — V1 (Lexik, Grammatik, Zeugen, Behauptungszone), auf die V1.1 aufsetzt.
-13. Lokale Quelle (2026-09-12): `bemyself/model.py` und claimtypes `[HALT]`/`[COMPUTE]`/`[CYCLE]` (P7/P9/P10) — Verdikt-Modell und Zeugen-Anschlüsse.
+13. Lokale Quelle (2026-09-12): `proofboy/model.py` und claimtypes `[HALT]`/`[COMPUTE]`/`[CYCLE]` (P7/P9/P10) — Verdikt-Modell und Zeugen-Anschlüsse.
 14. Lokale Quelle (2026-09-12): [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Messanordnung, in deren Leiter V1.1 geprüft wird (Nachtrag V1.1).
 15. Lokale Quelle (2026-09-12): [05-04-test-harness.md](05-04-test-harness.md) — Harness-Anbindung (Legenden-Injektion, `opencode run --format json`, Logging).
 16. Lokale Quelle (2026-09-13): `training/` (Korpus v0 aus v11–v13, `build_corpus.py`, QLoRA-SFT/DPO/RLVR-Skizze, Leck-Guard, `EVALPLAN.md`) — der vorbereitete Trainings-Pfad zu §8/§13.

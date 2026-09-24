@@ -1,31 +1,31 @@
-# bemyself — Statusreport
+# proofboy — Statusreport
 
-2026-09-12, 16:00, nachgetragen um 18:35, 23:05 und 23:10 sowie am 13.09. um 09:15. Geschrieben von einem Dokumentations-Agenten (Auftrag: eine Datei, keine Commits, keine Änderungen am System). Alle Messwerte in Abschnitt 2 wurden selbst in Wegwerf-Klonen erzeugt: erster Durchgang am 12.09. von 15:56 bis 15:59 auf `47301fc` (`/tmp/opencode/report-clone`), Nachträge von 18:30 bis 18:35 auf `3025c29` und von 22:50 bis 23:00 auf `b85de12` (`/home/carsten/projects/.tmp-bemyself/report-clone`, außerhalb von `/tmp` — Grund in Abschnitt 2), zuletzt von 23:03 bis 23:10 auf `7edf993` und am 13.09. von 09:13 bis 09:15 auf `ec5b4ab` (selber Klon). Zahlen aus Merge-Nachrichten und aus dem Koordinationsprotokoll sind als solche gekennzeichnet.
+2026-09-12, 16:00, nachgetragen um 18:35, 23:05 und 23:10 sowie am 13.09. um 09:15. Geschrieben von einem Dokumentations-Agenten (Auftrag: eine Datei, keine Commits, keine Änderungen am System). Alle Messwerte in Abschnitt 2 wurden selbst in Wegwerf-Klonen erzeugt: erster Durchgang am 12.09. von 15:56 bis 15:59 auf `47301fc` (`/tmp/opencode/report-clone`), Nachträge von 18:30 bis 18:35 auf `3025c29` und von 22:50 bis 23:00 auf `b85de12` (`/home/carsten/projects/.tmp-proofboy/report-clone`, außerhalb von `/tmp` — Grund in Abschnitt 2), zuletzt von 23:03 bis 23:10 auf `7edf993` und am 13.09. von 09:13 bis 09:15 auf `ec5b4ab` (selber Klon). Zahlen aus Merge-Nachrichten und aus dem Koordinationsprotokoll sind als solche gekennzeichnet.
 
-**Stand jetzt (13.09., 09:15):** master = `ec5b4ab`. Die Prüfer-Kette steht unverändert bei P1–P15 plus Flaky-Fix; die beiden Merges seit `7edf993` gehören zur separat beauftragten Spur (ihr Diff berührt `bemyself/` und das Prüfset nicht). Testsuite des Masters (selbst gemessen): 818 Tests, alle grün (781 Prüfer-Stand, +37 aus der fremden Spur); Eval-Schwellen erfüllt. Das retrospektive Audit (Abschnitt 6) gilt unverändert: 21 bestätigte, 0 widerlegte DONE-Behauptungen, 55 unprüfbare. Offene Prüfer-Arbeiten: keine. Ein Remote gibt es nicht; es wurde nichts gepusht.
+**Stand jetzt (13.09., 09:15):** master = `ec5b4ab`. Die Prüfer-Kette steht unverändert bei P1–P15 plus Flaky-Fix; die beiden Merges seit `7edf993` gehören zur separat beauftragten Spur (ihr Diff berührt `proofboy/` und das Prüfset nicht). Testsuite des Masters (selbst gemessen): 818 Tests, alle grün (781 Prüfer-Stand, +37 aus der fremden Spur); Eval-Schwellen erfüllt. Das retrospektive Audit (Abschnitt 6) gilt unverändert: 21 bestätigte, 0 widerlegte DONE-Behauptungen, 55 unprüfbare. Offene Prüfer-Arbeiten: keine. Ein Remote gibt es nicht; es wurde nichts gepusht.
 
 ## 1. Was das ist
 
-Der Prüfer (bemyself) ist ein Werkzeug, das die Meldung eines Agenten nicht glaubt, sondern sie neu herleitet. Aus „Tests grün, Commit abc123, Branch gepusht, Deploy erfolgt“ wird jede Behauptung einzeln gegen die Wirklichkeit geprüft: Existiert der Commit, liegt er auf dem Remote, ist der Diff wirklich der behauptete, laufen die Tests auf einem sauberen Checkout dieses Commits wirklich durch. Dazu kommen mathematische Behauptungen: Halten einer Turingmaschine (per Zeuge, der exakten Schrittzahl), begrenzte Suchläufe (ehrlich als solche gekennzeichnet), übersetzte Zyklen (endliches Nicht-Halte-Zertifikat) und generische Rechenzertifikate (SHA-256 der Kommandoausgabe). Das Urteil ist je Behauptung bestätigt, widerlegt oder unprüfbar, jeweils mit ausgeführtem Kommando und roher Ausgabe. Eine falsche Bestätigung gilt als schwerster Fehler; im Zweifel lautet das Urteil unprüfbar. Das Werkzeug nutzt nur die Python-Standardbibliothek, prüft in Wegwerf-Checkouts, liest YesMem-Sections ausschließlich lesend und betreibt Testkommandos in einem bwrap-Sandkasten.
+Der Prüfer (proofboy) ist ein Werkzeug, das die Meldung eines Agenten nicht glaubt, sondern sie neu herleitet. Aus „Tests grün, Commit abc123, Branch gepusht, Deploy erfolgt“ wird jede Behauptung einzeln gegen die Wirklichkeit geprüft: Existiert der Commit, liegt er auf dem Remote, ist der Diff wirklich der behauptete, laufen die Tests auf einem sauberen Checkout dieses Commits wirklich durch. Dazu kommen mathematische Behauptungen: Halten einer Turingmaschine (per Zeuge, der exakten Schrittzahl), begrenzte Suchläufe (ehrlich als solche gekennzeichnet), übersetzte Zyklen (endliches Nicht-Halte-Zertifikat) und generische Rechenzertifikate (SHA-256 der Kommandoausgabe). Das Urteil ist je Behauptung bestätigt, widerlegt oder unprüfbar, jeweils mit ausgeführtem Kommando und roher Ausgabe. Eine falsche Bestätigung gilt als schwerster Fehler; im Zweifel lautet das Urteil unprüfbar. Das Werkzeug nutzt nur die Python-Standardbibliothek, prüft in Wegwerf-Checkouts, liest YesMem-Sections ausschließlich lesend und betreibt Testkommandos in einem bwrap-Sandkasten.
 
 ## 2. Was gemessen ist
 
-Messort: zwei Wegwerf-Klone von `/home/carsten/projects/bemyself`; Durchgänge 15:56–15:59 auf `47301fc` und 18:30–18:35 auf `3025c29` im Klon `/tmp/opencode/report-clone`, Durchgänge 22:50–23:00 auf `b85de12` und 23:03–23:10 auf `7edf993` im Klon `/home/carsten/projects/.tmp-bemyself/report-clone`. Der Umzug aus `/tmp` hat einen Grund: Der msheet-Witness-Sandkasten mountet `--tmpfs /tmp` und macht Klone unter `/tmp` für sandboxed py-Witnesses unsichtbar (der Grund steht bei der Testanzahl unten). `bwrap` ist vorhanden, Testläufe liefen also im Sandkasten. Jede Zeile nennt das Kommando; die Belegausgaben stehen darunter.
+Messort: zwei Wegwerf-Klone von `/home/carsten/projects/proofboy`; Durchgänge 15:56–15:59 auf `47301fc` und 18:30–18:35 auf `3025c29` im Klon `/tmp/opencode/report-clone`, Durchgänge 22:50–23:00 auf `b85de12` und 23:03–23:10 auf `7edf993` im Klon `/home/carsten/projects/.tmp-proofboy/report-clone`. Der Umzug aus `/tmp` hat einen Grund: Der msheet-Witness-Sandkasten mountet `--tmpfs /tmp` und macht Klone unter `/tmp` für sandboxed py-Witnesses unsichtbar (der Grund steht bei der Testanzahl unten). `bwrap` ist vorhanden, Testläufe liefen also im Sandkasten. Jede Zeile nennt das Kommando; die Belegausgaben stehen darunter.
 
 | Messgröße | Kommando | Ergebnis |
 |---|---|---|
 | Testanzahl | `python3 -m unittest discover -s tests` | 818 Tests, alle grün; 49,2 s |
-| Eval-Raten | `python3 -m bemyself eval --set tests/data/pruefset.json` | Erkennung 25/25 = 100 %, Falschbestätigung 0/25 = 0 %, echte Meldungen 26/26 = 100 %, unprüfbar 22/96 = 22,9 %; Schwellen erfüllt; Laufzeit 1,6 s |
-| [HALT] BB(5)-Champion | `python3 -m bemyself check --report halt-champion.md` | CONFIRMED nach 47.176.870 Schritten, Score 4098; 5,4 s |
-| [CYCLE] Beweis | `python3 -m bemyself check --report cycle-report.md` | CONFIRMED mit Nicht-Halte-Beweis; 0,04 s |
-| [SEARCHED] Lauf | `python3 -m bemyself check --report searched-report.md` | CONFIRMED für den begrenzten Lauf (ohne Nicht-Halte-Anspruch); 0,05 s |
-| [COMPUTE] Zertifikat | `python3 -m bemyself check --report compute-report.md --repo /tmp/opencode/report-clone` | CONFIRMED, sandboxed, SHA-256 stimmt (27 Bytes); 0,2 s |
+| Eval-Raten | `python3 -m proofboy eval --set tests/data/pruefset.json` | Erkennung 25/25 = 100 %, Falschbestätigung 0/25 = 0 %, echte Meldungen 26/26 = 100 %, unprüfbar 22/96 = 22,9 %; Schwellen erfüllt; Laufzeit 1,6 s |
+| [HALT] BB(5)-Champion | `python3 -m proofboy check --report halt-champion.md` | CONFIRMED nach 47.176.870 Schritten, Score 4098; 5,4 s |
+| [CYCLE] Beweis | `python3 -m proofboy check --report cycle-report.md` | CONFIRMED mit Nicht-Halte-Beweis; 0,04 s |
+| [SEARCHED] Lauf | `python3 -m proofboy check --report searched-report.md` | CONFIRMED für den begrenzten Lauf (ohne Nicht-Halte-Anspruch); 0,05 s |
+| [COMPUTE] Zertifikat | `python3 -m proofboy check --report compute-report.md --repo /tmp/opencode/report-clone` | CONFIRMED, sandboxed, SHA-256 stimmt (27 Bytes); 0,2 s |
 | Beispiel-Lauf | `make check` | 4 bestätigt / 0 widerlegt / 2 unprüfbar, Exit 0; 16,1 s (inkl. 162 Tests im Sandkasten) |
-| Section-Lauf (live) | `python3 -m bemyself check --section yesloop-bemyself-flaky-fix --project /home/carsten/projects/bemyself --repo /home/carsten/projects/.tmp-bemyself/report-clone --base 0f14154` | 3/0/2, Exit 0; mit `--strict` Exit 4 |
-| Gegenbeispiel | `python3 -m bemyself check --report halt-wrong.md` | REFUTED, Exit 1 |
-| Schur-Selbstprüfung | `python3 -m bemyself check --report yesdocs/schur/README.md --strict` | 6× CONFIRMED, Exit 0; 0,05 s |
-| MERGE-Demo | `python3 -m bemyself check --report merge-report.md --repo .` | CONFIRMED: `b85de127e82e` ist der Merge von `yesloop/bemyself-p14-merge-artifact` (Tip-Parent `3e44f857b72a`, Master-Parent `27387fe35308`) |
-| ARTIFACT-Demo | `python3 -m bemyself check --report artifact-report.md --repo .` | CONFIRMED: `good.txt`, 5 Bytes, Digest stimmt |
+| Section-Lauf (live) | `python3 -m proofboy check --section yesloop-proofboy-flaky-fix --project /home/carsten/projects/proofboy --repo /home/carsten/projects/.tmp-proofboy/report-clone --base 0f14154` | 3/0/2, Exit 0; mit `--strict` Exit 4 |
+| Gegenbeispiel | `python3 -m proofboy check --report halt-wrong.md` | REFUTED, Exit 1 |
+| Schur-Selbstprüfung | `python3 -m proofboy check --report yesdocs/schur/README.md --strict` | 6× CONFIRMED, Exit 0; 0,05 s |
+| MERGE-Demo | `python3 -m proofboy check --report merge-report.md --repo .` | CONFIRMED: `b85de127e82e` ist der Merge von `yesloop/proofboy-p14-merge-artifact` (Tip-Parent `3e44f857b72a`, Master-Parent `27387fe35308`) |
+| ARTIFACT-Demo | `python3 -m proofboy check --report artifact-report.md --repo .` | CONFIRMED: `good.txt`, 5 Bytes, Digest stimmt |
 | Retrospektives Audit | `check --section …` über die 14 Worker-Sections (Abschnitt 6) | 21 bestätigt / 0 widerlegt / 55 unprüfbar; kein DONE-Bericht widerlegt |
 | Merge-Kette | `git log --oneline --merges master` | 21 Merges (P1–P15, Flaky-Fix; dazu fünf Merges außerhalb der Prüfer-Kette) |
 
@@ -39,9 +39,9 @@ Ran 818 tests in 49.171s
 OK
 ```
 
-Warum außerhalb von `/tmp`: Der msheet-Witness-Sandkasten (`bemyself/msheet/witnesses.py`, `_sandbox_prefix`) mountet `--tmpfs /tmp`; ein Klon unter `/tmp` verliert dadurch im Sandkasten seine eigene Datei `bemyself/msheet/_pyexec.py`, und `test_msheet_witnesses.test_sandboxed_run` schlägt fehl (UNVERIFIABLE statt CONFIRMED). Im 18:35-Durchgang reproduziert und beidseitig gegengeprüft (im Original-Repo läuft der Test grün, in der /tmp-Variante nicht); der neue Klon liegt deshalb außerhalb von `/tmp`, dort läuft die volle Suite grün.
+Warum außerhalb von `/tmp`: Der msheet-Witness-Sandkasten (`proofboy/msheet/witnesses.py`, `_sandbox_prefix`) mountet `--tmpfs /tmp`; ein Klon unter `/tmp` verliert dadurch im Sandkasten seine eigene Datei `proofboy/msheet/_pyexec.py`, und `test_msheet_witnesses.test_sandboxed_run` schlägt fehl (UNVERIFIABLE statt CONFIRMED). Im 18:35-Durchgang reproduziert und beidseitig gegengeprüft (im Original-Repo läuft der Test grün, in der /tmp-Variante nicht); der neue Klon liegt deshalb außerhalb von `/tmp`, dort läuft die volle Suite grün.
 
-**Eval-Raten** — `python3 -m bemyself eval --set tests/data/pruefset.json` (Schlusszeilen; Eingabe ist das eingecheckte Prüfset aus 51 Meldungen: 26 ehrliche, 25 auf bekannte Weise falsche):
+**Eval-Raten** — `python3 -m proofboy eval --set tests/data/pruefset.json` (Schlusszeilen; Eingabe ist das eingecheckte Prüfset aus 51 Meldungen: 26 ehrliche, 25 auf bekannte Weise falsche):
 
 ```
 Erkennungsrate:            25/25 = 100.0%
@@ -53,7 +53,7 @@ Erwartungen verfehlt: 0
 Ergebnis: OK
 ```
 
-**Schur-Selbstprüfung** — `python3 -m bemyself check --report yesdocs/schur/README.md --strict` (Auszug; erste, dritte und letzte der sechs Marker):
+**Schur-Selbstprüfung** — `python3 -m proofboy check --report yesdocs/schur/README.md --strict` (Auszug; erste, dritte und letzte der sechs Marker):
 
 ```
 coloring  CONFIRMED     all 0 triples x + y = z with x <= y and x + y <= 1 are checked: no monochromatic solution in the 1-coloring of 1..1; this certificates the lower bound S(1) >= 1 only -- it does not prove equality and says nothing about the upper bound
@@ -65,16 +65,16 @@ summary: CONFIRMED: 6, REFUTED: 0, UNVERIFIABLE: 0
 
 Exit-Code 0. Die übrigen drei Zeilen (S(2) >= 4, S(4) >= 44 und ein zweiter, gleichlautender S(4)-Eintrag) verlaufen gleichförmig.
 
-**MERGE- und ARTIFACT-Demo** — zwei kleine Meldungen im Klon (`merge-report.md`: `[COMMIT: b85de127…] [MERGE: yesloop/bemyself-p14-merge-artifact]`; `artifact-report.md`: `[ARTIFACT: good.txt -> 106675dc…]` für die 5-Byte-Datei `good.txt`), dann:
+**MERGE- und ARTIFACT-Demo** — zwei kleine Meldungen im Klon (`merge-report.md`: `[COMMIT: b85de127…] [MERGE: yesloop/proofboy-p14-merge-artifact]`; `artifact-report.md`: `[ARTIFACT: good.txt -> 106675dc…]` für die 5-Byte-Datei `good.txt`), dann:
 
 ```
-$ python3 -m bemyself check --report merge-report.md --repo .
+$ python3 -m proofboy check --report merge-report.md --repo .
 commit_exists  CONFIRMED     commit b85de127e82e40e67e1d7b03b9cdcafd548e6ab2 resolves to b85de127e82e40e67e1d7b03b9cdcafd548e6ab2
-merge          CONFIRMED     b85de127e82e is a merge of 'yesloop/bemyself-p14-merge-artifact': parent 3e44f857b72a is its tip and parent 27387fe35308 lies on origin/master
+merge          CONFIRMED     b85de127e82e is a merge of 'yesloop/proofboy-p14-merge-artifact': parent 3e44f857b72a is its tip and parent 27387fe35308 lies on origin/master
 
 summary: CONFIRMED: 2, REFUTED: 0, UNVERIFIABLE: 0
 
-$ python3 -m bemyself check --report artifact-report.md --repo .
+$ python3 -m proofboy check --report artifact-report.md --repo .
 artifact  CONFIRMED     good.txt has the claimed sha256 (5 bytes)
 
 summary: CONFIRMED: 1, REFUTED: 0, UNVERIFIABLE: 0
@@ -112,12 +112,12 @@ searched  CONFIRMED     a bounded search of 1000 steps found no halt; this does 
 summary: CONFIRMED: 1, REFUTED: 0, UNVERIFIABLE: 0
 ```
 
-**Rechenzertifikat** — Eingabe `[COMMIT: 47301fc194ad689cf01edc0dd8642dd397c4f9b6]` plus `[COMPUTE: python3 -m bemyself.turing 1RB1RZ_0LA0LA 3 -> fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df]`, dann `check --report … --repo …`:
+**Rechenzertifikat** — Eingabe `[COMMIT: 47301fc194ad689cf01edc0dd8642dd397c4f9b6]` plus `[COMPUTE: python3 -m proofboy.turing 1RB1RZ_0LA0LA 3 -> fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df]`, dann `check --report … --repo …`:
 
 ```
 commit_exists  CONFIRMED     commit 47301fc194ad689cf01edc0dd8642dd397c4f9b6 resolves to 47301fc194ad689cf01edc0dd8642dd397c4f9b6
 compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 27 bytes) (sandboxed with bwrap)
-    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout 47301fc194ad689cf01edc0dd8642dd397c4f9b6 && bwrap --die-with-parent --ro-bind / / --dev /dev --proc /proc --tmpfs /run --bind <checkout> <checkout> --unshare-net --unshare-pid --unshare-uts --chdir <checkout> -- python3 -m bemyself.turing 1RB1RZ_0LA0LA 3
+    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout 47301fc194ad689cf01edc0dd8642dd397c4f9b6 && bwrap --die-with-parent --ro-bind / / --dev /dev --proc /proc --tmpfs /run --bind <checkout> <checkout> --unshare-net --unshare-pid --unshare-uts --chdir <checkout> -- python3 -m proofboy.turing 1RB1RZ_0LA0LA 3
     out: sha256=fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df bytes=27 exit=0
 
 summary: CONFIRMED: 2, REFUTED: 0, UNVERIFIABLE: 0
@@ -161,7 +161,7 @@ ead3dc7 merge: P3 eval harness … 162 tests
 bb234fe merge: P2 research wiki … (106 Quellen)
 ```
 
-Die Eingabedateien der Beispiele liegen in den Wegwerf-Klonen: `halt-champion.md`, `cycle-report.md`, `searched-report.md`, `compute-report.md`, `halt-wrong.md` im Klon unter `/tmp/opencode/report-clone/`; `merge-report.md`, `artifact-report.md` und `good.txt` im Klon unter `/home/carsten/projects/.tmp-bemyself/report-clone/`.
+Die Eingabedateien der Beispiele liegen in den Wegwerf-Klonen: `halt-champion.md`, `cycle-report.md`, `searched-report.md`, `compute-report.md`, `halt-wrong.md` im Klon unter `/tmp/opencode/report-clone/`; `merge-report.md`, `artifact-report.md` und `good.txt` im Klon unter `/home/carsten/projects/.tmp-proofboy/report-clone/`.
 
 ### Erdős–Straus-Landkarte (P11/P12)
 
@@ -176,7 +176,7 @@ Kein Zustand davon ist ein Beweis der Vermutung; das Urteil sagt es selbst (`one
 Selbstprüfung (Beleg vom 18:35-Durchgang auf `3025c29`; im 22:52-Durchgang auf `b85de12` erneut gelaufen: Exit 0, 0,05 s):
 
 ```
-$ python3 -m bemyself check --report yesdocs/erdos-straus/README.md --strict
+$ python3 -m proofboy check --report yesdocs/erdos-straus/README.md --strict
 ident  CONFIRMED     4/n(t) = 1/a(t) + 1/b(t) + 1/c(t) holds as a rational identity in t for every t >= 1 with n = 2t, a = t, b = 2t, c = 2t; every integer t >= 1 has n >= 2 and positive denominators, so the progression n = 2t is covered for every parameter -- one progression, not all of them: this is not a proof of the conjecture
     cmd: expand 1/(t) + 1/(2t) + 1/(2t) - 4/(2t) as one rational function in t
     out: numerator=0
@@ -188,7 +188,7 @@ summary: CONFIRMED: 6, REFUTED: 0, UNVERIFIABLE: 0
 Exit-Code 0. Die P11-Zeile zusätzlich selbst nachgerechnet:
 
 ```
-$ python3 -m bemyself.experiments.erdos_straus 1000000 > es.out   # 12,9 s
+$ python3 -m proofboy.experiments.erdos_straus 1000000 > es.out   # 12,9 s
 $ sha256sum es.out
 e5b68dd1818d89f2c66d0e7b5a68bf906dbe7adc77c64dba015bf27058a4f89d  es.out
 $ wc -c es.out
@@ -211,7 +211,7 @@ $ cat halt-champion.md
 
 [HALT: 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA -> 47176870] [SCORE: 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA -> 4098]
 
-$ python3 -m bemyself check --report halt-champion.md
+$ python3 -m proofboy check --report halt-champion.md
 halt  CONFIRMED     the machine halted after 47176870 steps with score 4098
     cmd: simulate 1RB1LC_1RC1RB_1RD0LE_1LA1LD_1RZ0LA for at most 47176870 steps
     out: halts=True steps=47176870 score=4098
@@ -224,9 +224,9 @@ $ echo $?
 **Beispiel 2 — Rechenzertifikat im Sandkasten (COMPUTE; braucht `--repo`):**
 
 ```
-$ python3 -m bemyself check --report compute-report.md --repo /tmp/opencode/report-clone
+$ python3 -m proofboy check --report compute-report.md --repo /tmp/opencode/report-clone
 compute        CONFIRMED     sha256 of stdout matches the claimed digest (exit 0, 27 bytes) (sandboxed with bwrap)
-    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout 47301fc… && bwrap … -- python3 -m bemyself.turing 1RB1RZ_0LA0LA 3
+    cmd: git clone --no-hardlinks <repo> <checkout> && git checkout 47301fc… && bwrap … -- python3 -m proofboy.turing 1RB1RZ_0LA0LA 3
     out: sha256=fcc2762419d8f4f3a1b1129170e13837c21722505ad8a6f5b40d9164cb7c92df bytes=27 exit=0
 
 summary: CONFIRMED: 2, REFUTED: 0, UNVERIFIABLE: 0
@@ -237,12 +237,12 @@ $ echo $?
 **Beispiel 3 — eine echte Agenten-Section prüfen (live, nur lesend):**
 
 ```
-$ python3 -m bemyself check --section yesloop-bemyself-flaky-fix --project /home/carsten/projects/bemyself --repo /home/carsten/projects/.tmp-bemyself/report-clone --base 0f14154
+$ python3 -m proofboy check --section yesloop-proofboy-flaky-fix --project /home/carsten/projects/proofboy --repo /home/carsten/projects/.tmp-proofboy/report-clone --base 0f14154
 diff_scope     CONFIRMED     the 1 changed files match the planned scope exactly
     out: tests/test_checks.py
 deploy         UNVERIFIABLE  no checker registered for claim kind 'deploy'
 commit_exists  CONFIRMED     commit d734599 resolves to d73459998e371fcef6960264b02c8a34be946235
-branch_pushed  CONFIRMED     d734599… is reachable from yesloop/bemyself-flaky-fix on origin
+branch_pushed  CONFIRMED     d734599… is reachable from yesloop/proofboy-flaky-fix on origin
 merge          UNVERIFIABLE  the claim names no branch to check: 'no'
 
 summary: CONFIRMED: 3, REFUTED: 0, UNVERIFIABLE: 2
@@ -254,10 +254,10 @@ Ohne `--strict` ist der Exit-Code 0 (es gibt Bestätigungen, keine Widerlegung);
 
 ```
 $ make check
-python3 -m bemyself check --report tests/data/beispiel-report.md --repo . --base 7c7392c…
+python3 -m proofboy check --report tests/data/beispiel-report.md --repo . --base 7c7392c…
 deploy         UNVERIFIABLE  no checker registered for claim kind 'deploy'
 commit_exists  CONFIRMED     commit 88b57ae… resolves to …
-branch_pushed  CONFIRMED     88b57ae… is reachable from yesloop/bemyself-p3-eval on origin
+branch_pushed  CONFIRMED     88b57ae… is reachable from yesloop/proofboy-p3-eval on origin
 merge          UNVERIFIABLE  the claim names no branch to check: 'no'
 diff_scope     CONFIRMED     the 7 changed files match the planned scope exactly
 tests_green    CONFIRMED     'python3 -m unittest discover -s tests' exited 0 as claimed (sandboxed with bwrap)
@@ -277,11 +277,11 @@ Hinweis zu den Beispielen: Diese Läufe liefen im Klon, dessen `origin` auf das 
 $ cat merge-report.md
 **send_to payload:** `[DONE]`
 
-[COMMIT: b85de127e82e40e67e1d7b03b9cdcafd548e6ab2] [MERGE: yesloop/bemyself-p14-merge-artifact]
+[COMMIT: b85de127e82e40e67e1d7b03b9cdcafd548e6ab2] [MERGE: yesloop/proofboy-p14-merge-artifact]
 
-$ python3 -m bemyself check --report merge-report.md --repo .
+$ python3 -m proofboy check --report merge-report.md --repo .
 commit_exists  CONFIRMED     commit b85de127e82e40e67e1d7b03b9cdcafd548e6ab2 resolves to b85de127e82e40e67e1d7b03b9cdcafd548e6ab2
-merge          CONFIRMED     b85de127e82e is a merge of 'yesloop/bemyself-p14-merge-artifact': parent 3e44f857b72a is its tip and parent 27387fe35308 lies on origin/master
+merge          CONFIRMED     b85de127e82e is a merge of 'yesloop/proofboy-p14-merge-artifact': parent 3e44f857b72a is its tip and parent 27387fe35308 lies on origin/master
 
 summary: CONFIRMED: 2, REFUTED: 0, UNVERIFIABLE: 0
 $ echo $?
@@ -294,7 +294,7 @@ $ cat artifact-report.md
 
 [ARTIFACT: good.txt -> 106675dc1490d5cdd6d1f0410731316ce93fc964c6cf6726e2b0d53e19688feb]
 
-$ python3 -m bemyself check --report artifact-report.md --repo .
+$ python3 -m proofboy check --report artifact-report.md --repo .
 artifact  CONFIRMED     good.txt has the claimed sha256 (5 bytes)
 
 summary: CONFIRMED: 1, REFUTED: 0, UNVERIFIABLE: 0
@@ -336,7 +336,7 @@ Merges auf master, verifiziert per `git log --oneline --merges master`; Testzahl
 - **P10 Übersetzte Zyklen** — Merge `c6ba55a` (15:28): `[CYCLE]` als endlicher Nicht-Halte-Beweis; reales Wiki-Artefakt (Maschine 44394115, Zertifikat 6,16,2); 443 Tests.
 - **P11 Erdős–Straus-Experiment** — Merge `28609e0` (17:18): `[COMPUTE]`-Experiment, das deterministisch für alle `n <= 10^6` explizite Zeugen ausrechnet; stdout an Commit `07c166f` gepinnt (46.906.788 Bytes, sha256 `e5b68dd1…`), ehrliche No-Proof-Formulierung; 454 Tests.
 - **P12 `[IDENT]`** — Merge `3025c29` (18:01): parametrisierte Identitäten (Erdős–Straus-Progressionszertifikate), exakt als Rationalfunktionen in `t` geprüft; selbstprüfende Landkarte `yesdocs/erdos-straus/README.md`; 494 Tests (Zweig-Suite; kombinierter Master: siehe Abschnitt 2).
-- **P13 Schur-Färbungen** — Merge `dd0767c` (19:15): neuer, repofreier Typ `[COLORING: k=<k>; <digits>]` als kompaktes Zertifikat für untere Schranken (alle Tripel `x+y=z` auf x <= y und x+y <= N aufgezählt, erste Verletzung benannt, Wortlaut nur „untere Schranke, kein Beweis der Gleichheit“); deterministischer MRV-Sucher (`bemyself/experiments/schur.py`) findet S(1..4) = 1, 4, 13, 44 selbst; selbstprüfende Karte `yesdocs/schur/README.md` (selbst geprüft: 6× CONFIRMED, Exit 0); 670 Tests (Zweig).
+- **P13 Schur-Färbungen** — Merge `dd0767c` (19:15): neuer, repofreier Typ `[COLORING: k=<k>; <digits>]` als kompaktes Zertifikat für untere Schranken (alle Tripel `x+y=z` auf x <= y und x+y <= N aufgezählt, erste Verletzung benannt, Wortlaut nur „untere Schranke, kein Beweis der Gleichheit“); deterministischer MRV-Sucher (`proofboy/experiments/schur.py`) findet S(1..4) = 1, 4, 13, 44 selbst; selbstprüfende Karte `yesdocs/schur/README.md` (selbst geprüft: 6× CONFIRMED, Exit 0); 670 Tests (Zweig).
 - **P14 `[MERGE]` + `[ARTIFACT]`** — Merge `b85de12` (20:48): Merge-Struktur prüfbar, gebunden an den `[COMMIT]`-Marker (genau zwei Parents; einer ist der Tip des genannten Branches, der andere liegt auf der Zielbranch; Widerlegung nennt die echten Parents). `[ARTIFACT: <pfad> -> <sha256>]` prüft Datei-Digests mit realpath-Konfinierung, Streaming und 256-MiB-Limit. Ein HIGH-Security-Befund (gefälschte Commit-Graph → mögliches falsches CONFIRMED) wurde vor dem Merge geschlossen (`3e44f85`: `core.commitGraph=false`, direkter Objekt-Store-Zugriff; das Repro endet `REFUTED`). DEPLOY bleibt absichtlich ohne Checker. 724 Tests (Zweig).
 - **P15 Platzhalter-Regel** — Merge `7edf993` (23:01): `<...>`-Platzhalter, `TODO`- und Ellipsen-Werte zählen über alle Parser-Flächen nicht mehr als Behauptungen (ein gemeinsamer Helfer; Grenzfall `go test ./...` bleibt konservativ Claim); Audit-Effekt 77 → 54 unprüfbare Marker bei unverändertem C/R; 781 Tests (Zweig).
 - **Nicht Teil dieses Berichts:** Auf master liegen außerdem Merges einer separat beauftragten Spur (eigene Zweige, `yesdocs/…`); sie werden hier bewusst nicht beschrieben.
@@ -357,8 +357,8 @@ Wiederholbar: Die 14-Section-Zahl entsteht mit denselben Aufrufen wie im Skript 
 Die Nacht lief nicht als einzelner Agent, sondern als Kette von Agenten über einen gemeinsamen Zustand.
 
 - **Suborchestrator.** Ein langlaufender Agent koordinierte alles: Conveyor und PLAN lesen, Worker spawnen (ein Worker pro Phase, eigener Git-Worktree), DONE-Berichte prüfen, erst dann mergen, LOG schreiben, 600 s schlafen, wiederholen. Worker mergen nie selbst; nur der Suborchestrator mergt nach master. Aktuell läuft Instanz `agent-20260912-05`; eine zweite Instanz („Standby B“) bleibt passiv und übernimmt nur bei Ausfall.
-- **Watchdog.** Scheduler-Job `bemyself-suborch-watcher`, cron `*/30` (letzter Lauf laut Scheduler 13.09., 09:00). Er prüft, ob der Suborchestrator lebt, und spawnt sonst einen neuen — so entstand die Nachmittags-Instanz um 08:37.
-- **Conveyor.** Scratchpad-Section `bemyself-conveyor` (Projekt `/home/carsten/projects/bemyself`) ist die Statusdatei: harte Verbote (kein Deploy, kein sudo, kein force-push, kein Schreiben in `~/.claude/skills` oder `~/.claude/yesmem`), Spawn-Regeln, ein LOG mit Zeitstempeln. Nach einer Panne um ~04:40 (ein Auftrag lag ~2,5 h unbemerkt in der Section) gilt: jeder Check liest den Tail der Section.
+- **Watchdog.** Scheduler-Job `proofboy-suborch-watcher`, cron `*/30` (letzter Lauf laut Scheduler 13.09., 09:00). Er prüft, ob der Suborchestrator lebt, und spawnt sonst einen neuen — so entstand die Nachmittags-Instanz um 08:37.
+- **Conveyor.** Scratchpad-Section `proofboy-conveyor` (Projekt `/home/carsten/projects/proofboy`) ist die Statusdatei: harte Verbote (kein Deploy, kein sudo, kein force-push, kein Schreiben in `~/.claude/skills` oder `~/.claude/yesmem`), Spawn-Regeln, ein LOG mit Zeitstempeln. Nach einer Panne um ~04:40 (ein Auftrag lag ~2,5 h unbemerkt in der Section) gilt: jeder Check liest den Tail der Section.
 - **Resume-Protokoll nach Daemon-Neustart.** Um 00:27:22 wurde der YesMem-Daemon neu gestartet und tötete die komplette Flotte. Seitdem: nicht der Registry glauben, sondern dem Worktree (`git -C <worktree> log --oneline -1`); Worker mit Resume-Auftrag neu spawnen und ab ihrem HEAD weiterarbeiten, kein Neuanfang. P1 wurde so ab `e4db275` fortgesetzt und 01:55 fertig.
 - **Bekannte Fehler der Agent-Registry** (im Protokoll mehrfach belegt; Punkt 1 habe ich beim Schreiben und bei allen Nachträgen (18:35, 22:52, 13.09. 09:14) live gegen die Registry und per `ps` geprüft):
   1. Zeilen melden „stopped“ für lebende oder aktive Prozesse. Beispiel jetzt (13.09., 09:14): `agent-20260911-08` steht seit dem 12.09. um 00:04 auf `stopped`, trägt aber Aktivität bis zum 13.09. um 05:49 Uhr. Beim ersten Durchgang (15:59) war der gegenteilige Fall belegt: Die Zeile von `agent-20260911-10` meldete „stopped“/`orphaned`, während der zugehörige Prozess (PID 343796) nachweislich noch lief (15 h 30 min Laufzeit; inzwischen beendet). Auch Idle-Fehlalarme für arbeitende Worker kamen mehrfach vor.
@@ -377,4 +377,4 @@ Die Nacht lief nicht als einzelner Agent, sondern als Kette von Agenten über ei
 - **Erdős–Straus — was nach P11/P12 offen bleibt.** Offen sind die 840-Ausnahmen `n ≡ 1, 121, 169, 289, 361, 529 (mod 840)` (Stand nach Mordell 1967; kleinste nicht abgedeckte Primzahl `1009`). Mordells Schranke: eine Polynomidentität für `n ≡ r (mod p)` kann nur existieren, wenn `r` kein quadratischer Rest modulo `p` ist — ein vollständiges Überdeckungssystem aus Identitäten gibt es daher nicht (`1 bleibt immer unbedeckt`). Ein `[IDENT]`-CONFIRMED deckt immer nur eine Progression ab, nie die Vermutung. Quellen: Wikipedia (en), `Erdős–Straus conjecture`; L. J. Mordell, Diophantine Equations, Academic Press 1967, S. 287–290 (zitiert nach Wikipedia); E. J. Ionascu, A. Wilson, arXiv:1001.1100, Theorem 1.6.
 - **Schur: S(6) offen.** Der exakte Wert von `S(6)` ist unbekannt; die Karte zitiert nur `S(6) >= 536` (Fredrickson & Sweet 2000) als untere Schranke ohne eigenes Zertifikat — ebenso `S(7) >= 1696` (Rowley 2021).
 - **Speicher-Skalierung von `erdos_straus` (aus dem P11-Review, nicht selbst nachgestellt).** Der Speicherbedarf wächst linear mit `N` (~74 Bytes pro `n`; `N = 10^6` → ~89 MB Peak). Der COMPUTE-Checker begrenzt nur Zeit (300 s) und stdout (64 MiB), kein Speicherlimit — ein Report mit `N = 10^8` kann den Prüf-Host Richtung OOM treiben. Kandidat: `N`-Obergrenze oder dokumentierter Hinweis in den Grenzen.
-- **Dieser Report** wurde am 13.09. um 12:41 auf Wunsch des Nutzers committet; zuvor lag er als ungetrackte Datei vor (Stand 13.09., 09:15; seit dem 18:35-Stand ergänzt um P13–P15, das retrospektive Audit und die neuen Selbstchecks, am Morgen um den Lage-Nachtrag). Außer diesem Commit wurde am Repo nichts geändert, an `~/.claude/yesmem` und an den Skills nichts. Die Wegwerf-Klone (`/tmp/opencode/report-clone`, `/home/carsten/projects/.tmp-bemyself/report-clone`) bleiben als Messorte liegen.
+- **Dieser Report** wurde am 13.09. um 12:41 auf Wunsch des Nutzers committet; zuvor lag er als ungetrackte Datei vor (Stand 13.09., 09:15; seit dem 18:35-Stand ergänzt um P13–P15, das retrospektive Audit und die neuen Selbstchecks, am Morgen um den Lage-Nachtrag). Außer diesem Commit wurde am Repo nichts geändert, an `~/.claude/yesmem` und an den Skills nichts. Die Wegwerf-Klone (`/tmp/opencode/report-clone`, `/home/carsten/projects/.tmp-proofboy/report-clone`) bleiben als Messorte liegen.

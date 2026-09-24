@@ -1,4 +1,4 @@
-"""Tests for the standalone Turing-machine simulator (bemyself.turing).
+"""Tests for the standalone Turing-machine simulator (proofboy.turing).
 
 The small machines are hand-traced in the comments; the three real machines
 are the published Busy Beaver halters from the bbchallenge wiki (BB(5) and the
@@ -10,7 +10,7 @@ import subprocess
 import sys
 import unittest
 
-from bemyself.turing import MachineError, parse, run, run_checkpoints
+from proofboy.turing import MachineError, parse, run, run_checkpoints
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -326,12 +326,12 @@ class CheckpointTest(unittest.TestCase):
 
 
 class TuringCliTest(unittest.TestCase):
-    """``python3 -m bemyself.turing <maschine> <schritte>`` prints one result
+    """``python3 -m proofboy.turing <maschine> <schritte>`` prints one result
     line: the command form the COMPUTE claim type runs in the sandbox."""
 
     def invoke(self, *args):
         return subprocess.run(
-            [sys.executable, "-m", "bemyself.turing", *args],
+            [sys.executable, "-m", "proofboy.turing", *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

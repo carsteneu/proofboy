@@ -15,8 +15,8 @@ import sys
 import tempfile
 import unittest
 
-from bemyself import projectconfig
-from bemyself.cli import _apply_project_config
+from proofboy import projectconfig
+from proofboy.cli import _apply_project_config
 from tests.fixtures import make_repo
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -109,7 +109,7 @@ class ProjectConfigMergeTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.parser = argparse.ArgumentParser(prog="bemyself check")
+        self.parser = argparse.ArgumentParser(prog="proofboy check")
 
     def write(self, payload):
         path = os.path.join(self._tmp.name, "config.json")
@@ -181,7 +181,7 @@ class ProjectConfigEndToEndTest(unittest.TestCase):
 
     def invoke(self, *args):
         return subprocess.run(
-            [sys.executable, "-m", "bemyself", "check", "--repo", self.repo.path, *args],
+            [sys.executable, "-m", "proofboy", "check", "--repo", self.repo.path, *args],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,

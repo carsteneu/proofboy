@@ -2,7 +2,7 @@
 """RLVR-Skizze: Reward = Maschinenverdikt des Runners (kein Modell-Urteil).
 
 Der Korpus ``rlvr.jsonl`` traegt je Zelle Task + Verifier-Kommando
-(``python3 -m bemyself.msheet run <sheet> --json``) + Erwartung. Dieses Skript
+(``python3 -m proofboy.msheet run <sheet> --json``) + Erwartung. Dieses Skript
 ist der Andockpunkt fuer RLVR/GRPO: ``reward(completions, record_id=…, …)``
 passt auf TRLs Reward-Aufruf (``reward_funcs=[functools.partial(reward,
 records_by_id=…)]``; TRL uebergibt ``prompts``, ``completions`` und die
@@ -51,7 +51,7 @@ DEFAULT_SANDBOX = "require"
 @functools.lru_cache(maxsize=1)
 def harness_module():
     spec = importlib.util.spec_from_file_location(
-        "bemyself_rlvr_harness", TOOLING_DIR / "harness.py"
+        "proofboy_rlvr_harness", TOOLING_DIR / "harness.py"
     )
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -70,8 +70,8 @@ def _sandbox_state(flags) -> dict:
 
 def run_verdicts(answer: str, sandbox: str = DEFAULT_SANDBOX) -> dict:
     """Verdikte des Blatts -- aus dem echten Runner (kein Modell-Urteil)."""
-    from bemyself.msheet.runner import run_sheet
-    from bemyself.msheet.sheet import parse_sheet
+    from proofboy.msheet.runner import run_sheet
+    from proofboy.msheet.sheet import parse_sheet
 
     sheet = parse_sheet(answer)
     result = run_sheet(sheet, sandbox=sandbox, timeout=20.0)

@@ -38,7 +38,7 @@ entstanden erst mit den v12-Laeufen).
 |---|---|---|
 | `sft.jsonl` | 160 | (System-Legende + Aufgabe) → verifiziertes Blatt verbatim; Arme B/C/D; je (Set-Version, Task, Arm) ein Satz |
 | `dpo.jsonl` | 18 | (prompt, chosen=verifiziert, rejected=nicht bestaetigt), 15 mit Notiz (Cross-Arm/-Version) |
-| `rlvr.jsonl` | 176 | Task + Verifier-Kommando (`python3 -m bemyself.msheet run … --json`) + Erwartung + Gold (Checkpoints/Zertifikat/Zahl) |
+| `rlvr.jsonl` | 176 | Task + Verifier-Kommando (`python3 -m proofboy.msheet run … --json`) + Erwartung + Gold (Checkpoints/Zertifikat/Zahl) |
 | `think.jsonl` | 176 | Task + Denkzone des verifizierten Blatts (Material fuer Denk-Traces; Prosa-RC nur als Laengen-Metadatum; ein Satz traegt eine leere Denkzone -- datentreu, das Blatt hat keine Denkzeilen) |
 
 Zwei Verifier-Modi in `rlvr.jsonl` (maschinell aus dem Aufgabentyp abgeleitet):
@@ -79,9 +79,9 @@ re-derivierbar (nur noch trainierbar). Auch der Ordnername zaehlt:
 
 ```bash
 python3 training/build_corpus.py \
-  --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v11-20260912 \
-  --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v12-20260912 \
-  --runs /home/carsten/projects/bemyself/.yesmem/tmp/runs-v13-20260912 \
+  --runs /home/carsten/projects/proofboy/.yesmem/tmp/runs-v11-20260912 \
+  --runs /home/carsten/projects/proofboy/.yesmem/tmp/runs-v12-20260912 \
+  --runs /home/carsten/projects/proofboy/.yesmem/tmp/runs-v13-20260912 \
   --out training/corpus
 ```
 
@@ -167,7 +167,7 @@ PY
 vllm serve training/out/sft-merged --served-model-name deepseek-flash --port 8000
 ```
 
-Der Harness spricht den OpenAI-kompatiblen Endpunkt ueber `BEMYSELF_PROXY_URL`
+Der Harness spricht den OpenAI-kompatiblen Endpunkt ueber `PROOFBOY_PROXY_URL`
 an (Default `http://localhost:9099/v1/chat/completions`); der Modellname im
 Request ist `deepseek-flash`, deshalb `--served-model-name deepseek-flash`.
 Zwei Stolpersteine:
@@ -180,7 +180,7 @@ Zwei Stolpersteine:
   besten einen eigenen Checkout der Basis-Commit-Position dafuer benutzen.
 
 ```bash
-export BEMYSELF_PROXY_URL=http://localhost:8000/v1/chat/completions
+export PROOFBOY_PROXY_URL=http://localhost:8000/v1/chat/completions
 python3 yesdocs/deepseek-math-notation/tooling/harness.py dry --arm C --task B3-0001
 python3 yesdocs/deepseek-math-notation/tooling/harness.py one --arm C --task B3-0001 --rep 1
 python3 yesdocs/deepseek-math-notation/tooling/harness.py batch --arms B,C,D --reps 1 --tier-a 16 --tier-b 8

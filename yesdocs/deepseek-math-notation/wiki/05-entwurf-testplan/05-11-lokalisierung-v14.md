@@ -134,5 +134,5 @@ c1: ref h1: ref_unconfirmed (last status '+', last verdict REFUTED)
 4. [05-07-denksprache-v1.1.md](05-07-denksprache-v1.1.md) — Denk-Sprache V1.1 (Tags, Status, Zeugenformen).
 5. [05-05-ablation-protokoll.md](05-05-ablation-protokoll.md) — Arme/Legenden, Metriken, Multiplizitätsregel.
 6. [05-04-test-harness.md](05-04-test-harness.md) — Harness-Spezifikation (Transport, Sets, Artefakt-Regeln).
-7. `tests/test_v14_harness.py`, `tooling/{harness,prompts,build_sets,evaluate,scan_feedback}.py`, `bemyself/{turing,msheet,claimtypes}/` — Implementierung + Tests (864 Tests grün).
+7. `tests/test_v14_harness.py`, `tooling/{harness,prompts,build_sets,evaluate,scan_feedback}.py`, `proofboy/{turing,msheet,claimtypes}/` — Implementierung + Tests (864 Tests grün).
 8. [../01-modellprofil/01-03b-tokenizer-v11-lexeme.md](../01-modellprofil/01-03b-tokenizer-v11-lexeme.md) — Tokenizer-Sonde der Lexeme.
